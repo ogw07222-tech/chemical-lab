@@ -6,10 +6,10 @@
 - Last updated: 2026-09-10
 - Last checked main SHA: `1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1`
 - Active branch: `docs/04-gameplay-alignment`
-- Active PR: none
+- Active PR: #6 — `docs: align laboratory gameplay with canonical progression and thermal contracts`
 
 ## Current Objective
-Align the Laboratory Gameplay contract with the current HQ source of truth for single-mode progression, discovery-gated inventory, physical phase ownership, energy-based thermal controls, unknown-species observation, deterministic experiment records, and Developer Mode isolation. This is a Game Layer contract task only; chemistry outcome logic is not implemented here.
+Align Laboratory Gameplay with the latest 00 HQ contracts for single-mode progression, discovery-gated unlimited inventory, simulation-owned phase, energy-based thermal controls, unknown-species observation, deterministic experiment records, and Developer Mode isolation. No chemistry outcome logic is implemented here.
 
 ## Source of Truth Reviewed
 Production source of truth:
@@ -23,32 +23,25 @@ Production source of truth:
 - `docs/product/GAME_UI_SYSTEM_ROADMAP.md`
 - this workstream status document
 
-Parallel public contracts reviewed as references only, not production source of truth:
+Unmerged public contracts reviewed only as references, not production source of truth:
 
-- PR #1 — 01 Molecular / Reaction Core contract
-- PR #5 — 02 Thermodynamics / Phase / Thermal contract
-- PR #3 — 03 Chemistry Data contract
+- PR #1 — 01 Molecular / Reaction Core
+- PR #5 — 02 Thermodynamics / Phase / Thermal
+- PR #3 — 03 Chemistry Data
 
-The unmerged PR contracts are used only to avoid incompatible Game Layer assumptions. Their exact types remain provisional until merged/integrated.
-
-## Canonical Core Gameplay Loop
+## Canonical Gameplay Model
 There is one normal game.
-
-Canonical loop:
 
 `choose unlocked material -> add finite amount -> configure apparatus/conditions -> run -> observe -> analyze -> confirm identity -> SpeciesDiscovery -> EncyclopediaUnlock -> InventoryUnlock -> unlimited reuse`
 
-Tutorials, objectives, guided experiments, challenges, and achievements are overlays on this same game state and command model. They may constrain a particular task setup or evaluate player actions, but they do not create a second chemistry mode or alternate simulation rules.
+Tutorial, objective, challenge, guided-experiment, and achievement systems are overlays on this same game state and command model. They may constrain a task setup or evaluate observations, but they must not define a second chemistry mode or a second simulation rule set.
 
-The earlier separate `Sandbox Mode` / `Objective Mode` proposal is deprecated and must not be reintroduced without a new 00 HQ decision.
-
-## Gameplay Session / Overlay Contract
-The Game Layer should distinguish chemistry state from optional guidance overlays.
+The former separate `Sandbox Mode` / `Objective Mode` proposal is deprecated.
 
 ```ts
 export interface LaboratoryGameState {
   progression: PlayerProgressionState;
-  activeExperiment?: ExperimentRecordRef;
+  activeExperimentId?: string;
   activeOverlay?: GameplayOverlayState;
   developerMode: DeveloperModeState;
 }
@@ -68,11 +61,9 @@ export interface GameplayOverlayState {
 }
 ```
 
-`GameplayOverlayState` must not be visible to Simulation Core as a chemistry modifier. It can only constrain commands at the Game Layer boundary or evaluate observations/results after the simulation runs.
+Overlay state must never enter Simulation Core as a chemistry modifier.
 
 ## Typed Progression State
-Recommended Phase 0 Game Layer types:
-
 ```ts
 export type SpeciesKey = string;
 export type ExperimentId = string;
@@ -93,7 +84,6 @@ export interface SpeciesDiscovery {
   confirmedAtSimulationTimeS: number;
   confirmationMethod: "instrument-analysis" | "approved-direct-identity-channel";
   analysisResultId?: string;
-  scientificStatus?: "VERIFIED" | "APPROXIMATED" | "EMPIRICAL" | "GAMEPLAY_SIMPLIFICATION" | "OPEN";
 }
 
 export interface EncyclopediaEntryState {
@@ -105,19 +95,15 @@ export interface EncyclopediaEntryState {
 }
 
 export interface InventoryUnlockState {
-  unlockedSpecies: ReadonlySet<SpeciesKey>;
+  unlockedSpecies: readonly SpeciesKey[];
   stockSemantics: "UNLIMITED_UNLOCKED";
 }
 ```
 
-Implementation may use arrays/records instead of `ReadonlySet` for serialization. The semantic invariant matters: starter species plus confirmed discoveries define normal selectable inventory.
-
-Progression state stores entitlement/unlock identity, not physical vessel amount.
+Progression contains access/knowledge state only. It does not contain physical vessel matter.
 
 ## Starter Material Contract
-The exact starter species list remains OPEN, but saves must not depend on hardcoded display names or on a globally fixed list that cannot evolve.
-
-Recommended typed contract:
+Exact starter species remain OPEN. The contract must allow starter tuning without silently rewriting older saves.
 
 ```ts
 export interface StarterMaterialSet {
@@ -137,35 +123,25 @@ export interface StarterMaterialEntitlement {
 
 Rules:
 
-- starter identity uses stable species keys;
-- exact species membership is content/HQ policy and remains OPEN;
-- a save records the entitlement it was created with so later starter-set tuning does not silently rewrite old progression;
-- migration may explicitly grant/remove content only under a versioned save migration policy;
-- starter status does not alter chemistry behavior.
+- use stable species keys, not display names;
+- exact set membership is content/HQ policy and remains OPEN;
+- saves preserve the set/revision granted at creation;
+- later tuning requires explicit versioned migration if existing saves are changed;
+- starter status never changes chemistry.
 
-## Discovery -> Encyclopedia -> Inventory Contract
-Authoritative normal-play state transition:
+## Discovery -> Encyclopedia -> Inventory
+Canonical first-discovery transition:
 
-`IdentityConfirmedEvent -> SpeciesDiscovery(first only) -> EncyclopediaUnlock -> InventoryUnlock`
+`AnalysisResult(identity-confirmed) -> IdentityConfirmedEvent -> SpeciesDiscovery -> EncyclopediaUnlock -> InventoryUnlock`
 
-A species merely existing in Simulation Core state does not count as discovered.
+A hidden species existing in Simulation Core does not count as discovered. Visually ambiguous effects do not identify a named compound. Duplicate valid confirmations may append history but must not duplicate first-discovery or inventory-unlock events.
 
-Duplicate confirmation:
+From the player's perspective, encyclopedia and inventory unlock should commit atomically after the authoritative first-discovery event.
 
-- may append experiment/history references;
-- must not create a second first-discovery event;
-- must not duplicate inventory unlock state.
+## Unlimited Unlocked Inventory
+Once a species is a starter or unlocked discovery, its normal laboratory stock is unlimited. There is no normal consumable stock counter, depletion, purchase, farming, or replenishment loop.
 
-The Game Layer should process the discovery transition atomically from the player's point of view so 05 does not show encyclopedia-unlocked but inventory-locked intermediate states unless a deliberate animation is purely presentational.
-
-## Unlimited Unlocked Inventory Semantics
-Once a species is a starter or inventory-unlocked, its normal laboratory stock is unlimited.
-
-This is a Game Layer entitlement rule only.
-
-There is no normal-play consumable stock counter and no depletion/replenishment loop.
-
-Every command that moves material into a simulation vessel must still resolve to finite SI physical values before reaching Simulation Core.
+Unlimited stock is a Game Layer entitlement only. Every operation entering Simulation Core must contain finite physical values.
 
 ```ts
 export interface AddUnlockedMaterialCommand {
@@ -177,72 +153,47 @@ export interface AddUnlockedMaterialCommand {
 }
 ```
 
-Required validation before dispatch:
+Pre-dispatch invariants:
 
-- species is starter/unlocked, unless Developer Mode bypass applies;
-- `amountMol` is finite;
-- `amountMol > 0`;
-- equipment/vessel limits permit the request;
-- derived mass/volume inputs, when explicitly represented, are finite;
-- no `Infinity`, `-Infinity`, `NaN`, sentinel huge-number stock value, or unlimited quantity token crosses into Simulation Core.
+- species is starter/unlocked unless Developer Mode bypass applies;
+- `amountMol` is finite and > 0;
+- explicit `massKg` / `volumeM3`, if present, are finite;
+- apparatus and vessel constraints are respected;
+- `Infinity`, `-Infinity`, `NaN`, unlimited tokens, and sentinel huge stock numbers are rejected before Core dispatch.
 
-Mass and volume may be derived downstream from amount/composition/data where appropriate. If Game Layer records them, they remain finite SI values (`kg`, `m^3`) and must not become independent contradictory authoritative quantities.
+The previous quantity/economy OPEN is CLOSED by HQ: unlocked normal-play inventory is unlimited. A finite-resource economy requires a new explicit 00 decision.
 
-The previous OPEN item about finite-resource economy semantics is CLOSED by the canonical HQ contract: unlocked normal inventory uses unlimited stock. A future finite-resource economy requires an explicit 00 contract revision.
+## Vessel / Phase Ownership
+Gameplay controls requests and apparatus configuration, not chemistry outcomes.
 
-## Vessel Interaction Alignment
-Gameplay may request apparatus changes, but physical state remains authoritative outside the UI/Game Layer.
+Gameplay may request:
 
-Game Layer may track/control:
+- finite material addition/removal/transfer;
+- mixing;
+- heater/cooler/thermostat controls;
+- supported pressure/volume apparatus controls;
+- electrodes/catalysts;
+- run/pause/step/speed;
+- sampling and analysis.
 
-- requested material additions/transfers;
-- apparatus configuration;
-- mixing control request;
-- heater/cooler/thermostat control state;
-- pressure/volume apparatus controls where supported;
-- electrodes/catalysts as apparatus/material inputs;
-- run/pause/step/simulation-speed requests;
-- sampling and analysis commands.
+Gameplay reads but does not authoritatively choose:
 
-Game Layer reads but does not authoritatively choose:
-
-- chemical products;
-- reaction pathway/family result;
-- reaction rates/equilibrium;
+- products/pathways/reaction family outcome;
+- kinetics/equilibrium;
 - temperature evolution;
 - pressure consequence;
 - phase;
 - reaction heat;
 - phase-change heat.
 
-All authoritative physical values use canonical SI: mol, kg, K, Pa, m^3, J, W, s, V, A, mol/m^3.
+Normal UI/gameplay must not offer `solid/liquid/gas` as a material-selection control. Phase is determined from current species, temperature, pressure, composition/environment, and the available Simulation/Thermodynamics model.
 
-## Physical Phase Ownership
-Player-facing material selection must not contain a normal control such as `choose solid/liquid/gas` for a species.
+Gameplay may use authoritative phase for visualization, apparatus compatibility, sampling/analysis, observation records, experiment history, and phase-diagram current-state markers.
 
-Phase is derived/evaluated from current physical state and models, including at least:
+All authoritative physical quantities follow `UNIT_SYSTEM.md`: mol, kg, K, Pa, m^3, J, W, s, V, A, mol/m^3.
 
-- species identity;
-- temperature;
-- pressure;
-- composition/environment;
-- supported mixture/solvent state when available.
-
-Gameplay consumes phase for:
-
-- visible vessel state;
-- apparatus compatibility;
-- sampling/analysis compatibility;
-- observation text/events;
-- phase-diagram current-state marker;
-- experiment records.
-
-Gameplay must not rewrite phase merely to satisfy an objective or make a material easier to add. If an apparatus workflow requires a desired phase, the player reaches it by changing physical conditions or selecting an appropriate supported preparation/setup.
-
-## Thermal Gameplay Contract
-The old generic `Heat` / `Cool` concept should be refined into explicit apparatus-control commands. Normal gameplay must not expose `SetTemperature` as an instantaneous authoritative state mutation.
-
-Recommended command names:
+## Thermal Gameplay Commands
+Normal gameplay must not implement instantaneous authoritative `SetTemperature`.
 
 ```ts
 export type ThermalGameplayCommand =
@@ -277,25 +228,20 @@ export type ThermalGameplayCommand =
     };
 ```
 
-If 02's final merged contract requires controller power limits as explicit Game Layer inputs, the thermostat configuration can extend with finite `maxHeatingPowerW` / `maxCoolingPowerW` or reference an apparatus capability that owns those limits.
+Semantics:
 
-Rules:
+- Heater adds energy over simulation time.
+- Cooler removes energy over simulation time.
+- Thermostat controls bounded external heat exchange toward a target; it does not overwrite `temperatureK`.
+- Reaction heat stays part of the thermal model.
+- Phase-change/latent heat stays distinct when modeled.
+- Power/target inputs are finite SI values.
+- Apparatus limits may explicitly reject or clamp a request; gameplay must not hide the distinction.
 
-- heater supplies energy over simulation time;
-- cooler removes energy over simulation time;
-- thermostat controls external heat exchange toward a target;
-- thermostat does not overwrite `temperatureK`;
-- reaction heat remains visible to the thermal model;
-- phase transition energy remains separate when modeled;
-- all power/temperature inputs are finite SI values;
-- apparatus limits may reject/clamp requests using an explicit command result rather than silently changing chemistry.
+02 owns heat integration, heat capacity, latent heat, environment heat transfer, phase evaluation, and thermostat controller algorithm.
 
-Exact physical integration, heat capacity, latent heat, environment heat transfer, and thermostat controller algorithm belong to 02.
-
-## Thermal Observation / Energy Ledger Projection
-04 should not calculate thermodynamics. It should define observation/log fields capable of consuming authoritative 02 outputs.
-
-Recommended projection:
+## Thermal Observation Contract
+04 exposes fields capable of recording authoritative 02 outputs; 04 does not calculate them.
 
 ```ts
 export interface ThermalObservationSnapshot {
@@ -307,25 +253,20 @@ export interface ThermalObservationSnapshot {
   reactionHeatContributionJ?: number;
   phaseChangeHeatJ?: number;
   environmentHeatJ?: number;
-  scientificStatus?: "VERIFIED" | "APPROXIMATED" | "EMPIRICAL" | "GAMEPLAY_SIMPLIFICATION" | "OPEN";
 }
 ```
 
-Preferred semantics:
+Preferred interpretation:
 
-- `heaterEnergySuppliedJ`: cumulative/nonnegative energy added by heater;
-- `coolerEnergyRemovedJ`: cumulative/nonnegative magnitude removed by cooler;
-- `thermostatEnergyExchangedJ`: signed, if 02 adopts the proposed signed ledger; positive into vessel, negative out;
-- `reactionHeatContributionJ`: authoritative reaction thermal contribution;
-- `phaseChangeHeatJ`: separate latent/phase-transition contribution under 02's final sign convention;
-- environment heat remains separable when modeled.
+- heater supplied and cooler removed values are explicit magnitudes;
+- thermostat energy may be signed if that is the final merged 02 convention;
+- reaction heat and phase-change heat remain separately attributable;
+- 04/05 should consume a thermal ledger rather than infer heat sources from temperature alone.
 
-04/05 must not infer any of these by numerically differentiating temperature unless explicitly labeled as a display-only estimate. The preferred source is the simulation thermal energy ledger.
+Exact sign convention and controller limits remain OPEN until 02's contract is integrated.
 
 ## Phase Diagram Interaction Contract
-Phase Diagram rendering belongs to 05; gameplay owns selection context and disclosure policy.
-
-Allowed normal-game targets:
+05 renders Phase Diagram. 04 owns selection context and identity disclosure.
 
 ```ts
 export type PhaseDiagramTarget =
@@ -336,19 +277,17 @@ export type PhaseDiagramTarget =
 
 Rules:
 
-- inventory target requires starter/unlocked species;
-- encyclopedia target requires the species identity to be legitimately known/unlocked;
-- vessel target requires that the Game Layer is allowed to reveal that species identity at the current observation state;
-- unknown vessel species cannot use phase-diagram lookup to leak identity;
-- phase diagram is an information/analysis surface, not a phase control;
-- current T/P marker may track vessel state for a known selected species;
-- if data/model quality is insufficient, show limited/approximate/unavailable state rather than fabricated precise boundaries;
-- 02/03 own diagram data/model and scientific status; 05 owns rendering.
+- inventory target must be starter/unlocked;
+- encyclopedia target must be identity-known;
+- vessel target is allowed only if that species identity is already revealable in the current observation state;
+- unknown species cannot use Phase Diagram lookup as an identity oracle;
+- Phase Diagram is information, never a phase-control surface;
+- the vessel T/P marker may track authoritative state;
+- unavailable/approximate data must remain visibly limited rather than fabricated;
+- 02/03 own phase-diagram data/model/status; 05 owns rendering.
 
-## Unknown Species Observation Contract
-The Game Layer must prevent hidden Simulation Core identity from leaking through ordinary UI state before valid confirmation.
-
-Recommended typed projection:
+## Unknown -> Identified -> Discovery Flow
+Normal UI projection must not leak Simulation Core species identity before legitimate confirmation.
 
 ```ts
 export interface UnknownSubstanceObservation {
@@ -369,15 +308,8 @@ export interface AnalysisResult {
   sampleRef: string;
   simulationTimeS: number;
   result:
-    | {
-        kind: "identity-confirmed";
-        speciesKey: SpeciesKey;
-        confidence?: number;
-      }
-    | {
-        kind: "identity-unresolved";
-        candidateCountHint?: number;
-      };
+    | { kind: "identity-confirmed"; speciesKey: SpeciesKey; confidence?: number }
+    | { kind: "identity-unresolved"; candidateCountHint?: number };
 }
 
 export interface IdentityConfirmedEvent {
@@ -389,22 +321,18 @@ export interface IdentityConfirmedEvent {
 }
 ```
 
-Projection rule:
+Projection invariant:
 
-`authoritative hidden SpeciesState -> normal observation projection -> UnknownSubstanceObservation`
+`hidden authoritative SpeciesState -> normal observation projection -> UnknownSubstanceObservation`
 
-Only after an approved identity channel:
+Then, only through an approved identity channel:
 
 `AnalysisResult(identity-confirmed) -> IdentityConfirmedEvent -> SpeciesDiscovery -> EncyclopediaUnlock -> InventoryUnlock`
 
-Normal UI must not receive hidden `speciesKey`, name, formula, molecular graph, exact reaction candidate, or debug metadata through an unknown observation object. Internally, the Game Layer may need a non-player-visible correlation token, but it must not be exposed through 05's normal view model.
-
-A visible macroscopic phase may be shown for an unknown material if legitimately observable/supported, but this must not identify the compound by itself.
+An unknown normal view model must not contain player-readable `speciesKey`, name, formula, molecular graph, reaction-candidate identity, or debug metadata. A private correlation token may exist below the UI boundary. Visible phase may be shown when legitimately observable, but it does not identify the compound by itself.
 
 ## Experiment Record Contract
-`mode: sandbox | objective` is deprecated and must not be required in new experiment records.
-
-Recommended record:
+The old required `mode: sandbox | objective` field is deprecated.
 
 ```ts
 export interface ExperimentRecord {
@@ -412,7 +340,6 @@ export interface ExperimentRecord {
   experimentId: ExperimentId;
   parentExperimentId?: ExperimentId;
   createdFromTemplateId?: string;
-
   simulation: {
     seed: string | number;
     simulationVersion: string;
@@ -420,7 +347,6 @@ export interface ExperimentRecord {
     gameLayerVersion: string;
     steppingPolicyId?: string;
   };
-
   initialSetup: ExperimentInitialSetup;
   commands: readonly RecordedLaboratoryCommand[];
   observations: readonly ObservationRecord[];
@@ -438,28 +364,23 @@ export interface ExperimentRecord {
 }
 ```
 
-Required preserved facts include:
+It must preserve at minimum:
 
 - experiment ID;
-- simulation seed and simulation/data/Game Layer versions;
-- canonical initial setup;
-- every finite material addition/transfer relevant to replay;
-- ordered commands;
-- simulation timestamps;
-- heater power changes;
-- cooler power changes;
-- thermostat enable/disable/target changes;
+- simulation seed/version and data/Game Layer versions;
+- initial setup;
+- every finite material addition/transfer used for replay;
+- ordered commands and simulation timestamps;
+- heater/cooler/thermostat state changes;
 - analysis/sample actions;
-- identity confirmation and discovery events;
-- resulting species in authoritative save/debug state as permitted, plus player-visible identified/unknown observations separately;
-- remaining species/state as required for save/replay;
+- identity-confirmation/discovery events;
+- resulting and remaining authoritative species state as needed for persistence/debug, while normal observations preserve identity gating;
 - key temperature/pressure history references;
-- deterministic replay metadata;
-- optional overlay context for tutorial/objective/challenge history.
+- thermal-energy history reference when available;
+- replay schema/stepping/checkpoint metadata;
+- optional tutorial/objective/challenge overlay history.
 
-`overlayContext` is metadata only and never switches simulation rules.
-
-### Recorded finite material addition
+Overlay metadata never changes chemistry rules.
 
 ```ts
 export interface RecordedMaterialAddition {
@@ -474,34 +395,29 @@ export interface RecordedMaterialAddition {
 }
 ```
 
-All numeric physical fields must be finite. Replay must reject invalid infinite/non-finite material values rather than normalize them.
+All physical numeric fields must be finite. Invalid non-finite replay data is rejected rather than normalized.
 
-## Save / Replay Alignment
+## Save / Replay Boundary
 Replay remains command-driven, not video-driven.
 
 Minimum deterministic bundle:
 
-- schema version;
-- initial authoritative setup/snapshot or canonical constructor inputs;
-- simulation seed;
-- Simulation Core version/compatibility ID;
+- save/replay schema version;
+- initial authoritative state or canonical constructor inputs;
+- seed;
+- Simulation Core compatibility/version ID;
 - Chemistry Data version/hash;
 - Game Layer command schema version;
-- ordered commands;
-- simulation-time timestamps/sequence IDs;
-- thermal apparatus control changes;
+- ordered command stream;
+- simulation-time timestamps and sequence IDs;
+- thermal apparatus-control changes;
 - stepping policy where required;
-- optional checkpoints/hashes for divergence detection.
+- optional checkpoints/state hashes for divergence detection.
 
-Progression state and experiment replay should be separable:
-
-- experiment replay reconstructs chemistry/experiment behavior;
-- player save reconstructs discovery/encyclopedia/inventory entitlement state.
-
-Replaying an old experiment in normal play must not silently award historical discoveries again unless the replay is explicitly treated as a new live experiment under progression rules. Default archival replay should be non-progression-mutating.
+Experiment replay and player progression persistence are distinct. Archival replay should be non-progression-mutating by default. A deliberate "re-run as new experiment" may be treated as a new live experiment and evaluated normally.
 
 ## Developer Mode Boundary
-Developer Mode is the only canonical all-access bypass.
+Developer Mode is the only all-access bypass.
 
 ```ts
 export interface DeveloperModeState {
@@ -510,177 +426,170 @@ export interface DeveloperModeState {
 }
 ```
 
-Developer capabilities may include:
+It may browse/spawn all supported species, bypass discovery entitlement, inspect hidden state/candidates/pruning data, force test setups, and use validation fixtures.
 
-- browse/spawn all supported species;
-- bypass normal discovery/inventory entitlement checks;
-- inspect hidden species identities and raw Simulation Core state;
-- inspect reaction candidates/pruning diagnostics;
-- force test setups/states;
-- access validation fixtures.
+Invariants:
 
-Boundaries:
-
-- Developer Mode does not alter thermodynamics, kinetics, conservation, phase, or chemical outcomes;
-- bypass means access/observability only;
-- Developer Mode saves/runs must be clearly marked so they cannot contaminate normal progression/achievement claims by accident;
-- Premium is not Developer Mode and cannot receive all-species bypass;
-- Developer material spawning still sends finite physical amounts to Simulation Core.
+- bypass changes access/observability, not thermodynamics, kinetics, conservation, phase, or normal reaction outcomes;
+- developer runs/saves are clearly marked and do not accidentally contaminate normal progression/achievements;
+- Premium is not Developer Mode;
+- Developer spawning still sends finite physical amounts to Simulation Core.
 
 ## Safety / Gameplay Abstraction
-Potentially dangerous conditions may be represented through non-graphic, educational abstractions such as:
+Hazardous conditions may be represented non-graphically through:
 
-- warning state;
-- apparatus operating-limit warning;
+- warnings;
+- apparatus-limit warnings;
 - containment-failure abstraction;
 - experiment abort/simulation termination;
-- damaged/unavailable apparatus state if later useful for gameplay.
+- abstract apparatus damage/unavailability if later useful.
 
-The game must not provide operational tutorials for acquiring, preparing, concentrating, or handling real dangerous substances. Safety feedback should describe simulation state and apparatus limitations at a high level rather than teaching real-world hazardous procedures.
+Gameplay must not teach real-world acquisition, preparation, concentration, or handling procedures for dangerous substances. Safety presentation should communicate simulation/apparatus state at a high level.
 
-## 05 — Web UI Handoff
-05 should align normal UI around these information requirements:
-
-1. One normal game; no Sandbox/Objective chemistry-mode selector.
-2. Tutorials/objectives/challenges appear as optional overlays/panels.
-3. Inventory lists starter + unlocked species only.
-4. Unlocked stock is shown as unlimited; amount input means finite quantity to add now, not remaining stock.
-5. No phase selector for normal material addition.
-6. Thermal controls expose heater power, cooler power, and optional thermostat target/controller state rather than an instantaneous temperature setter.
-7. Unknown species use anonymous observation/view models until identity confirmation.
-8. Discovery feedback atomically connects confirmation -> encyclopedia -> inventory unlock.
-9. Phase Diagram is available only for identity-known eligible targets and never acts as a phase-control surface.
-10. Experiment history can display control changes, analyzer actions, discoveries, T/P series, and thermal-energy ledger fields when available.
-11. Developer-only all-species/debug views are visually and structurally separated from normal gameplay.
-12. All convenient displayed units convert through typed adapters; authoritative gameplay/simulation records stay SI.
-
-PR #4's current UI scaffold predates this complete alignment and should be reconciled before production integration, especially around unrestricted mock catalog exposure, thermal controls, phase ownership, and normal-mode progression.
-
-## 06 — Validation Requirements
-06 should add/retain tests for the following before this contract is considered production-validated:
-
-### Progression / inventory
-- undiscovered non-starter species cannot be selected in normal inventory;
-- hidden simulation existence alone does not unlock identity;
-- first valid identity confirmation emits one first-discovery transition;
-- confirmation produces encyclopedia + inventory unlock exactly once;
-- duplicate confirmations do not duplicate unlocks;
-- unlocked stock is unlimited at Game Layer;
-- every vessel addition remains finite and positive;
-- `Infinity`, `NaN`, and non-finite mass/volume/amount are rejected before Core dispatch;
-- save/load preserves starter/discovery/encyclopedia/inventory state;
-- starter-set revision does not silently rewrite existing save entitlement.
-
-### Unknown identity
-- normal observation projection does not leak species key/name/formula/graph before identity confirmation;
-- phase or visible macroscopic observations do not accidentally unlock species;
-- analyzer confirmation switches subsequent allowed identity-bearing projections correctly.
-
-### Thermal / phase
-- no normal command directly overwrites authoritative temperature;
-- heater/cooler commands operate through finite power requests;
-- thermostat target does not bypass the 02 thermal model;
-- energy ledger components remain distinguishable in experiment records;
-- phase is simulation-owned and cannot be selected directly by normal Game/UI commands;
-- phase-diagram interaction cannot be used to identify hidden species;
-- SI unit boundaries are respected for K, Pa, m^3, J, W, s.
-
-### Replay / mode isolation
-- identical supported initial state + seed + command stream + stepping policy reproduces deterministic behavior subject to Core guarantee;
-- archival replay does not mutate progression by default;
-- overlay metadata does not change chemistry results;
-- Developer Mode bypass changes access/visibility only, not chemistry outcomes;
-- normal and Developer runs with the same physical initial state/commands produce the same chemistry when debug-only forced-state operations are excluded;
-- Standard/Premium entitlements do not alter discovery or chemistry behavior.
-
-Scientific accuracy thresholds remain governed by `REAL_EXPERIMENT_VALIDATION.md`; 04 does not redefine them.
-
-## Dependencies / Handoffs to 01 / 02 / 03
+## Dependencies on 01 / 02 / 03
 ### 01 — Simulation Engine
-Required stable boundary:
+Required production boundary:
 
 - finite `amountMol` only;
-- stable species identity keys;
-- authoritative species state not polluted by inventory entitlement;
-- phase state read-only from the Game Layer perspective;
-- deterministic state/reaction event IDs needed for record/replay correlation;
-- hidden species identity must be projectable without leaking to normal UI.
+- stable species keys;
+- no inventory entitlement inside authoritative species state;
+- phase is read-only to Game Layer;
+- deterministic state/event IDs for replay correlation;
+- hidden identities can be projected without leaking to normal UI.
 
-PR #1 publicly proposes these directions and is compatible with this gameplay contract, but remains unmerged.
+PR #1 publicly proposes compatible finite amount/phase/identity semantics but is unmerged.
 
 ### 02 — Thermodynamics & Kinetics
-Required stable boundary:
+Required production boundary:
 
-- authoritative temperature/phase evaluation;
+- authoritative temperature and phase evaluation;
 - heater/cooler/thermostat energy-control semantics;
-- distinguishable reaction/heater/cooler/thermostat/environment/phase-change thermal contributions;
-- phase diagram data/model boundary;
-- phase-transition events where supported;
-- apparatus/controller limit semantics.
+- separable reaction/heater/cooler/thermostat/environment/phase-change thermal contributions;
+- phase-diagram data/model boundary;
+- phase-transition events when supported;
+- apparatus/controller limits.
 
-PR #5 publicly proposes an explicit thermal energy ledger and bounded thermostat model compatible with this gameplay contract, but remains unmerged. Exact sign conventions, controller limits, and latent-heat tier remain subject to 02/00 integration.
+PR #5 publicly proposes a compatible thermal ledger and bounded thermostat but is unmerged. Exact sign conventions, controller limits, latent-heat tier, and integration ordering remain OPEN.
 
 ### 03 — Chemistry Data
-Required stable boundary:
+Required production boundary:
 
-- stable species keys and validated display identity data;
-- phase/thermal properties with provenance and scientific status;
-- phase-boundary/triple/critical-point data where supported;
-- no fabricated precision when phase data are incomplete.
+- stable species identity data;
+- SI-normalized phase/thermal properties with provenance/status;
+- phase boundaries and triple/critical points when available;
+- explicit missing-data behavior with no fabricated precision.
 
-PR #3 publicly proposes SI-normalized phase/thermal records and explicit missing-data behavior compatible with this gameplay contract, but remains unmerged.
+PR #3 publicly proposes compatible SI-normalized phase/thermal records but is unmerged.
+
+## 05 — Web UI Handoff
+05 must align the UI-facing provider/view-model contract to these rules:
+
+- no Sandbox/Objective chemistry-mode selector;
+- overlays for tutorial/objective/challenge;
+- normal inventory shows starter + unlocked species only;
+- unlocked stock displays as unlimited while amount input means finite quantity added now;
+- no normal phase selector;
+- heater power, cooler power, and thermostat controls replace direct SetTemperature semantics;
+- unknown species remain anonymous until identity confirmation;
+- confirmation -> discovery -> encyclopedia -> inventory appears as one authoritative progression transition;
+- Phase Diagram is identity-gated information, never a phase control;
+- experiment history can show thermal controls, analyses, discoveries, T/P series, and thermal-ledger data when available;
+- Developer all-species/debug surfaces are isolated from normal UI;
+- UI units use typed conversion adapters while authoritative state remains SI.
+
+PR #4 predates this full alignment. Before production integration it must be reconciled especially for mock-catalog visibility, progression gating, thermal controls, phase ownership, and unknown identity projection.
+
+## 06 — Validation Requirements
+Progression/inventory:
+
+- undiscovered non-starter species cannot be selected normally;
+- hidden simulation existence alone never unlocks;
+- first valid identity confirmation unlocks exactly once;
+- encyclopedia and inventory unlock remain consistent;
+- duplicate confirmation does not duplicate unlock;
+- unlocked stock is unlimited in Game Layer;
+- every Core-bound addition is finite and positive;
+- Infinity/NaN/non-finite mass, volume, amount are rejected;
+- save/load preserves starter/discovery/encyclopedia/inventory state;
+- starter-set revisions do not silently rewrite existing entitlement.
+
+Unknown identity:
+
+- normal projection does not leak species key/name/formula/graph before confirmation;
+- visible phase/macroscopic observations alone do not unlock;
+- analyzer confirmation permits identity-bearing views only after the authoritative event;
+- Phase Diagram cannot act as an identity oracle.
+
+Thermal/phase:
+
+- no normal command directly overwrites authoritative temperature;
+- heater/cooler use finite power requests;
+- thermostat target does not bypass the 02 thermal model;
+- thermal ledger components stay distinguishable;
+- phase cannot be selected directly by normal Game/UI commands;
+- SI boundaries remain K, Pa, m^3, J, W, s as applicable.
+
+Replay/isolation:
+
+- supported identical initial state + seed + command stream + stepping policy reproduces deterministic behavior subject to Core guarantee;
+- archival replay does not mutate progression by default;
+- overlay metadata does not affect chemistry;
+- Developer Mode changes access/visibility only;
+- normal and Developer runs with identical physical inputs produce identical chemistry when debug forced-state actions are excluded;
+- Standard/Premium entitlement never changes chemistry/discovery rules.
+
+Scientific accuracy remains governed by `REAL_EXPERIMENT_VALIDATION.md`; 04 does not redefine scientific thresholds.
 
 ## Completed
-- Re-audited latest main and all required HQ canonical documents.
-- Removed separate Sandbox/Objective chemistry-mode semantics from the active 04 contract.
-- Closed the old unlocked-material quantity/economy OPEN item: unlocked normal inventory is unlimited by canonical HQ contract.
-- Defined typed `PlayerProgressionState`, discovery, encyclopedia, inventory, and starter-material contracts.
-- Defined finite-only unlimited-inventory dispatch semantics.
-- Defined physical phase ownership and prohibited normal direct phase selection.
-- Refined thermal commands to Heater / Cooler / Thermostat power/controller semantics.
-- Defined thermal observation/energy-ledger projection requirements without calculating thermodynamics in 04.
-- Defined Phase Diagram target/identity gating contract.
-- Defined unknown -> analyzed -> identity-confirmed -> discovery typed flow.
-- Updated Experiment Record and replay contract; deprecated `mode: sandbox/objective`.
-- Defined Developer Mode bypass/isolation boundary.
-- Defined 05 UI handoff and 06 validation requirements.
-- Reviewed public contracts from latest 01/02/03 PRs as non-production references.
+- Rechecked production main `1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1` and all required HQ docs.
+- Reviewed latest public 01/02/03 PR contracts as non-production references.
+- Replaced separate Sandbox/Objective mode semantics with single normal game + overlays.
+- Closed unlocked inventory economy semantics as unlimited stock per HQ.
+- Defined typed progression, discovery, encyclopedia, inventory, and starter-set contracts.
+- Defined finite-only material dispatch despite unlimited stock.
+- Aligned phase ownership to Simulation/Thermodynamics.
+- Defined Heater/Cooler/Thermostat commands and prohibited normal direct SetTemperature mutation.
+- Defined thermal observation/ledger fields without implementing thermodynamic calculations.
+- Defined Phase Diagram selection/disclosure contract.
+- Defined unknown -> identified -> discovery typed flow.
+- Updated Experiment Record and replay model; deprecated sandbox/objective mode field.
+- Defined Developer Mode boundary.
+- Defined 05 and 06 handoffs.
+- Opened PR #6 for this documentation alignment.
 
-## Validation Evidence / Verdict
-This task is a contract/design audit. No chemistry runtime implementation changed, so no scientific or runtime PASS is claimed.
-
+## PASS / FAIL / OPEN
 ### PASS — contract alignment
-- PASS: single normal game + overlay model matches current HQ contract.
-- PASS: discovery -> encyclopedia -> inventory transition matches canonical progression.
-- PASS: unlimited unlocked stock is isolated to Game Layer; finite physical amounts are required at Core boundary.
-- PASS: starter-material membership can change without schema redesign.
-- PASS: phase is simulation-owned and cannot be a normal player-selected property.
-- PASS: thermal controls are energy/power based rather than direct temperature overwrite.
-- PASS: unknown-species identity is protected until legitimate confirmation.
-- PASS: experiment records can preserve finite additions, thermal commands, analysis/discovery events, T/P history references, and deterministic replay metadata.
-- PASS: Developer Mode bypass is isolated from normal progression and from chemistry rules.
-- PASS: 05 and 06 receive explicit handoff requirements.
+- PASS: single normal game + overlay matches HQ.
+- PASS: discovery -> encyclopedia -> inventory matches HQ.
+- PASS: unlimited stock is isolated to Game Layer and Core inputs stay finite.
+- PASS: starter-set membership can change without schema redesign.
+- PASS: phase is simulation-owned.
+- PASS: thermal controls operate through energy/power semantics.
+- PASS: unknown identity is protected until valid confirmation.
+- PASS: experiment records cover required commands, thermal controls, analysis/discovery, histories, versions, and replay metadata.
+- PASS: Developer Mode bypass is isolated from chemistry/progression.
+- PASS: explicit 05/06 handoffs are defined.
 
 ### FAIL
-- None identified at contract level after this alignment.
+None identified at contract level.
 
 ### OPEN
-- exact `StarterMaterialSet.speciesKeys` and starter equipment list;
-- exact analyzer/identity-confirmation requirements by chemistry capability;
-- final canonical serialization representation for progression maps/sets;
-- final merged 01 species/event types and stable identity naming;
-- final merged 02 thermostat controller limits/sign conventions;
-- final 02 latent-heat implementation tier and phase-transition integration behavior;
-- exact apparatus semantics for pressure and volume control;
-- exact set of species with usable Phase Diagram support at MVP/Core Release;
-- exact policy for showing unidentified mixture/component counts without leaking identity;
+- exact starter species/equipment set;
+- analyzer/identity-confirmation rules by chemistry capability;
+- final serialization form for maps/sets;
+- final merged 01 identity/event type names;
+- final merged 02 thermostat limits and thermal-ledger sign conventions;
+- final latent-heat implementation tier and phase-transition integration ordering;
+- exact pressure/volume apparatus semantics;
+- MVP/Core species with validated Phase Diagram support;
+- unidentified mixture/component-count disclosure policy without identity leakage;
 - objective/challenge reward details;
-- archival replay vs "re-run as new experiment" UX semantics;
-- runtime validation implementation in 06;
-- reconciliation of PR #4 UI scaffold with this canonical contract before integration.
+- archival replay vs re-run-as-new UX semantics;
+- runtime implementation and 06 validation;
+- PR #4 UI reconciliation before integration.
 
 ## Next Actions
-1. 05 should update its UI-facing provider/view-model contract to enforce progression, unknown identity, thermal controls, and phase ownership.
-2. 06 should implement contract tests listed above plus SI/replay checks.
-3. After PR #1/#3/#5 stabilize or merge, rebind 04's conceptual types to their canonical production names rather than duplicating types.
-4. 07 should integrate 04 documentation with 01/02/03/05 in an order that preserves the final shared contracts and prevents stale mock interfaces from becoming production assumptions.
+1. 05: update provider/view-model contracts for progression gating, anonymous unknowns, physical thermal controls, and phase ownership.
+2. 06: implement the validation matrix above plus SI and replay checks.
+3. Rebind 04 conceptual types to final production names after PR #1/#3/#5 stabilize/merge rather than duplicating parallel types.
+4. 07: integrate in an order that prevents stale UI/mock contracts from becoming production assumptions.
