@@ -6,7 +6,7 @@
 - Last updated: 2026-09-10
 - Last checked main SHA: 197b83595d2b562fa68c0ce69d25d48d4c9311b7
 - Active branch: feature/phase0-web-lab-scaffold
-- Active PR: pending creation
+- Active PR: #4
 
 ## Current Objective
 Continue the approved Phase 0 information architecture into a runnable React + TypeScript laboratory scaffold using a UI-facing provider boundary and deterministic mock provider, without embedding chemistry behavior in React components.
@@ -90,6 +90,7 @@ Added component/provider tests covering:
 - Consequently the repository's real `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` could not be executed here with installed project dependencies.
 - A temporary source-only TypeScript static check using local declaration stubs passed after fixing a `LaboratoryEvent.kind` discriminant widening issue. This is useful evidence but is not a substitute for the real project typecheck.
 - A headless Chromium smoke harness was attempted, but external React CDN loading was unavailable in the current environment, so an actual React browser render is still OPEN.
+- PR #4 head currently has no GitHub status checks or workflow runs, so CI does not supply missing runtime evidence yet.
 - 01 Molecular Reaction Core PR #1 is not production source of truth until merge; the UI uses an adapter boundary only.
 - 02 thermodynamics/kinetics observables are not yet integrated.
 - 03 Chemistry Data PR #3 is not production source of truth until merge; catalog metadata remains mock-only.
@@ -135,4 +136,4 @@ After PR #3 merges, provide display-safe species names/formula/phase metadata an
 The current UI command/provider boundary is ready for a production adapter once concrete Game Layer APIs exist. 05 will not duplicate command validation or chemistry outcomes.
 
 ### To 07 — Integration & GitHub
-Do not merge until network-enabled runtime validation confirms install, project typecheck, tests, production build, browser render, and obvious console/runtime error checks.
+Do not merge PR #4 until network-enabled runtime validation confirms install, project typecheck, tests, production build, browser render, and obvious console/runtime error checks.
