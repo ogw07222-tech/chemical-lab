@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CanonicalValidationPolicy,
   VALIDATION_POLICY_SOURCE,
+  absoluteError,
   aggregateNumericResults,
   allowedError,
   applyAbsoluteGates,
@@ -11,6 +12,7 @@ import {
   deterministicResult,
   evaluateEligibility,
   fail,
+  loadManifest,
   median,
   nrmse,
   open,
@@ -45,7 +47,8 @@ describe("validation verdicts", () => {
 });
 
 describe("metrics", () => {
-  it("computes median and interpolated P90", () => {
+  it("computes absolute error, median, and interpolated P90", () => {
+    expect(absoluteError(12, 10)).toBe(2);
     expect(median([3, 1, 4, 2])).toBe(2.5);
     expect(p90([0, 10, 20, 30, 40])).toBeCloseTo(36);
   });
@@ -117,12 +120,13 @@ describe("benchmark adapter foundation", () => {
     expect(result.verdict).toBe("OPEN");
   });
 
-  it("validates a schema-independent manifest adapter", () => {
-    const result = validateManifest({
+  it("validates and loads a schema-independent manifest adapter", async () => {
+    const manifest = {
       schemaVersion: "test-only",
       benchmarkSetId: "synthetic",
-      entries: [{ benchmarkId: "case-1", tier: "A", family: "TEST", enabled: true }],
-    });
-    expect(result.verdict).toBe("PASS");
+      entries: [{ benchmarkId: "case-1", tier: "A" as const, family: "TEST", enabled: true }],
+    };
+    expect(validateManifest(manifest).verdict).toBe("PASS");
+    expect((await loadManifest({ load: () => manifest })).verdict).toBe("PASS");
   });
 });
