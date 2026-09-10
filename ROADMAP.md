@@ -7,6 +7,8 @@
 - Deterministic simulation rules
 - Workstream status protocol
 - Test strategy
+- Canonical discovery -> encyclopedia -> inventory progression contract
+- Premium/core-feature boundary contract
 
 ## Phase 1 — Molecular Core
 - Atoms and elements
@@ -41,10 +43,25 @@
 
 ## Phase 5 — Laboratory Game
 - Interactive reaction vessel
-- Inventory and material handling
+- Starter-material inventory
+- Discovery confirmation through valid observation/analysis
+- Encyclopedia registration
+- Discovered-species inventory unlock and reuse
 - Heating/cooling and environment controls
 - Instruments and analysis
-- Experiment log/discovery/progression
+- Experiment log and progression
+- Objectives/tutorials/challenges as overlays within the single normal game
+- Developer Mode for all-species/debug access only
+
+## Post-Phase 5 — Premium Foundation
+Only after the standard gameplay loop is stable:
+- Advanced experiment archive and organization
+- Multi-run comparison and richer analytics
+- Enhanced encyclopedia organization/relationship views
+- Additional saved workspace/setup convenience
+- Cosmetic laboratory/UI customization
+
+Premium must not unlock undiscovered chemistry or alter simulation outcomes.
 
 ## Phase 6 — Advanced Chemistry
 - More elements and functional groups
