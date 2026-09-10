@@ -25,35 +25,43 @@ Do not provide false precision. Classify uncertain behavior as VERIFIED, APPROXI
 ## Core Simulation Flow
 Vessel State -> molecular/species analysis -> reactive-site detection -> reaction-family filtering -> candidate generation -> conservation validation -> product graph generation -> thermodynamic evaluation -> kinetic evaluation -> competing-reaction resolution -> stoichiometry/state update.
 
+## Canonical Unit System
+The project uses SI units as the authoritative internal unit system across Simulation Core, normalized chemistry data, gameplay physical state, persistence/replay, validation, and cross-workstream contracts.
+
+Examples:
+- amount: mol
+- mass: kg
+- temperature: K
+- pressure: Pa
+- volume: m^3
+- energy: J
+- molar energy: J/mol
+- concentration: mol/m^3
+- voltage: V
+- current: A
+
+UI may present convenient derived units such as °C, L, mL, kPa, bar, atm, mol/L, kJ, or kJ/mol, but conversion must occur at typed boundaries and must never change authoritative simulation state. See `docs/contracts/UNIT_SYSTEM.md`.
+
 ## Canonical Gameplay Progression
-Normal play uses one core game mode.
+The normal game uses one primary gameplay mode.
 
-The central progression loop is:
+Core progression loop:
 
-`experiment -> create species -> analyze/confirm identity -> encyclopedia registration -> inventory unlock -> reuse in later experiments`
+`experiment -> create species -> analyze/confirm -> encyclopedia registration -> inventory unlock -> unlimited reuse`
 
-Players begin with a limited starter-material set. A non-starter compound becomes freely selectable for future laboratory use only after a valid first discovery/analysis confirms its identity and registers it in the encyclopedia.
+Only designated starter materials and previously discovered/unlocked species are selectable in normal inventory.
 
-Do not split the product into separate Sandbox and Objective modes with different material-access rules. Tutorials, objectives, and challenges may exist as overlays inside the same game.
+Once a species is unlocked, it has unlimited laboratory stock for future experiments. Each actual vessel addition still specifies a finite physical amount and remains fully subject to conservation laws and the simulation engine.
 
-All-species access and discovery bypass are Developer Mode features only. Developer Mode is for development, QA, validation, and debugging; it is not a premium gameplay benefit.
+All-supported-species access is Developer Mode only. Premium must not bypass discovery or change this inventory rule.
 
-The canonical detailed contract is `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`.
-
-## Premium Boundary
-The Standard game contains the complete supported chemistry engine, discovery progression, encyclopedia, and normal inventory unlock loop.
-
-Premium may add workflow convenience, advanced analysis/visualization, archive capacity, organization, and cosmetics, but must not unlock chemistry, reveal undiscovered species, alter reaction outcomes, or modify scientific accuracy.
-
-See `docs/product/PREMIUM_ROADMAP.md`.
+See `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`.
 
 ## MVP
 Initial chemistry focuses on H, C, N, O and a small set of molecules such as H2, O2, N2, H2O, CO, CO2, CH4, and NH3. The architecture must remain extensible to additional elements and reaction families without redesigning the engine.
 
 ## Source-of-Truth Policy
 - Cross-system design: `00 - Chemistry Lab Game Design HQ` and this document.
-- Gameplay discovery/inventory progression: `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`.
-- Premium boundary: `docs/product/PREMIUM_ROADMAP.md`.
 - Implementation: latest `main`, relevant feature branch/PR, tests, and CI.
 - Workstream progress: `docs/workstream-status/*.md`.
 - Scientific data claims: source metadata maintained by workstream 03.
