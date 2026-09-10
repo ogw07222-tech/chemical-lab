@@ -7,7 +7,7 @@
 - Last checked main SHA: 567994693e56a7013cbcce0d95222a6cb98594af
 - Task-start main SHA: c33f5e0bb6d30db63c4097edce30c4333a14b0c5
 - Active branch: feature/phase1-thermal-state-primitives
-- Active PR: pending at status-write time
+- Active PR: #9
 
 ## Current Objective
 Implement a deterministic, browser-safe executable thermal foundation from the approved Phase 0 contract without introducing numerical thermochemistry databases, phase-diagram data, latent-heat solving, EOS logic, or detailed heat-transfer models.
