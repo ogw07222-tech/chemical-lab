@@ -1,183 +1,107 @@
 # 05 — Web UI
 
 - Owner: Lead Game UI/UX Designer / Chemistry Visualization Developer / Frontend Integration Developer / Web Laboratory Interface Developer
-- Current phase: Phase 0 — Architecture
-- Overall state: IN_PROGRESS
+- Current phase: Phase 0 — Architecture / Early Implementation
+- Overall state: IN_PROGRESS_WITH_HQ_ALIGNMENT
 - Last updated: 2026-09-10
-- Last checked main SHA: f6513bd6cefc7df5b16d1f678a4cf1b443859e94
-- Active branch: main (status-document update only)
-- Active PR: none
 
 ## Current Objective
-Define browser UI information architecture and visualization contracts for vessel state, species, molecular graphs, environment controls, reaction feedback, and experiment analysis without embedding chemistry logic in the UI.
+Continue the browser Laboratory UI using the approved information architecture while aligning Inventory, Discovery, and Encyclopedia with the canonical discovery-driven progression contract.
 
-## Completed
-### Phase 0 Information Architecture
-- Defined the Laboratory main screen as a desktop-first three-zone workspace:
-  - left: substances/inventory and molecule selection,
-  - center: reaction vessel and direct laboratory interaction,
-  - right: environment controls and live state/analysis.
-- Defined a persistent experiment/status strip for simulation state, time/speed, temperature, pressure, volume, reaction activity, warnings, and pause/run controls.
-- Defined lower/secondary analysis surfaces for reaction timeline, composition graphs, before/after comparison, product analysis, experiment log, and encyclopedia links.
-- Established progressive disclosure: essential vessel state is always visible; detailed numerical/structural analysis is available through tabs/drawers without hiding the core experiment.
+Canonical references:
 
-### Reaction Vessel Visualization Strategy
-- No real-time CFD or one-rendered-particle-per-molecule requirement.
-- Vessel visualization is a semantic/statistical view of simulation state.
-- Represent bulk phase, fill level, gas region, precipitate/solid region, bubbles/gas evolution, thermal activity, and reaction intensity using bounded visual abstractions.
-- Visual effects must be derived from state/event data and must not infer new chemistry.
-- The composition panel remains the authoritative quantitative view when vessel visuals are approximate.
+- `PROJECT.md`
+- `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`
+- `docs/product/PREMIUM_ROADMAP.md`
+- latest `docs/workstream-status/04-laboratory-gameplay.md`
 
-### Molecule Visualization Strategy
-- 2D is the Phase 0/initial implementation default.
-- MolecularGraph renderer must support atoms, bonds, bond order, formal charge, selection/highlight state, and optional reactive-site annotations.
-- Renderer consumes graph/layout data; it must not fabricate chemically authoritative 3D geometry.
-- Architecture should allow a later 3D viewer as an alternate renderer without changing the species/molecular-graph data contract.
+## Preserved UI Architecture
+The approved initial Laboratory workspace remains:
 
-### Controls Model
-Planned control groups:
-- thermal: temperature target, heater/cooler state or power,
-- vessel: volume and pressure controls where the gameplay/system contract permits them,
-- electrochemical: electrode configuration, voltage/current controls,
-- chemistry aids: catalyst selection/add/remove,
-- simulation: run/pause, step, speed, reset/replay hooks.
+- left: inventory/material and molecule selection;
+- center: reaction vessel and direct laboratory interaction;
+- right: environment controls and live state/analysis;
+- secondary analysis surfaces: composition, timeline, graphs, product analysis, experiment comparison, and log.
 
-Controls are command emitters. They do not calculate reaction products, rates, equilibrium, pressure, or temperature consequences locally.
+2D molecular visualization remains the initial default. UI components must not calculate chemistry.
 
-### Reaction Feedback
-Planned feedback channels:
-- gas production/evolution,
-- temperature trend,
-- pressure trend,
-- phase/state changes,
-- precipitation/solid formation,
-- reaction-rate/activity indicator,
-- product formation and reactant depletion,
-- structured event/timeline entries.
+## Canonical Inventory / Discovery UX
+Normal play must not show all supported compounds as immediately selectable inventory materials.
 
-A visual effect requires an explicit observable state or event source. Color changes are treated as an abstraction unless a validated source/property contract supplies physical color data.
+Required flow:
 
-### Analysis UI
-- Composition table: species, phase, amount, fraction/concentration where supplied, delta, status.
-- Timeline: timestamped simulation/game events plus state-change markers.
-- Graphs: amount vs time, temperature vs time, pressure vs time, optional reaction-rate series.
-- Before/after comparison: initial/current/final composition with absolute and relative deltas.
-- Product analysis: generated species, remaining reactants, phases, confidence/scientific-status metadata when available.
-- Experiment log: player actions, instrument observations, notable changes, snapshots/replay references.
+`experiment -> species produced -> valid analysis/identity confirmation -> discovery feedback -> encyclopedia registration -> inventory unlock -> future reuse`
 
-### Responsive Strategy
-- Desktop: three-zone laboratory workspace with persistent vessel and state panels.
-- Tablet: central vessel retained; left/right panels become collapsible rails/drawers; critical state remains pinned.
-- Mobile minimum support: single-column vessel-first layout with bottom/tab navigation for Inventory, Controls, Analysis, and Log. Mobile is not the primary dense-analysis target.
+UI requirements:
 
-### Proposed React / TypeScript Component Boundary
-```text
-AppShell
-└─ LaboratoryWorkspace
-   ├─ ExperimentStatusBar
-   ├─ InventoryPanel
-   │  ├─ SubstanceSearch
-   │  ├─ SubstanceList
-   │  └─ MoleculeSelector
-   ├─ VesselWorkspace
-   │  ├─ ReactionVesselView
-   │  ├─ VesselOverlay
-   │  └─ MoleculeInspector / MoleculeGraphView
-   ├─ EnvironmentPanel
-   │  ├─ ThermalControls
-   │  ├─ PressureVolumeControls
-   │  ├─ ElectrodeControls
-   │  ├─ CatalystControls
-   │  └─ SimulationTimeControls
-   └─ AnalysisWorkspace
-      ├─ CompositionTable
-      ├─ ReactionTimeline
-      ├─ ExperimentGraphs
-      ├─ ProductAnalysis
-      ├─ ExperimentComparison
-      └─ ExperimentLog
-```
+- starter materials are selectable from a new save;
+- undiscovered non-starter species are not selectable in normal inventory;
+- hidden Simulation Core species must not leak their names through the UI before valid confirmation;
+- unknown observations may be shown as unknown/undetermined material states;
+- first confirmed discovery should produce clear feedback;
+- encyclopedia and inventory availability should update from authoritative Game Layer events;
+- unlocked species should be easy to select again for later experiments;
+- Developer Mode all-species access must be visually and architecturally separate from normal play.
 
-Secondary routes/surfaces:
-- MoleculeEncyclopedia
-- DiscoveryUI
-- Settings
-- ExperimentHistory / Replay (later contract)
+## Single Normal Game Rule
+Do not build separate Sandbox and Objective navigation/modes with different material access.
 
-### State / Dependency Boundary
-Proposed frontend dependency flow:
+Tutorials, objectives, or challenges may be UI overlays/surfaces within the same normal game.
+
+Do not make `sandbox/objective` a required frontend state discriminator unless 00 HQ later changes the canonical contract.
+
+## Premium UI Boundary
+Standard users receive the complete chemistry/discovery/encyclopedia/inventory loop.
+
+Premium UI may later add:
+
+- richer experiment archive/search/tagging;
+- multi-run comparison;
+- enhanced encyclopedia relationship views;
+- additional workspace organization;
+- advanced visualization options;
+- cosmetics/themes.
+
+Premium UI must not reveal or unlock undiscovered species and must not alter simulation outputs.
+
+## Simulation Boundary
+Frontend dependency flow remains:
+
 `Simulation/Game snapshot -> UI adapter/selectors -> React view state -> components`
 
-User actions flow:
+User action flow remains:
+
 `component event -> typed UI command -> Game Layer command API -> Simulation Core -> new snapshot/events -> UI`
 
-Rules:
-- no chemistry formulas in React components,
-- no product/rate/equilibrium inference in selectors,
-- display formatting/unit conversion may live in UI utilities,
-- animation/interpolation may smooth display values but must not mutate authoritative simulation state,
-- simulation tick rate and render frame rate are independent,
-- high-frequency snapshots should be sampled/coalesced for presentation when needed.
+No chemistry formulas, product inference, equilibrium logic, reaction-rate calculation, or discovery authority belongs in React components.
 
-## In Progress
-- Refine typed snapshot/event/command interfaces once 01 and 04 publish stable Phase 0 contracts.
-- Decide exact navigation/tab/drawer implementation after frontend scaffold exists.
-- Define accessibility/unit-formatting conventions before production component implementation.
-
-## Blockers / OPEN
-- 01 Simulation Engine has not yet finalized the MolecularGraph/species TypeScript schema.
-- 04 Laboratory Gameplay has not yet finalized the command contract for adding/removing material, vessel manipulation, instruments, catalysts, electrical controls, run/pause/step, experiment history, and replay.
-- Exact definitions for concentration, reaction-rate observables, reaction events, color/optical properties, precipitation events, and analysis instrument outputs are not yet stable.
-- Pressure/volume controls require 04/00 to define which controls are physically direct vs apparatus-mediated.
-- Electrode UI requires 04/01/02 contracts for electrode identity, topology, voltage/current mode, and observable electrical state.
-
-## Validation Evidence
-Architecture review only; no runtime UI exists yet.
-
-PASS:
-- Main laboratory information architecture can be defined independently of detailed chemistry implementation.
-- 2D molecular visualization is compatible with the current molecular graph contract.
-- Proposed UI preserves `UI -> Game Layer -> Simulation Core` dependency direction.
-- Simulation/render cadence can remain decoupled.
-
-FAIL:
-- None identified in the current Phase 0 repository architecture.
-
-OPEN:
-- Concrete TypeScript snapshot/event/command schemas.
-- Valid direct-manipulation semantics for pressure/volume/electrical controls.
-- Physical color/appearance data availability.
-- Instrument observation contracts and uncertainty/confidence presentation.
-- Exact replay/snapshot contract.
+## Current Dependencies
+- 04 canonical progression direction is now resolved by HQ.
+- 01 MolecularGraph/species contract may still be pending integration and should remain behind an adapter boundary until stable.
+- Exact analyzer outputs and some observable fields remain dependent on 01/02/04 contracts.
+- Unlocked-material quantity semantics remain OPEN; UI should not assume a finite resource economy.
 
 ## Next Actions
-1. Receive or review 04 Laboratory Gameplay MVP interaction/command contract.
-2. Receive or review 01 MolecularGraph/species/vessel-state TypeScript contract.
-3. Define `LaboratorySnapshot`, `LaboratoryEvent`, and `LaboratoryCommand` UI-facing interfaces or adapters without owning chemistry behavior.
-4. Create the initial React/TypeScript UI scaffold only after those interface boundaries are stable enough to avoid duplicating domain logic.
-5. Add component-level tests for rendering states, command dispatch, responsive layout, and high-frequency snapshot handling when implementation begins.
+1. Continue/create the runnable React + TypeScript laboratory scaffold.
+2. Introduce UI-facing inventory/discovery/encyclopedia state adapters aligned with `DISCOVERY_INVENTORY_PROGRESSION.md`.
+3. Keep mock data clearly isolated from production chemistry logic.
+4. Do not expose all mock species as normal unlocked inventory unless explicitly running Developer Mode/testing fixtures.
+5. Add component tests for locked/unlocked inventory presentation and first-discovery state transitions when the Game Layer contract becomes executable.
 
 ## Handoffs
-### To 04 — Laboratory Gameplay
-Please define authoritative game-layer commands and capability rules for:
-- add/remove/transfer substance,
-- heat/cool,
-- pressure/volume manipulation,
-- catalyst operations,
-- electrodes/voltage/current,
-- simulation run/pause/step/speed,
-- instruments/observations,
-- experiment snapshot/log/replay.
+### To 04
+05 needs typed progression events/state for discovery confirmation, encyclopedia registration, inventory unlocks, and starter-material access.
 
-05 will render controls and dispatch these commands but will not decide whether the action is chemically or apparatus-valid.
+### To 06
+UI validation should eventually check that undiscovered identities do not leak and that premium entitlement does not change discovery/unlock behavior.
 
-### To 01 — Chemistry Simulation Engine
-Please expose stable read-only identifiers/state needed for UI:
-- species identity and amount,
-- phase,
-- vessel temperature/pressure/volume,
-- MolecularGraph atoms/bonds/bond order/formal charge,
-- optional reactive-site/reaction annotations if those are intended to be observable,
-- deterministic clock/state identifiers where appropriate.
+## Status
+PASS:
+- Existing laboratory information architecture remains compatible with the new progression direction.
+- No chemistry-layer redesign is required.
 
-05 will visualize these values but will not derive chemical outcomes from graph structure.
+OPEN:
+- concrete runtime progression adapter types;
+- exact starter-material presentation;
+- unlocked-material quantity UI;
+- final analysis-instrument identity confirmation UX.
