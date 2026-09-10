@@ -22,6 +22,16 @@ export interface ManifestSource<TManifest = BenchmarkManifestAdapter> {
   load(): Promise<TManifest> | TManifest;
 }
 
+export async function loadManifest(
+  source: ManifestSource<BenchmarkManifestAdapter>,
+): Promise<ValidationResult<BenchmarkManifestAdapter>> {
+  try {
+    return validateManifest(await source.load());
+  } catch (error) {
+    return fail("manifest", error instanceof Error ? error.message : "manifest source failed");
+  }
+}
+
 export interface BenchmarkEligibilityContext {
   readonly requiredCapabilityAvailable: boolean;
   readonly sufficientlySpecified: boolean;
@@ -64,7 +74,7 @@ export function aggregateNumericResults(results: readonly NumericBenchmarkResult
   const signed = included.filter((item): item is NumericBenchmarkResult & { signedError: number } => item.signedError !== undefined);
   const errors = numeric.map((item) => item.error);
   const max = numeric.reduce<NumericBenchmarkResult & { error: number } | undefined>(
-    (current, item) => !current || item.error > current.error ? item : current,
+    (current, item) => (!current || item.error > current.error ? item : current),
     undefined,
   );
   return {
