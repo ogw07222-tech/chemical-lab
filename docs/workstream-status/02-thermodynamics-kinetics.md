@@ -6,7 +6,7 @@
 - Last updated: 2026-09-10
 - Last checked main SHA: 1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1
 - Active branch: feature/phase0-thermo-phase-thermal-contract
-- Active PR: pending
+- Active PR: #5
 
 ## Current Objective
 Define the cross-system Phase 0 contract for thermodynamic evaluation, phase equilibrium, phase-dependent kinetics, reaction heat, vessel thermal coupling, and heater/cooler/thermostat behavior under the canonical SI-unit and real-experiment-validation policies.
@@ -16,6 +16,7 @@ Define the cross-system Phase 0 contract for thermodynamic evaluation, phase equ
 - Reviewed `PROJECT.md`, `AGENTS.md`, `ROADMAP.md`, `docs/contracts/UNIT_SYSTEM.md`, `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`, `docs/product/GAME_UI_SYSTEM_ROADMAP.md`, `docs/contracts/SIMULATION_CONTRACT.md`, and this workstream status.
 - Reviewed open PR #1 and PR #3 as parallel reference only; neither is treated as production source of truth.
 - Added proposed contract `docs/contracts/THERMODYNAMICS_PHASE_THERMAL.md` on `feature/phase0-thermo-phase-thermal-contract`.
+- Opened PR #5: `docs: define Phase 0 thermo phase and thermal contract`.
 - Defined `ThermodynamicEvaluation` and reaction-enthalpy resolution hierarchy: trusted direct data -> phase-specific formation thermochemistry -> bond-energy approximation -> bounded fallback -> OPEN.
 - Defined reaction-heat sign convention and coupling from actual applied reaction extent to thermal energy.
 - Defined `PhaseEvaluation` from species identity + T + P + composition + phase property provider, including scientific status/confidence, triple point, critical point, coexistence, phase fractions, and fallback hierarchy.
@@ -81,6 +82,7 @@ No scientific PASS is claimed without benchmark execution.
 - Apparatus/vessel heat-capacity ownership and source interface need 04/00 alignment.
 - Environment heat-transfer coefficients are apparatus/empirical parameters and require a contract owner/source decision.
 - Numerical tolerance/integration method for phase coexistence and latent heat requires implementation/06 validation.
+- PR #5 currently reports non-mergeable via GitHub metadata and should be inspected by 07 before integration; no production merge was attempted here.
 
 ## Next Actions
 1. Have 00 review/approve the cross-system contract and arbitrate pressure/EOS, apparatus heat capacity, thermostat timing, and latent-heat MVP tier.
@@ -96,7 +98,7 @@ No scientific PASS is claimed without benchmark execution.
 - 04: provide heater/cooler/thermostat/apparatus command and hardware parameters through typed SI interfaces.
 - 05: consume `PhaseDiagramData` and thermal observables; no chemistry equations in UI.
 - 06: validate phase, reaction heat, energy accounting, temperature response, kinetics, equilibrium, determinism, timestep stability, and SI consistency.
-- 07: integrate only after contract review and required validation gates.
+- 07: inspect PR #5 mergeability and integrate only after contract review and required validation gates.
 
 ## Verdict
 - Phase 0 contract completeness for requested scope: PASS.
