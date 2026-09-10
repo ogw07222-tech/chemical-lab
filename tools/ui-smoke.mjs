@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const baseURL = process.env.UI_BASE_URL ?? 'http://127.0.0.1:4173';
+const baseURL = globalThis.process?.env?.UI_BASE_URL ?? 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
 const consoleErrors = [];
 
@@ -15,7 +15,7 @@ async function openAt(width, height) {
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function text(page) { return page.locator('body').innerText(); }
 async function noHorizontalOverflow(page, label) {
-  const metrics = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
+  const metrics = await page.evaluate(() => ({ scrollWidth: globalThis.document.documentElement.scrollWidth, innerWidth: globalThis.innerWidth }));
   assert(metrics.scrollWidth <= metrics.innerWidth + 2, `${label}: horizontal overflow ${metrics.scrollWidth} > ${metrics.innerWidth}`);
 }
 
@@ -85,7 +85,7 @@ try {
   await mobile.close();
 
   if (consoleErrors.length) throw new Error(`browser console/page errors:\n${consoleErrors.join('\n')}`);
-  console.log('UI browser smoke PASS: desktop 1440x900, tablet 1024x768, mobile 390x844');
+  globalThis.console.log('UI browser smoke PASS: desktop 1440x900, tablet 1024x768, mobile 390x844');
 } finally {
   await browser.close();
 }
