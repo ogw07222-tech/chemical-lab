@@ -37,6 +37,7 @@ Examples:
 - energy: J
 - molar energy: J/mol
 - concentration: mol/m^3
+- power: W
 - voltage: V
 - current: A
 
@@ -57,6 +58,20 @@ All-supported-species access is Developer Mode only. Premium must not bypass dis
 
 See `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`.
 
+## Physical State and Thermal Direction
+Phase is not selected manually by the player. The authoritative phase/state of matter is determined by the Simulation/Thermodynamics layers from current physical conditions and available data/models.
+
+Reaction heat is part of the simulation. Exothermic/endothermic reaction enthalpy should couple to vessel thermal state rather than being a cosmetic label. Temperature control should be implemented through heating/cooling power and, when available, an explicit target-temperature controller that adds or removes heat instead of overwriting temperature.
+
+Phase may affect reaction availability and kinetics. Phase diagrams are a core scientific visualization when sufficient validated data/model support exists.
+
+See `docs/product/GAME_UI_SYSTEM_ROADMAP.md`.
+
+## Platform Direction
+Primary deployment target is PC web browser. Tablet and mobile web should be supported responsively when practical without simplifying the chemistry model or creating a separate simulation path.
+
+See `docs/product/GAME_UI_SYSTEM_ROADMAP.md`.
+
 ## MVP
 Initial chemistry focuses on H, C, N, O and a small set of molecules such as H2, O2, N2, H2O, CO, CO2, CH4, and NH3. The architecture must remain extensible to additional elements and reaction families without redesigning the engine.
 
@@ -66,3 +81,4 @@ Initial chemistry focuses on H, C, N, O and a small set of molecules such as H2,
 - Workstream progress: `docs/workstream-status/*.md`.
 - Scientific data claims: source metadata maintained by workstream 03.
 - Validation verdicts: workstream 06.
+- Product/UI/thermal-phase roadmap: `docs/product/GAME_UI_SYSTEM_ROADMAP.md`.
