@@ -15,7 +15,7 @@ export interface SubstanceSummary {
 }
 
 export interface VesselContentView { speciesId?: string; displayIdentity: string; amountMol: number; phase: Phase; identityConfirmed: boolean; }
-export interface UnknownObservation { observationId: string; label: string; analysisState: 'unanalysed' | 'pending' | 'confirmed'; confirmedSpeciesId?: string; }
+export interface UnknownObservation { observationId: string; label: string; analysisState: 'unanalysed' | 'pending' | 'confirmed'; }
 export interface EncyclopediaEntry { speciesId: string; firstDiscoveryLabel: string; knownProperties: string[]; phaseInfo?: string; }
 
 export interface PhasePointView { temperatureK: number; pressurePa: number; }
