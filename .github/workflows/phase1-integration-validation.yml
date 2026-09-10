@@ -1,0 +1,51 @@
+name: Phase 1 Consolidated Integration Validation
+
+on:
+  push:
+    branches:
+      - integration/phase1-pr8-11-validation-20260911
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint if configured
+        shell: bash
+        run: |
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.lint ? 0 : 1)"; then
+            npm run lint
+          else
+            echo "lint: SKIP (no package.json script)"
+          fi
+
+      - name: Tests
+        run: npm test
+
+      - name: Build if configured
+        shell: bash
+        run: |
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.build ? 0 : 1)"; then
+            npm run build
+          else
+            echo "build: SKIP (no package.json script)"
+          fi
