@@ -6,7 +6,7 @@ on:
       - feature/phase0-web-lab-scaffold
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-ui:
@@ -21,23 +21,23 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dependencies
+      - name: Create lockfile if needed
         shell: bash
         run: |
-          if [[ -f package-lock.json ]]; then
-            npm ci --no-audit --no-fund
-          else
+          if [[ ! -f package-lock.json ]]; then
             npm install --no-audit --no-fund
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add package-lock.json
+            git commit -m "build(ui): add reproducible npm lockfile"
+            git push origin HEAD:${GITHUB_REF_NAME}
           fi
 
-      - name: Upload generated lockfile
-        if: ${{ hashFiles('package-lock.json') != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: pr4-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 2
+      - name: Reproducible install
+        shell: bash
+        run: |
+          rm -rf node_modules
+          npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
