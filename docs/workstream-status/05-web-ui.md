@@ -1,183 +1,138 @@
 # 05 — Web UI
 
 - Owner: Lead Game UI/UX Designer / Chemistry Visualization Developer / Frontend Integration Developer / Web Laboratory Interface Developer
-- Current phase: Phase 0 — Architecture
-- Overall state: IN_PROGRESS
+- Current phase: Phase 0 — Architecture / Runnable UI Scaffold
+- Overall state: IMPLEMENTED_AWAITING_RUNTIME_VALIDATION
 - Last updated: 2026-09-10
-- Last checked main SHA: f6513bd6cefc7df5b16d1f678a4cf1b443859e94
-- Active branch: main (status-document update only)
-- Active PR: none
+- Last checked main SHA: 197b83595d2b562fa68c0ce69d25d48d4c9311b7
+- Active branch: feature/phase0-web-lab-scaffold
+- Active PR: pending creation
 
 ## Current Objective
-Define browser UI information architecture and visualization contracts for vessel state, species, molecular graphs, environment controls, reaction feedback, and experiment analysis without embedding chemistry logic in the UI.
+Continue the approved Phase 0 information architecture into a runnable React + TypeScript laboratory scaffold using a UI-facing provider boundary and deterministic mock provider, without embedding chemistry behavior in React components.
 
 ## Completed
-### Phase 0 Information Architecture
-- Defined the Laboratory main screen as a desktop-first three-zone workspace:
-  - left: substances/inventory and molecule selection,
-  - center: reaction vessel and direct laboratory interaction,
-  - right: environment controls and live state/analysis.
-- Defined a persistent experiment/status strip for simulation state, time/speed, temperature, pressure, volume, reaction activity, warnings, and pause/run controls.
-- Defined lower/secondary analysis surfaces for reaction timeline, composition graphs, before/after comparison, product analysis, experiment log, and encyclopedia links.
-- Established progressive disclosure: essential vessel state is always visible; detailed numerical/structural analysis is available through tabs/drawers without hiding the core experiment.
+### Frontend scaffold
+- Added React + TypeScript + Vite entrypoint and browser `index.html`.
+- Added `dev`, `build`, `typecheck`, `lint`, and `test` scripts.
+- Added separate Vite and Vitest configuration.
+- Added ESLint flat configuration.
+- Added desktop-first responsive styling with tablet and mobile fallbacks.
 
-### Reaction Vessel Visualization Strategy
-- No real-time CFD or one-rendered-particle-per-molecule requirement.
-- Vessel visualization is a semantic/statistical view of simulation state.
-- Represent bulk phase, fill level, gas region, precipitate/solid region, bubbles/gas evolution, thermal activity, and reaction intensity using bounded visual abstractions.
-- Visual effects must be derived from state/event data and must not infer new chemistry.
-- The composition panel remains the authoritative quantitative view when vessel visuals are approximate.
+### Laboratory workspace
+Implemented the existing Phase 0 information architecture rather than redesigning it:
+- persistent experiment/status bar,
+- left InventoryPanel with SubstanceSearch, SubstanceList, MoleculeSelector behavior, amount control, and AddSubstance dispatch,
+- center VesselWorkspace with semantic ReactionVesselView and MoleculeGraphView placeholder/adapter boundary,
+- right EnvironmentPanel with Heat/Cool command intent, volume control, pressure gauge/readout, and simulation speed controls,
+- secondary AnalysisWorkspace with CompositionTable, ReactionTimeline, ExperimentGraphs placeholder, ProductAnalysis boundary, and ExperimentLog summary.
 
-### Molecule Visualization Strategy
-- 2D is the Phase 0/initial implementation default.
-- MolecularGraph renderer must support atoms, bonds, bond order, formal charge, selection/highlight state, and optional reactive-site annotations.
-- Renderer consumes graph/layout data; it must not fabricate chemically authoritative 3D geometry.
-- Architecture should allow a later 3D viewer as an alternate renderer without changing the species/molecular-graph data contract.
+### Mock species catalog
+Added deterministic UI catalog entries for:
+- H2
+- O2
+- N2
+- H2O
+- CO
+- CO2
+- CH4
+- NH3
 
-### Controls Model
-Planned control groups:
-- thermal: temperature target, heater/cooler state or power,
-- vessel: volume and pressure controls where the gameplay/system contract permits them,
-- electrochemical: electrode configuration, voltage/current controls,
-- chemistry aids: catalyst selection/add/remove,
-- simulation: run/pause, step, speed, reset/replay hooks.
+These entries are mock/UI-development data only and are not authoritative Chemistry Data records.
 
-Controls are command emitters. They do not calculate reaction products, rates, equilibrium, pressure, or temperature consequences locally.
+### UI-facing provider boundary
+Added UI-facing types:
+- `LaboratorySnapshot`
+- `LaboratoryCommand`
+- `LaboratoryEvent`
+- `LaboratoryProviderValue`
+- `MoleculeGraphViewModel`
 
-### Reaction Feedback
-Planned feedback channels:
-- gas production/evolution,
-- temperature trend,
-- pressure trend,
-- phase/state changes,
-- precipitation/solid formation,
-- reaction-rate/activity indicator,
-- product formation and reactant depletion,
-- structured event/timeline entries.
+Added `MockLaboratoryProvider` using a reducer-backed deterministic state flow.
 
-A visual effect requires an explicit observable state or event source. Color changes are treated as an abstraction unless a validated source/property contract supplies physical color data.
+Mock scope is intentionally limited to UI behavior:
+- selected species and requested amount are handled by UI,
+- AddSubstance updates mock vessel contents,
+- Heat/Cool update control intent only and do not calculate temperature change,
+- ChangeVolume updates mock apparatus/request state,
+- Run/Pause/Reset update mock simulation lifecycle state,
+- simulation speed updates mock UI/provider state,
+- accepted commands append deterministic mock event records.
 
-### Analysis UI
-- Composition table: species, phase, amount, fraction/concentration where supplied, delta, status.
-- Timeline: timestamped simulation/game events plus state-change markers.
-- Graphs: amount vs time, temperature vs time, pressure vs time, optional reaction-rate series.
-- Before/after comparison: initial/current/final composition with absolute and relative deltas.
-- Product analysis: generated species, remaining reactants, phases, confidence/scientific-status metadata when available.
-- Experiment log: player actions, instrument observations, notable changes, snapshots/replay references.
+The mock provider does not calculate products, reaction feasibility, stoichiometry, rates, equilibrium, phase evolution, pressure consequences, or thermodynamics.
 
-### Responsive Strategy
-- Desktop: three-zone laboratory workspace with persistent vessel and state panels.
-- Tablet: central vessel retained; left/right panels become collapsible rails/drawers; critical state remains pinned.
-- Mobile minimum support: single-column vessel-first layout with bottom/tab navigation for Inventory, Controls, Analysis, and Log. Mobile is not the primary dense-analysis target.
+### 04 Laboratory Gameplay adaptation
+The scaffold reflects the merged 04 contract by keeping commands serializable and provider-owned, separating simulation state from UI components, and treating ProductAnalysis as instrument/observation-gated rather than inferring named products from vessel graphics.
 
-### Proposed React / TypeScript Component Boundary
-```text
-AppShell
-└─ LaboratoryWorkspace
-   ├─ ExperimentStatusBar
-   ├─ InventoryPanel
-   │  ├─ SubstanceSearch
-   │  ├─ SubstanceList
-   │  └─ MoleculeSelector
-   ├─ VesselWorkspace
-   │  ├─ ReactionVesselView
-   │  ├─ VesselOverlay
-   │  └─ MoleculeInspector / MoleculeGraphView
-   ├─ EnvironmentPanel
-   │  ├─ ThermalControls
-   │  ├─ PressureVolumeControls
-   │  ├─ ElectrodeControls
-   │  ├─ CatalystControls
-   │  └─ SimulationTimeControls
-   └─ AnalysisWorkspace
-      ├─ CompositionTable
-      ├─ ReactionTimeline
-      ├─ ExperimentGraphs
-      ├─ ProductAnalysis
-      ├─ ExperimentComparison
-      └─ ExperimentLog
-```
+Pressure is read-only in this scaffold because the 04 contract makes direct pressure manipulation equipment/capability dependent. Volume is exposed through the command boundary.
 
-Secondary routes/surfaces:
-- MoleculeEncyclopedia
-- DiscoveryUI
-- Settings
-- ExperimentHistory / Replay (later contract)
+### 01 dependency isolation
+`MoleculeGraphViewModel` supports future atoms, bonds, bond order, formal charge, and optional reactive-site annotations without importing the unmerged PR #1 schema. The current MoleculeGraphView is a placeholder/simple renderer boundary until the production 01 contract merges.
 
-### State / Dependency Boundary
-Proposed frontend dependency flow:
-`Simulation/Game snapshot -> UI adapter/selectors -> React view state -> components`
+### Responsive behavior
+- Desktop: 3-zone Inventory / Vessel / Environment workspace plus analysis area.
+- Tablet: 2-column primary layout with controls moved below the main vessel row.
+- Mobile: vessel-first single column with compact persistent status/actions and stacked controls/analysis.
 
-User actions flow:
-`component event -> typed UI command -> Game Layer command API -> Simulation Core -> new snapshot/events -> UI`
-
-Rules:
-- no chemistry formulas in React components,
-- no product/rate/equilibrium inference in selectors,
-- display formatting/unit conversion may live in UI utilities,
-- animation/interpolation may smooth display values but must not mutate authoritative simulation state,
-- simulation tick rate and render frame rate are independent,
-- high-frequency snapshots should be sampled/coalesced for presentation when needed.
+### Tests authored
+Added component/provider tests covering:
+- core workspace render,
+- substance addition through the mock provider,
+- run/pause/reset state flow,
+- typed command dispatch boundary.
 
 ## In Progress
-- Refine typed snapshot/event/command interfaces once 01 and 04 publish stable Phase 0 contracts.
-- Decide exact navigation/tab/drawer implementation after frontend scaffold exists.
-- Define accessibility/unit-formatting conventions before production component implementation.
+- Runtime verification in an environment with npm registry access.
+- Production adapter implementation remains intentionally deferred until Game Layer / Simulation contracts are available and merged.
 
 ## Blockers / OPEN
-- 01 Simulation Engine has not yet finalized the MolecularGraph/species TypeScript schema.
-- 04 Laboratory Gameplay has not yet finalized the command contract for adding/removing material, vessel manipulation, instruments, catalysts, electrical controls, run/pause/step, experiment history, and replay.
-- Exact definitions for concentration, reaction-rate observables, reaction events, color/optical properties, precipitation events, and analysis instrument outputs are not yet stable.
-- Pressure/volume controls require 04/00 to define which controls are physically direct vs apparatus-mediated.
-- Electrode UI requires 04/01/02 contracts for electrode identity, topology, voltage/current mode, and observable electrical state.
+- `npm install --no-audit --no-fund` could not complete in the current execution environment because external npm registry access timed out.
+- Consequently the repository's real `npm run typecheck`, `npm test`, `npm run lint`, and `npm run build` could not be executed here with installed project dependencies.
+- A temporary source-only TypeScript static check using local declaration stubs passed after fixing a `LaboratoryEvent.kind` discriminant widening issue. This is useful evidence but is not a substitute for the real project typecheck.
+- A headless Chromium smoke harness was attempted, but external React CDN loading was unavailable in the current environment, so an actual React browser render is still OPEN.
+- 01 Molecular Reaction Core PR #1 is not production source of truth until merge; the UI uses an adapter boundary only.
+- 02 thermodynamics/kinetics observables are not yet integrated.
+- 03 Chemistry Data PR #3 is not production source of truth until merge; catalog metadata remains mock-only.
+- Instrument capability/observation result schemas, electrical controls, catalysts, experiment comparison/replay, and authoritative graph layout remain later integration items.
 
 ## Validation Evidence
-Architecture review only; no runtime UI exists yet.
+### PASS
+- Feature work is isolated on `feature/phase0-web-lab-scaffold`; no direct implementation changes were made on main.
+- React components dispatch typed commands through `LaboratoryProviderValue`; chemistry outcome logic is not embedded in components.
+- Mock provider state transitions are deterministic and limited to UI/development behavior.
+- Source-only TypeScript static verification passed after the event discriminant fix.
+- Existing Phase 0 information architecture and dependency direction `UI -> Game Layer -> Simulation Core` are preserved.
 
-PASS:
-- Main laboratory information architecture can be defined independently of detailed chemistry implementation.
-- 2D molecular visualization is compatible with the current molecular graph contract.
-- Proposed UI preserves `UI -> Game Layer -> Simulation Core` dependency direction.
-- Simulation/render cadence can remain decoupled.
+### FAIL
+- None identified architecturally.
+- Completion cannot yet be marked full runtime PASS because dependency installation, project test/build, and actual React browser rendering remain unverified in this execution environment.
 
-FAIL:
-- None identified in the current Phase 0 repository architecture.
-
-OPEN:
-- Concrete TypeScript snapshot/event/command schemas.
-- Valid direct-manipulation semantics for pressure/volume/electrical controls.
-- Physical color/appearance data availability.
-- Instrument observation contracts and uncertainty/confidence presentation.
-- Exact replay/snapshot contract.
+### OPEN
+- Real `npm install` / `npm run typecheck` / `npm test` / `npm run lint` / `npm run build` in a network-enabled development or CI environment.
+- Browser smoke test and console-error check after successful build/dev-server startup.
+- Production LaboratoryProvider adapter against merged 04/01 contracts.
+- 01 MolecularGraph schema mapping after PR #1 merges.
+- 03 authoritative species metadata mapping after PR #3 merges.
+- 02-driven temperature/pressure/reaction-rate observables.
+- Instrument observation schemas and analyzer-gated composition/product UI.
 
 ## Next Actions
-1. Receive or review 04 Laboratory Gameplay MVP interaction/command contract.
-2. Receive or review 01 MolecularGraph/species/vessel-state TypeScript contract.
-3. Define `LaboratorySnapshot`, `LaboratoryEvent`, and `LaboratoryCommand` UI-facing interfaces or adapters without owning chemistry behavior.
-4. Create the initial React/TypeScript UI scaffold only after those interface boundaries are stable enough to avoid duplicating domain logic.
-5. Add component-level tests for rendering states, command dispatch, responsive layout, and high-frequency snapshot handling when implementation begins.
+1. Run install/typecheck/lint/tests/build in CI, Codespaces, or another environment with npm registry access.
+2. Start Vite dev server and perform browser smoke/interactions: add H2/O2, change amount/volume, Heat/Cool, Run/Pause/Reset, speed selection, responsive widths, and console check.
+3. After PR #1 merges, implement a small adapter from the authoritative MolecularGraph/species schema to `MoleculeGraphViewModel`; do not move graph chemistry into UI.
+4. After 03 contract/data merge, replace mock catalog metadata with an adapter to authoritative data while retaining test fixtures.
+5. When 04 production Game Layer APIs exist, replace `MockLaboratoryProvider` with a production provider/adapter behind the same component boundary.
+6. Route integration/merge to 07 after runtime validation evidence is available.
 
 ## Handoffs
-### To 04 — Laboratory Gameplay
-Please define authoritative game-layer commands and capability rules for:
-- add/remove/transfer substance,
-- heat/cool,
-- pressure/volume manipulation,
-- catalyst operations,
-- electrodes/voltage/current,
-- simulation run/pause/step/speed,
-- instruments/observations,
-- experiment snapshot/log/replay.
-
-05 will render controls and dispatch these commands but will not decide whether the action is chemically or apparatus-valid.
-
 ### To 01 — Chemistry Simulation Engine
-Please expose stable read-only identifiers/state needed for UI:
-- species identity and amount,
-- phase,
-- vessel temperature/pressure/volume,
-- MolecularGraph atoms/bonds/bond order/formal charge,
-- optional reactive-site/reaction annotations if those are intended to be observable,
-- deterministic clock/state identifiers where appropriate.
+When PR #1 is merged, provide stable mapping fields for species identity plus MolecularGraph atoms/bonds/bond order/formal charge and any explicitly observable reactive-site annotations.
 
-05 will visualize these values but will not derive chemical outcomes from graph structure.
+### To 03 — Chemistry Data & Validation
+After PR #3 merges, provide display-safe species names/formula/phase metadata and quality/provenance fields appropriate for inventory/encyclopedia presentation.
+
+### To 04 — Laboratory Gameplay
+The current UI command/provider boundary is ready for a production adapter once concrete Game Layer APIs exist. 05 will not duplicate command validation or chemistry outcomes.
+
+### To 07 — Integration & GitHub
+Do not merge until network-enabled runtime validation confirms install, project typecheck, tests, production build, browser render, and obvious console/runtime error checks.
