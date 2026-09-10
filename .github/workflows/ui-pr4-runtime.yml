@@ -1,0 +1,73 @@
+name: UI PR4 Runtime Verification
+
+on:
+  push:
+    branches:
+      - feature/phase0-web-lab-scaffold
+
+permissions:
+  contents: read
+
+jobs:
+  verify-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Upload generated lockfile
+        if: ${{ hashFiles('package-lock.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr4-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+
+      - name: Tested commit
+        run: git rev-parse HEAD
