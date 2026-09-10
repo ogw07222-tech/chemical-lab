@@ -3,7 +3,7 @@
 ## Status
 APPROVED BY 00 - Chemistry Lab Game Design HQ
 
-This document is the canonical Game Layer contract for species discovery, encyclopedia registration, inventory unlocks, and developer all-unlock behavior.
+This document is the canonical Game Layer contract for species discovery, encyclopedia registration, inventory unlocks, unlimited unlocked-material access, and developer all-unlock behavior.
 
 It supersedes earlier Phase 0 proposals that split the product into separate Sandbox and Objective modes or broadly unlocked supported materials in normal play.
 
@@ -11,9 +11,9 @@ It supersedes earlier Phase 0 proposals that split the product into separate San
 
 The canonical normal-play loop is:
 
-`experiment -> create species -> analyze/confirm identity -> encyclopedia registration -> inventory unlock -> reuse in later experiments`
+`experiment -> create species -> analyze/confirm identity -> encyclopedia registration -> inventory unlock -> unlimited reuse in later experiments`
 
-The player grows the usable material library through chemistry and observation rather than through a recipe list or premium purchase.
+The player grows the usable material library through chemistry and observation rather than through a recipe list, resource grind, or premium purchase.
 
 ## Single Normal Game Mode
 
@@ -73,13 +73,17 @@ Canonical rule:
 
 Inventory availability must be represented in Game Layer progression state and must never modify molecular structure, thermodynamics, kinetics, equilibrium, or reaction generation.
 
-### Meaning of reusable
+### Unlimited unlocked-material supply
 
-For the intended game loop, an unlocked species may be selected again from the laboratory inventory for future experiments without requiring the player to reproduce its entire synthesis every time.
+Once unlocked, a species has unlimited laboratory stock for normal gameplay.
 
-Exact quantity/economy semantics are intentionally OPEN. The initial design may provide effectively free laboratory spawning of unlocked materials because the progression challenge is discovery rather than resource grinding.
+The player may select any unlocked species from the inventory and request any amount that is otherwise permitted by vessel/equipment/simulation constraints without needing to synthesize, purchase, farm, or replenish that species again.
 
-If a finite-resource economy is ever proposed, it requires a separate 00 HQ decision and must not be silently introduced by 04 or 05.
+This is an intentional gameplay rule: progression challenge comes from discovery and experimental reasoning, not resource grinding.
+
+The unlimited-stock rule is Game Layer inventory semantics only. It does not mean the Simulation Core has infinite matter inside a vessel. Each actual addition command still supplies an explicit finite physical amount, which then obeys all conservation and simulation rules.
+
+A finite-resource economy must not be introduced later without an explicit 00 HQ decision that revises this contract.
 
 ## Undiscovered Species
 
@@ -122,7 +126,8 @@ Premium may enhance organization, visualization, experiment archives, comparison
 - unlock undiscovered compounds;
 - bypass analyzer/confirmation requirements;
 - modify chemistry outcomes;
-- provide exclusive chemistry needed for progression.
+- provide exclusive chemistry needed for progression;
+- alter the unlimited-stock rule for discovered species.
 
 See `docs/product/PREMIUM_ROADMAP.md`.
 
@@ -144,6 +149,8 @@ Player progression/save data should eventually include at minimum:
 - optional discovery statistics/history;
 - developer-mode state only in explicitly non-normal/internal contexts.
 
+Unlocked species do not require stock-count persistence because unlocked normal-play inventory is unlimited by contract.
+
 The save format should use stable species identifiers rather than display names.
 
 ## UI Requirements
@@ -153,7 +160,8 @@ The save format should use stable species identifiers rather than display names.
 - undiscovered species are not selectable inventory entries;
 - newly confirmed species produces clear discovery feedback;
 - encyclopedia registration and inventory availability occur together under the authoritative Game Layer event;
-- inventory indicates unlocked/known species without pretending to calculate chemistry;
+- unlocked inventory species are presented as unlimited laboratory stock;
+- amount controls describe the finite quantity being added to the current vessel, not remaining inventory stock;
 - developer-only all-species browsing is clearly separated from normal UI.
 
 ## Architecture Boundary
@@ -172,16 +180,16 @@ Forbidden dependency direction:
 
 - hidden generated species do not unlock before valid confirmation;
 - first valid confirmation unlocks exactly once;
-- unlocked species becomes reusable inventory material;
+- unlocked species becomes reusable inventory material with unlimited normal-play stock;
+- each vessel-add operation still creates a finite explicit amount;
 - undiscovered species remains unavailable in normal inventory;
 - Developer Mode can bypass progression without altering chemistry results;
-- Premium entitlement does not alter species unlock rules;
-- save/load preserves discovery and inventory state deterministically.
+- Premium entitlement does not alter species unlock or stock rules;
+- save/load preserves discovery and inventory unlock state deterministically.
 
 ## OPEN
 
 - exact starter-material set;
-- whether unlocked-material quantities are infinite by default or represented as effectively unlimited laboratory stock;
 - precise analyzer requirements for each chemistry capability;
 - discovery presentation/animation;
 - optional challenge/objective reward design.
