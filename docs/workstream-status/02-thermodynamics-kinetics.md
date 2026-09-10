@@ -4,161 +4,102 @@
 - Current phase: Phase 0 — Architecture
 - Overall state: IN_PROGRESS
 - Last updated: 2026-09-10
-- Last checked main SHA: f6513bd6cefc7df5b16d1f678a4cf1b443859e94
-- Active branch: main
-- Active PR: none
+- Last checked main SHA: 1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1
+- Active branch: feature/phase0-thermo-phase-thermal-contract
+- Active PR: pending
 
 ## Current Objective
-Define the browser-real-time contract that evaluates 01 `ReactionCandidate`s using separate thermodynamic, kinetic, equilibrium, catalyst, and confidence models without reaction-by-reaction hardcoding.
+Define the cross-system Phase 0 contract for thermodynamic evaluation, phase equilibrium, phase-dependent kinetics, reaction heat, vessel thermal coupling, and heater/cooler/thermostat behavior under the canonical SI-unit and real-experiment-validation policies.
 
 ## Completed
-- Reviewed `PROJECT.md`, `AGENTS.md`, `ROADMAP.md`, `docs/architecture/SYSTEM_ARCHITECTURE.md`, `docs/contracts/SIMULATION_CONTRACT.md`, and 01/03/06 workstream status at main `f6513bd6cefc7df5b16d1f678a4cf1b443859e94`.
-- Proposed `ThermodynamicEvaluation` contract with deltaH, deltaS, deltaG, thermodynamic direction, feasibility class, provenance/confidence, and method metadata.
-- Proposed energy hierarchy: direct trusted reaction thermodynamics -> formation-property reconstruction -> bond-energy approximation -> bounded fallback heuristic.
-- Proposed `KineticEvaluation` contract with activation barrier estimate, rate/relative-rate output, qualitative rate class, environmental dependencies, catalyst correction, and confidence.
-- Proposed Arrhenius-like MVP model using a barrier term plus bounded prefactor/reaction-family correction, with relative-rate consistency preferred over false absolute precision.
-- Proposed reversible reaction/equilibrium interface using forward/reverse channels, equilibrium-constant query, reaction quotient/activity interface, and timestep-compatible net flux.
-- Proposed competing-reaction strategy based on feasible active channels and normalized reaction flux, not thermodynamic favorability alone.
-- Defined catalyst invariant: catalyst may alter kinetic pathway/barrier/prefactor but not the uncatalyzed reaction thermodynamic state function or equilibrium target.
-- Defined approximation labels: VERIFIED / APPROXIMATED / EMPIRICAL / GAMEPLAY SIMPLIFICATION / OPEN.
-- Defined browser performance policy: cache molecular/property/evaluation components, coarse kinetic classes when precision is unsupported, active-reaction filtering, adaptive timestep, deterministic bounded work, and no quantum chemistry/MD in the realtime loop.
+- Re-checked latest production `main` at `1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1`.
+- Reviewed `PROJECT.md`, `AGENTS.md`, `ROADMAP.md`, `docs/contracts/UNIT_SYSTEM.md`, `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`, `docs/product/GAME_UI_SYSTEM_ROADMAP.md`, `docs/contracts/SIMULATION_CONTRACT.md`, and this workstream status.
+- Reviewed open PR #1 and PR #3 as parallel reference only; neither is treated as production source of truth.
+- Added proposed contract `docs/contracts/THERMODYNAMICS_PHASE_THERMAL.md` on `feature/phase0-thermo-phase-thermal-contract`.
+- Defined `ThermodynamicEvaluation` and reaction-enthalpy resolution hierarchy: trusted direct data -> phase-specific formation thermochemistry -> bond-energy approximation -> bounded fallback -> OPEN.
+- Defined reaction-heat sign convention and coupling from actual applied reaction extent to thermal energy.
+- Defined `PhaseEvaluation` from species identity + T + P + composition + phase property provider, including scientific status/confidence, triple point, critical point, coexistence, phase fractions, and fallback hierarchy.
+- Defined UI-facing `PhaseDiagramData`; 05 renders supplied boundaries/current state and does not calculate chemistry/phase curves independently.
+- Defined phase-dependent kinetic accessibility/transport corrections for gas partial pressures, liquid mixing, aqueous mobility, solid contact, and multiphase transfer without requiring a transport PDE solver.
+- Defined `ThermalState`, explicit thermal-energy ledger, mixture/vessel heat capacity boundary, lumped environment heat transfer, and energy-balance timestep semantics.
+- Defined Heater as positive power input, Cooler as power extraction, and Thermostat as a bounded external-energy controller rather than temperature overwrite.
+- Defined latent-heat implementation tiers: MVP simplified, data-backed core, advanced multiphase/non-ideal model.
+- Defined 03 data requirements, 01 reaction-extent/interface requirements, 05 phase-diagram boundary, and 06 validation observables.
+- Preserved canonical SI units: K, Pa, m^3, J, J/mol, W, mol/m^3 and explicit heat-capacity units.
+- Defined browser performance strategy using cached phase/property/model evaluations, active-reaction-only kinetics, adaptive timesteps, deterministic bounded work, and no per-frame full phase-diagram generation.
 
-## Proposed Contract Summary
+## Current Contract Decisions
 
-### ThermodynamicEvaluation
-Inputs:
-- `ReactionCandidate`
-- vessel/environment state: temperature, pressure/volume, species amounts/concentrations, phases, optional solvent/electrical context
-- normalized referenced property data
+### Thermodynamics
+- Thermodynamics and kinetics remain separate.
+- Reaction enthalpy uses `deltaH < 0` for exothermic forward reaction as written.
+- Thermal energy contribution from a positive forward reaction extent is `Q_reaction = -deltaH * extent`.
+- Missing/low-confidence thermochemistry downgrades scientific status; it is never silently fabricated.
 
-Outputs:
-- `deltaH` estimate with units/status/source method
-- `deltaS` estimate with units/status/source method
-- `deltaG` estimate at current conditions
-- direction: `FORWARD_FAVORED | REVERSE_FAVORED | NEAR_EQUILIBRIUM | INDETERMINATE`
-- feasibility: `FAVORABLE | CONDITIONALLY_FAVORABLE | UNFAVORABLE | UNKNOWN`
-- uncertainty/confidence and approximation status
+### Phase Equilibrium
+- Phase is simulation-owned, not manually selected by UI.
+- Runtime may cache current phase, but phase must be re-evaluable from T/P/composition/property data.
+- Initial bulk phases: SOLID / LIQUID / GAS / UNKNOWN.
+- Resolution hierarchy: trusted phase-boundary data -> validated thermodynamic model -> pressure-aware melting/boiling threshold -> bounded approximation -> OPEN.
+- Triple/critical points and coexistence are first-class interface concepts even if early MVP implementation is simplified.
 
-### Energy Resolution Hierarchy
-1. Direct trusted reaction thermodynamic data when reaction identity, phase, and reference conditions are applicable.
-2. Formation enthalpy/free-energy data summed stoichiometrically when all required species/state data are available.
-3. Bond-energy approximation for graph-transformable gas-like/simple molecular cases where average bond energies are meaningful; entropy handled separately.
-4. Bounded family/fallback heuristic only for ranking/pruning; never exposed as precise chemistry.
+### Thermal Model
+- Temperature evolves through energy balance, not direct user overwrite.
+- Heat sources/sinks are tracked separately: reaction, heater, cooler, thermostat, environment, latent heat.
+- Quantitative temperature prediction requires nonzero defensible mixture/vessel heat capacity; missing Cp is not assumed to be zero.
+- Thermostat energy remains observable/loggable and does not delete reaction heat.
 
-### KineticEvaluation
-Outputs:
-- activation barrier estimate or barrier class
-- rate constant when dimension/order support it, otherwise normalized relative rate
-- qualitative rate class: `NEGLIGIBLE | SLOW | MODERATE | FAST | VERY_FAST`
-- temperature response
-- concentration/activity dependence
-- pressure dependence where gas participation/order warrants it
-- catalyst correction metadata
-- uncertainty/confidence and approximation status
-
-### Arrhenius-like MVP
-Use `rateScale ~ A_eff * exp(-Ea_eff / RT) * activityTerm` conceptually. `A_eff` may be a reaction-family/prefactor class rather than a trusted dimensional constant. Clamp/log-space evaluation should be used to avoid numerical overflow/underflow. Absolute rate constants must not be claimed when order, units, or source support is missing.
-
-### Equilibrium
-Represent reversible chemistry as paired forward/reverse channels sharing one thermodynamic reaction definition. Preferred thermodynamic target uses `K(T)` derived from trusted/approximated standard free energy when available. Runtime compares reaction quotient/activity state against the equilibrium target, then combines forward and reverse kinetic fluxes. Net progress is `forwardFlux - reverseFlux`, integrated subject to stoichiometric availability and non-negative amounts.
-
-### Competition
-Candidate ranking/pruning order:
-1. conservation-valid candidates only
-2. thermodynamic impossibility/unknown handling
-3. kinetically active under current conditions
-4. compute channel flux/rate score
-5. resolve shared-reactant competition using flux-weighted progress constrained by stoichiometric availability
-
-Do not select the most negative deltaG candidate as the sole winner. Strongly favorable but barrier-dominated reactions can remain negligible while less favorable low-barrier pathways dominate on the simulated timescale.
-
-### Catalyst
-Catalyst input is part of environment/query context. Catalyst corrections may lower forward and reverse pathway barriers and/or alter effective prefactors/pathway selection. They must not directly alter reaction deltaG or the equilibrium constant for the same net reaction. Catalyst consumption is excluded unless 01 explicitly represents catalytic intermediates as reaction-network species.
-
-## Data Requirements from 03
-Minimum normalized property record metadata:
-- property/value/unit
-- species/element/bond identifier
-- phase
-- reference temperature and pressure when applicable
-- solvent/ionic-strength context when applicable
-- source/provenance
-- uncertainty or quality indicator
-- approximation status
-- valid range / applicability notes
-
-Priority datasets:
-- standard formation enthalpies
-- standard Gibbs formation energies and/or entropies
-- heat capacities where temperature corrections are later enabled
-- average bond dissociation/formation energy references for fallback estimation
-- phase-transition/state data needed for phase corrections
-- equilibrium constants where trusted data exist
-- activation energies/rate constants only as optional empirical corrections, not the engine backbone
-- catalyst-specific barrier/rate corrections when evidence exists
-- electrochemical potentials for the future electrochemical interface
-
-## Required Information from 01 ReactionCandidate
-02 requires 01 to supply:
-- stable candidate/reaction id
-- reactant and product species ids with signed stoichiometric coefficients
-- phases or references to vessel phase state
-- atom/charge conservation result
-- molecular graph references
-- bonds broken/formed and bond-order changes when available
-- proton/electron transfer bookkeeping when modeled
-- reaction-family classification and optional mechanism/pathway tags
-- reversibility hint only as a structural hint, not a final thermodynamic verdict
-- reactive-site/context identifiers needed for family kinetic heuristics
-- candidate scientific-status metadata
-
-02 must not mutate molecular graphs or decide products.
-
-## Performance Strategy
-- Cache species-level formation/bond/property lookups by species/state/data-version key.
-- Cache reaction-invariant thermodynamic components separately from environment-dependent deltaG corrections.
-- Cache kinetic family/barrier estimates when molecular/pathway identity is unchanged.
-- Recompute only temperature/activity/pressure dependent terms each active timestep.
-- Evaluate active candidates only; use deterministic bounded pruning.
-- Use log-space rate comparisons and coarse classes when absolute numbers are unsupported.
-- Adaptive timestep should limit fractional consumption and resolve fast competing channels without evaluating inactive networks exhaustively.
-
-## Scientific Limitations
-- Average bond energies can be poor for condensed phases, resonance, ionic species, radicals, strained structures, solvent-specific chemistry, and mechanism-dependent reactions.
-- Standard-state deltaG alone does not determine real-time direction; activities/concentrations/partial pressures and kinetics matter.
-- Simple Arrhenius behavior can fail across phase changes, diffusion limits, tunneling, complex mechanisms, chain reactions, and transport-controlled processes.
-- Activity coefficients, ionic strength, non-ideal gases/solutions, detailed solvent effects, heat/mass transport, and multistep mechanisms are outside Phase 0 fidelity unless explicitly added later.
-- A catalyst invariant applies to the same net reaction at fixed thermodynamic state; explicit coupled chemistry or energy input must be represented separately rather than hidden as a catalyst correction.
+### Phase-Dependent Kinetics
+- Phase can gate accessibility and alter effective kinetics through deterministic bounded transport/accessibility corrections.
+- Gas channels may use partial pressure/activity; solids may be contact/surface limited; liquid/aqueous channels may use mixing/mobility classes.
+- Phase kinetic corrections never alter conservation or molecular graph identity.
 
 ## Validation Evidence
-Contract/design review only. No production implementation or numerical validation exists yet. Per `AGENTS.md`, no scientific PASS is claimed without validation evidence.
+Design/contract audit only; no production numerical model was implemented in this task.
 
-Requested Phase 0 validation fixtures for 06:
-- exothermic vs endothermic classification
-- favorable deltaG plus high barrier -> kinetically slow
-- catalyst changes rate/barrier but not equilibrium target
-- temperature increase produces physically consistent Arrhenius relative-rate response for positive barrier
-- reversible channel approaches equilibrium without negative species amounts
-- shared-reactant competing channels remain stoichiometrically bounded and deterministic
+Contract was checked against the approved SI contract and pre-committed real-experiment validation criteria. The contract exposes observables required for future 06 validation, including:
+- exothermic/endothermic sign;
+- reaction enthalpy;
+- temperature delta/time series;
+- pressure from the authoritative vessel solver;
+- stable phase/coexistence;
+- transition temperature;
+- equilibrium target/composition where modeled;
+- characteristic kinetic timescale/rate response;
+- explicit energy-flow ledger.
+
+No scientific PASS is claimed without benchmark execution.
 
 ## Blockers / OPEN
-- 01 concrete `ReactionCandidate` TypeScript schema is not yet defined, so exact field names/types remain OPEN.
-- 03 normalized property schema and first H/C/N/O dataset are not yet defined, so data adapters remain OPEN.
-- Exact entropy fallback model for graph-only unknown species is OPEN; avoid pretending bond energies supply entropy.
-- Exact definition/thresholds for qualitative kinetic classes are OPEN pending 06 calibration.
-- Reaction order/activity-term inference from reaction-family/mechanism metadata is OPEN.
-- Pressure handling beyond ideal-gas activities/partial pressures is OPEN.
-- Phase corrections and temperature extrapolation policy require 03 data availability and 06 tests.
-- Detailed electrochemical potential coupling is deferred beyond the minimal interface.
+- PR #1 ReactionCandidate schema and PR #3 Chemistry Data schema are still unmerged; exact TypeScript names/adapters must be aligned after integration.
+- Exact authoritative pressure/EOS ownership and gas partial-pressure provider remain cross-system OPEN.
+- Thermostat MVP vs Core Release timing remains OPEN in the approved UI roadmap.
+- First-playable latent-heat tier remains OPEN.
+- Initial species set with validated complete phase-diagram support remains OPEN.
+- Mixture/aqueous phase semantics are deferred beyond pure/simple phase MVP.
+- Exact phase kinetic multiplier ranges and calibration are OPEN pending 06.
+- Apparatus/vessel heat-capacity ownership and source interface need 04/00 alignment.
+- Environment heat-transfer coefficients are apparatus/empirical parameters and require a contract owner/source decision.
+- Numerical tolerance/integration method for phase coexistence and latent heat requires implementation/06 validation.
 
 ## Next Actions
-1. Align exact TypeScript query/result types with 01 candidate schema when 01 publishes it.
-2. Give 03 the required thermodynamic/kinetic property schema and H/C/N/O MVP priority list.
-3. Ask 06 to turn the listed fixtures into Phase 0 validation gates.
-4. After contracts stabilize, implement only the minimal deterministic evaluator and cache interfaces; defer tuning/calibration.
+1. Have 00 review/approve the cross-system contract and arbitrate pressure/EOS, apparatus heat capacity, thermostat timing, and latent-heat MVP tier.
+2. Reconcile exact 01 types after PR #1 integration; require actual applied reaction extent per timestep for heat coupling.
+3. Reconcile exact 03 property types after PR #3 integration; prioritize phase-specific formation thermochemistry, Cp, melting/boiling/vapor-pressure, triple/critical points, and latent heats.
+4. Hand the observables and phase/thermal fixtures to 06 for benchmark specification against `REAL_EXPERIMENT_VALIDATION.md`.
+5. After approval/integration, implement only the minimal deterministic evaluator/thermal interfaces before calibration.
 
 ## Handoffs
-- 01: finalize candidate fields listed above; preserve product/conservation ownership.
-- 03: provide normalized data/provenance interfaces and MVP datasets.
-- 06: validate physical invariants, determinism, numerical stability, and performance before PASS.
-- 00: arbitrate any cross-system schema disagreement or fidelity/complexity tradeoff.
+- 00: approve cross-system ownership and OPEN fidelity choices.
+- 01: expose candidate structural data and actual applied reaction extent; do not decide thermodynamic phase/rate.
+- 03: supply normalized SI property records/provenance/uncertainty and phase/thermal data.
+- 04: provide heater/cooler/thermostat/apparatus command and hardware parameters through typed SI interfaces.
+- 05: consume `PhaseDiagramData` and thermal observables; no chemistry equations in UI.
+- 06: validate phase, reaction heat, energy accounting, temperature response, kinetics, equilibrium, determinism, timestep stability, and SI consistency.
+- 07: integrate only after contract review and required validation gates.
+
+## Verdict
+- Phase 0 contract completeness for requested scope: PASS.
+- Scientific numerical validation: OPEN.
+- Production implementation: OPEN.
+- Production readiness: OPEN.
