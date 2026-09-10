@@ -17,11 +17,16 @@ const PHASE_FIXTURE: PhaseDiagramViewModel = {
   triplePoint: { temperatureK: 200, pressurePa: 35_000 }, criticalPoint: { temperatureK: 400, pressurePa: 235_000 },
 };
 
+// Mock-only resolver data. Undiscovered species identity must not cross the UI-facing snapshot boundary.
+const UNKNOWN_SPECIES_BY_OBSERVATION: Readonly<Record<string, string>> = {
+  'fixture-unknown-1': 'h2o',
+};
+
 const initialSnapshot: LaboratorySnapshot = {
   experimentName: 'Untitled experiment', vesselId: 'vessel-1', capacityM3: 0.002, volumeM3: 0.001,
   temperatureK: 298.15, pressurePa: 101325, simulationTimeS: 0, simulationStatus: 'stopped', simulationSpeed: 1,
   contents: [],
-  unknownObservations: [{ observationId: 'fixture-unknown-1', label: 'Unknown substance detected', analysisState: 'unanalysed', confirmedSpeciesId: 'h2o' }],
+  unknownObservations: [{ observationId: 'fixture-unknown-1', label: 'Unknown substance detected', analysisState: 'unanalysed' }],
   unlockedSpeciesIds: ['h2', 'o2', 'n2'], favoriteSpeciesIds: [], encyclopedia: [], developerMode: false,
   controls: { heaterPowerW: 0, coolerPowerW: 0, thermostatEnabled: false, thermostatTargetK: 298.15, requestedVolumeM3: 0.001 },
 };
@@ -56,8 +61,10 @@ function reducer(state: MockState, command: LaboratoryCommand): MockState {
     case 'ToggleFavorite': { const ids = s.favoriteSpeciesIds.includes(command.speciesId) ? s.favoriteSpeciesIds.filter((id) => id !== command.speciesId) : [...s.favoriteSpeciesIds, command.speciesId]; return { ...state, snapshot: { ...s, favoriteSpeciesIds: ids } }; }
     case 'SetDeveloperMode': return appendEvent({ ...state, snapshot: { ...s, developerMode: command.enabled } }, `Developer Mode ${command.enabled ? 'enabled' : 'disabled'}`);
     case 'AnalyzeUnknown': {
-      const target = s.unknownObservations.find((item) => item.observationId === command.observationId); if (!target || !target.confirmedSpeciesId) return state;
-      const species = CATALOG.find((item) => item.speciesId === target.confirmedSpeciesId); if (!species) return state;
+      const target = s.unknownObservations.find((item) => item.observationId === command.observationId);
+      const confirmedSpeciesId = UNKNOWN_SPECIES_BY_OBSERVATION[command.observationId];
+      if (!target || !confirmedSpeciesId) return state;
+      const species = CATALOG.find((item) => item.speciesId === confirmedSpeciesId); if (!species) return state;
       const unlocked = s.unlockedSpeciesIds.includes(species.speciesId) ? s.unlockedSpeciesIds : [...s.unlockedSpeciesIds, species.speciesId];
       const encyclopedia = s.encyclopedia.some((e) => e.speciesId === species.speciesId) ? s.encyclopedia : [...s.encyclopedia, { speciesId: species.speciesId, firstDiscoveryLabel: 'Mock analyzer fixture', knownProperties: [], phaseInfo: 'Authoritative phase data not connected' }];
       const unknownObservations = s.unknownObservations.map((item) => item.observationId === command.observationId ? { ...item, analysisState: 'confirmed' as const } : item);
