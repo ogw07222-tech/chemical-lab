@@ -18,7 +18,8 @@ const initialState: MockState = { snapshot: initialSnapshot, events: [], eventCo
 
 function appendEvent(state: MockState, message: string): MockState {
   const eventCounter = state.eventCounter + 1;
-  return { ...state, eventCounter, events: [{ id: `mock-${eventCounter}`, simulationTimeS: state.snapshot.simulationTimeS, kind: 'command-accepted', message }, ...state.events].slice(0, 20) };
+  const event: LaboratoryEvent = { id: `mock-${eventCounter}`, simulationTimeS: state.snapshot.simulationTimeS, kind: 'command-accepted', message };
+  return { ...state, eventCounter, events: [event, ...state.events].slice(0, 20) };
 }
 
 function reducer(state: MockState, command: LaboratoryCommand): MockState {
