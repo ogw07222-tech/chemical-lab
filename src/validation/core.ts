@@ -85,6 +85,7 @@ export function validateAuthoritativeSIState(id: string, state: AuthoritativeSIS
 }
 
 export function stableSerialize(value: unknown): string {
+  if (value === undefined) return "undefined";
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
   const record = value as Record<string, unknown>;
@@ -92,5 +93,14 @@ export function stableSerialize(value: unknown): string {
 }
 
 export function deterministicResult<T>(result: ValidationResult<T>): ValidationResult<T> {
-  return { ...result, deterministicKey: stableSerialize({ id: result.id, verdict: result.verdict, reason: result.reason, value: result.value, scientificStatus: result.scientificStatus }) };
+  return {
+    ...result,
+    deterministicKey: stableSerialize({
+      id: result.id,
+      verdict: result.verdict,
+      reason: result.reason,
+      value: result.value,
+      scientificStatus: result.scientificStatus,
+    }),
+  };
 }
