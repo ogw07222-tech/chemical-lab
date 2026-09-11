@@ -6,7 +6,7 @@
 - Last updated: 2026-09-12
 - Starting / latest checked main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
 - Active branch: `feature/generated-species-reference-enrichment`
-- Active PR: pending creation
+- Active PR: #40 — `feat(data): add generated species reference matching layer`
 - Exact executable/test HEAD validated by Actions: `b58731e7ed17c604d0e1af7907fdd589728b1d14`
 - Validation run: `34636295729` — SUCCESS
 
