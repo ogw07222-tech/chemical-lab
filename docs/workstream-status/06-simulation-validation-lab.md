@@ -1,156 +1,175 @@
 # 06 — Simulation Validation Lab
 
 - Owner: Chemistry Simulation Validation Engineer / Regression Test Developer / Scientific Model Auditor / Performance Validation Engineer
-- Current phase: Dynamic Species Registry validation preparation
-- Overall state: STAGE_A_PREPARED / STAGE_B_WAITING_FOR_01_PR / INTEGRATION_APPROVAL_OPEN
+- Current phase: Dynamic Species Registry validation
+- Overall state: STAGE_A_PREPARED / STAGE_B_PASS / PR39_INTEGRATION_APPROVED
 - Last updated: 2026-09-12
 - Latest production main SHA checked: `4c12c2b9be6053887f471c288618590114dc32b4`
-- Validation-prep branch: `feature/06-dynamic-species-validation-prep`
-- 01 Dynamic Species Registry branch observed: `feature/dynamic-species-registry`
-- 01 Dynamic Species Registry PR: `NOT YET CREATED` at last check
-- Exact 01 tested HEAD: `OPEN`
+- Validation-prep branch / PR: `feature/06-dynamic-species-validation-prep` / PR #38
+- 01 Dynamic Species Registry PR: #39 — `feat(sim): add dynamic species registry and persistence`
+- Exact 01 PR HEAD tested: `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`
+- Independent validation branch: `validation/06-pr39-dynamic-species`
+- Final validation HEAD: `993b06cde7d3cb3a80feaa56a3a4eca7b23c06b5`
+- Final validation run: `34637612926` — SUCCESS
 
 ## Current Objective
-Prepare and then execute independent validation for 01 Dynamic Species Registry & Generated Species Persistence without tuning or modifying 01 production implementation.
+Independently validate 01 Dynamic Species Registry & Generated Species Persistence without tuning or modifying 01 production implementation.
 
 ## Source of Truth
 - Production baseline: latest `main` at `4c12c2b9be6053887f471c288618590114dc32b4`.
+- Exact implementation under validation: PR #39 HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`.
 - Scientific threshold authority: `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`.
-- Phase 2E reaction progression is already integrated on main and currently defers unresolved products rather than inventing IDs.
-- Stage B may begin only after 01 opens a PR; the exact PR number and exact HEAD SHA must be rechecked before execution.
+- Final re-check confirmed PR #39 remained open, mergeable, and at the same exact HEAD after validation.
 
-## Stage A — Prepared Validation Matrix
-Added `docs/validation/DYNAMIC_SPECIES_REGISTRY_VALIDATION.md` and executable validation helpers/tests.
-
-Priority risks covered:
-- duplicate species explosion;
-- atom/bond ordering dependent identity;
-- isomer false merge;
-- charge false merge;
-- malformed graph registration;
-- unstable generated IDs;
-- save/load ID drift;
-- partial state mutation;
-- reactants consumed while products are missing;
-- conservation failure;
-- same-step hidden cascades;
-- nondeterministic registry ordering;
-- next-timestep product inaccessibility;
-- registry lookup/resolve/timestep performance degradation.
-
-## Executable Preparation
-### Current-main canonical foundation tests
-`tests/dynamic-species-registry.validation.test.ts` includes:
-- 100 fixed-seed atom/bond/runtime-ID permutations of the same graph -> same structural representation/canonical key;
-- same-formula different-connectivity fixture -> different canonical key;
-- bond-order distinction;
-- formal/net-charge distinction;
-- malformed missing endpoint, self bond, duplicate semantic bond, zero/NaN bond order, non-integer formal charge rejection.
-
-### Registry observation/handoff gates
-`src/validation/species-registry.ts` defines adapter-independent validation for:
-- canonical identity stability;
-- false merge / hash collision safety;
-- 10/100/1000 duplicate suppression observations;
-- failed-registration atomic mutation;
-- element/atom/charge conservation plus finite/non-negative amounts;
-- timestep N/N+1 semantics and same-step cascade prohibition;
-- deterministic replay;
-- serialize/restore identity and behavior stability;
+## Stage A — Validation Matrix / Failure Fixtures
+Prepared on PR #38:
+- canonical identity permutation invariance;
+- duplicate suppression and duplicate-explosion checks;
+- same-formula false-merge counterexamples;
+- bond-order / formal-charge / net-charge distinction;
+- malformed graph rejection;
+- atomic registration failure / partial-mutation blocker;
+- element / atom / charge conservation and finite/non-negative amounts;
+- deterministic registry IDs/state/events/serialization;
+- serialize/restore identity stability;
+- timestep N -> N+1 participation and same-step cascade prohibition;
 - known-species reuse;
-- valid unknown-species internal identity without fabricated real-world truth/properties;
-- performance samples with explicit OPEN when no canonical engineering threshold exists.
+- unknown-species no-fabricated-truth policy;
+- performance baseline with no invented engineering threshold.
 
-No fake production registry implementation is introduced.
+`docs/validation/DYNAMIC_SPECIES_REGISTRY_VALIDATION.md`, `src/validation/species-registry.ts`, and `tests/dynamic-species-registry.validation.test.ts` hold the reusable validation contract/helpers.
 
-## Failure Criteria / Absolute Blockers
-The following are immediate integration-blocking FAIL conditions:
-- distinct connectivity/bond-order/charge structures false-merged;
-- malformed graph registered into authoritative state;
-- registration failure leaves any partial registry/vessel mutation;
-- reactants consumed when product registration fails;
-- element/atom/applicable-charge conservation violation;
-- negative, NaN, or infinite authoritative amount;
-- generated species ID/canonical key nondeterministic for identical input/config;
-- serialize/restore ID drift or duplicate creation;
-- generated product participates in a hidden same-step cascade;
-- generated product cannot participate in candidate generation on timestep N+1.
+## Stage B — Exact PR #39 Validation
+The independent validation branch was created directly from exact PR #39 HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`; 01 production files were not modified.
 
-## Canonicalization / Collision Audit
-Current molecular core canonical identity is based on deterministic structural representation plus a 64-bit FNV-1a hash key. Therefore Stage B requires evidence that registry identity resolution does not rely on hash equality alone when exact structures differ. Same-hash/different-structure merge is FAIL; exact-verified collision-safe disambiguation can PASS; unobservable collision handling is OPEN.
+Added independent adversarial test coverage in `tests/validation.dynamic-species-registry.pr39.test.ts` and a branch-only validation workflow.
 
-Current unsupported/uncertified identity semantics remain OPEN unless 01 explicitly implements them:
-- stereochemistry;
-- resonance-equivalent representations;
-- aromatic representation equivalence;
-- complete radical distinctions;
-- complete unsupported/over-valence chemistry-domain rejection.
+### Final strict run
+Run `34637612926`, tested validation HEAD `993b06cde7d3cb3a80feaa56a3a4eca7b23c06b5`.
+The validation branch ancestry is exact PR #39 HEAD plus 06-only test/type/workflow commits.
+The workflow uses bash pipefail semantics so piped logging cannot hide command failures.
 
-## Known / Unknown Species Policy
-Known graph reuse must derive the actual canonical known set from the exact tested 01 PR/repository state. A known graph such as H2O must reuse its existing ID rather than create a generated duplicate.
+Results:
+- `npm ci --no-audit --no-fund`: PASS
+- `npm run typecheck`: PASS / zero diagnostics
+- `npm run lint`: PASS
+- independent PR39 registry validation: **15/15 PASS**
+- production dynamic registry tests: **11/11 PASS**
+- reaction progression regression: **10/10 PASS**
+- full `npm test`: **14 files / 163 tests PASS**
+- `npm run build`: PASS
 
-A structurally valid unmatched graph is allowed to receive an internal generated identity if supported by 01. Real-world identity and property completeness remain OPEN without 03 evidence. Registry correctness and 03 reference matching are separate verdicts.
+An earlier validation iteration exposed a 06-only test typing defect and a logging-pipeline masking risk. Both were corrected in the validation harness only; no PR #39 production behavior was changed. The final pipefail-enabled run is the authoritative evidence.
 
-## Performance Plan
-Stage B records versus registry size:
-- lookup latency;
-- resolve/register latency;
-- timestep overhead;
-- registry-size growth under duplicate attempts;
-- candidate counts when combined with candidate generation.
+## Validation Matrix Results
 
-Recommended sizes: 10, 100, 1000 plus the largest cheap deterministic case. No engineering threshold is currently canonical, so finite measurements are baseline/WATCH and performance remains OPEN unless a pre-committed budget exists. Inspect for naive full-registry graph-isomorphism scans.
+### Canonicalization — PASS
+- 128 deterministic pseudo-random atom/bond/runtime-ID permutations resolved to the same canonical representation, canonical key, and generated species identity.
+- Bond-list and atom ordering did not affect identity in the tested current graph model.
+- Different connectivity, bond order, formal charge, and resulting net charge remained distinct.
 
-## Test Execution
-### Attempted on Stage A branch
-- `git clone` of validation branch: BLOCKED in local execution environment because `github.com` DNS resolution failed.
-- Therefore `npm ci`, repository-native `npm run typecheck`, Vitest, lint, and build were not executed locally in this task stage.
-- Available global runtime: Node v22.16.0, npm 10.9.2, TypeScript 5.8.3; Vitest is not installed globally.
+Limitations remain OPEN for full stereochemistry, resonance equivalence, chemically complete aromatic representation equivalence, and complete electronic/radical-state chemistry beyond the current graph model.
 
-No runtime PASS is inferred from unexecuted repository tests.
+### Duplicate suppression — PASS
+Repeated resolution of the same product graph at 10 / 100 / 1000 attempts retained one registry identity and stable generated ID.
 
-### Stage B required exact-HEAD execution
-After 01 PR creation, execute where environment permits:
-- `npm ci`;
-- `npm run typecheck`;
-- `npm run lint`;
-- dynamic-registry targeted tests;
-- reaction-progression tests;
-- randomized/property-style registry tests;
-- full `npm test`;
-- `npm run build`;
-- targeted performance baseline.
+### False merge / collision safety — PASS within current implementation contract
+- Same molecular formula with different connectivity did not merge.
+- Current registry indexes by canonical key but stores and verifies the exact canonical structural representation before reuse.
+- Same-key / different-representation collision is rejected rather than merged.
+- No true 64-bit FNV collision was brute-forced; collision-path safety is established by source/contract audit and explicit exact-verification logic rather than observed natural collision generation.
 
-Record exact test counts and exact tested HEAD.
+### Malformed graph rejection — PASS
+Rejected adversarial fixtures include missing atom reference, self bond, duplicate contradictory semantic bond, zero/NaN bond order, non-integer formal charge, and coarse over-valence graph. Registry size remained unchanged after rejection.
+
+### Atomic mutation — PASS / absolute blocker cleared
+Forced product-registration failure produced no selected reaction, no reactant consumption, and no authoritative registry mutation. `PRODUCT_REGISTRATION_FAILED` was surfaced explicitly.
+
+### Conservation — PASS
+Generated-product success path preserved element inventory, atom inventory, and applicable net charge. Final species amounts remained finite and non-negative.
+
+### Determinism — PASS
+Identical registry/state/candidates/dt/config produced identical generated IDs, final vessel species amounts, `ReactionProgressEvent` records, and serialized registry state.
+
+### Persistence — PASS
+`serialize -> restore -> resolve` preserved generated identity, canonical key, registry size, dedup behavior, and deterministic serialization. Registration order did not change serialized order.
+
+### Timestep semantics — PASS
+- Timestep N production makes the generated product exist at the end of N.
+- Same-step downstream consumption is blocked via the existing zero-initial-reactant semantics.
+- On timestep N+1 the generated species can participate normally.
+
+### Known species reuse — PASS
+Known canonical graph reuse returns the existing known species ID rather than inventing a generated duplicate.
+
+### Unknown species handling — PASS structurally / OPEN scientifically
+A valid unmatched structure receives a deterministic internal generated ID. Generated records remain `referenceMatchStatus: OPEN` and `scientificStatus: OPEN`; no real-world name or physical/thermochemical property is fabricated. 03 reference matching remains separate from registry validity.
+
+### Performance — OPEN / WATCH, no blocker observed
+No canonical engineering threshold exists, so no arbitrary performance PASS threshold was invented.
+
+Final independent-run observation on GitHub runner:
+- 1000 duplicate resolve/register operations: ~105.8 ms total
+- 10000 canonical-key lookups: ~86.9 ms total
+- registry size after repeated duplicate resolution: 1
+
+Full-suite observation of the same synthetic performance fixture varied with shared-run load (~164.2 ms / ~177.4 ms respectively), so these numbers are environment-local baselines only.
+
+Source audit found canonical-key lookup backed by `Map` rather than a naive full-registry graph-isomorphism scan. Canonicalization itself remains bounded by the molecular-core canonical search budget. Reaction progression still performs vessel-species searching for existing states; scaling at much larger vessel/registry workloads remains WATCH / OPEN pending a pre-committed engineering budget and larger stress matrix.
+
+## Absolute Blockers
+No absolute blocker was found on exact PR #39 HEAD.
+
+Explicit blocker gates all PASS:
+- distinct structures false-merged: NO
+- malformed graph registered: NO
+- registration failure partially mutates registry/vessel: NO
+- reactants consumed while product registration fails: NO
+- element/atom/applicable-charge conservation violation: NO
+- negative/NaN/Infinity authoritative amount: NO
+- identical input produces unstable generated identity/state/events: NO
+- serialize/restore identity drift or duplicate creation: NO
+- same-step hidden generated-species cascade: NO
+- next-timestep generated species inaccessible: NO
 
 ## PASS / FAIL / OPEN
 ### PASS
-- Stage A validation matrix, fixtures, adapter boundary, and failure criteria are prepared on latest main.
-- Existing main molecular canonical foundation passes prior integrated tests and the new Stage A suite is written to attack permutation, false-merge, and malformed-graph risks.
-- Validation verdict remains separate from scientific model/reference status.
-- No tuning, property fabrication, threshold relaxation, or 01 production modification was performed.
+- Structural registry correctness within the current molecular graph model.
+- Canonical permutation stability for tested supported graphs.
+- Duplicate suppression and false-merge prevention.
+- Malformed rejection.
+- Transactional product registration / atomic mutation.
+- Conservation and finite/non-negative state.
+- Determinism and persistence.
+- Same-step cascade prevention and next-step participation.
+- Known species reuse and honest unknown-species status.
+- Repository typecheck/lint/tests/build on independent exact-head validation branch.
 
 ### FAIL
-- No Dynamic Species Registry implementation FAIL can be asserted before an exact 01 PR HEAD is tested.
+- None established on exact PR #39 HEAD.
 
-### OPEN / BLOCKED
-- Stage B exact-head validation: OPEN — no 01 PR exists yet.
-- Integration approval: OPEN.
-- Repository-native Stage A execution in current local environment: BLOCKED by DNS/dependency access.
-- Stereochemistry/resonance/aromatic/radical identity completeness: OPEN unless implemented by 01.
-- Real-world identity/property completeness: OPEN pending 03 evidence.
-- Performance PASS threshold: OPEN; only baseline/WATCH is allowed without a committed budget.
+### OPEN / WATCH
+- Full stereochemical identity semantics.
+- Resonance-equivalent and chemically complete aromatic representation equivalence.
+- Complete radical/electronic-state chemistry semantics beyond the represented graph fields.
+- Real-world generated-species identity and property completeness pending 03 evidence.
+- Absolute performance acceptance threshold and large-scale registry/vessel stress behavior.
+- Deliberate natural FNV-1a collision generation was not brute-forced; collision handling is source-audited safe by exact representation verification.
 
 ## Owner Handoffs
-- 01: registry identity/canonicalization, exact collision verification, malformed rejection, atomic commit, persistence, conservation, timestep semantics, performance.
-- 03: reference matching, provenance, real-world identity, authoritative properties.
-- 04: player discovery/knowledge semantics only; must not change registry identity.
-- 02: thermo/kinetic evaluation of generated species and missing-property handling.
-- 05: UI presentation only; generated IDs/properties must not be fabricated in UI.
-- 07: exact-head CI/integration execution and merge sequencing.
+- 01: maintain canonicalization/registry/persistence/transaction semantics; investigate any future false-merge, mutation, determinism, or scaling regression.
+- 03: generated-species reference matching, provenance, real-world identity, authoritative properties.
+- 04: player knowledge/discovery; must not redefine registry identity.
+- 02: thermo/kinetic evaluation and missing-property behavior for generated species.
+- 05: presentation only; do not infer or fabricate identity/property truth.
+- 07: integrate PR #39 using exact-head protection and preserve the validated executable/test tree relationship.
 
 ## Integration Decision
-`OPEN` — Stage A is prepared, but 01 integration is **not approved** until the exact Dynamic Species Registry PR HEAD completes Stage B validation without absolute blockers.
+**PASS — 06 approves integration of PR #39 at exact HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`.**
+
+Approval is scoped to the current Dynamic Species Registry & Generated Species Persistence contract and current molecular graph model. OPEN scientific identity/property/performance limitations do not constitute registry-correctness failures and must remain explicitly labeled.
+
+If PR #39 HEAD changes after this record, this approval becomes stale and 06 must revalidate the new exact HEAD or prove executable/test equivalence before integration.
 
 ## No Tuning
 **No tuning performed.**
