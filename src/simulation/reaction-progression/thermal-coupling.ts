@@ -1,6 +1,5 @@
 import { reactionHeatToSystem, stepThermalState, type ThermalState } from "../thermal";
 import type { ScientificStatus } from "../molecular";
-import type { RankedReactionEvaluation } from "../reaction-evaluation";
 import type { ReactionProgressEvent, ReactionThermalCouplingInput, ReactionThermalCouplingResult } from "./types";
 
 const STATUS_ORDER: Record<ScientificStatus, number> = {
