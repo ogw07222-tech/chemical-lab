@@ -1,102 +1,96 @@
 # 01 — Chemistry Simulation Engine
 
-- Owner: Lead Chemistry Simulation Engine Developer / Molecular Graph Systems Developer / Reaction Solver Architect / Stoichiometry Engine Developer
-- Current phase: Phase 2A — Generic Reaction Candidate Engine
+- Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
+- Current phase: Phase 2E — Reaction Resolution & State Progression
 - Overall state: IN_PROGRESS
 - Last updated: 2026-09-11
-- Source main SHA at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
-- Final synchronized main SHA before implementation commit: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
-- Active branch: `feature/phase2-reaction-candidate-engine`
-- Active PR: #21 — `feat(sim): add Phase 2A generic reaction candidate engine`
-- Latest code HEAD before this final status commit: `c928fc1e2d2bcb96738ecd416702068e5ca1711c`
+- Starting main SHA: `f282443e9b1c07f082fa43d2bcf7061c275d758a`
+- Latest main re-check during task: `fb1b1ed4605eca26745629d82812e216a139cc0c`
+- Active branch: `feature/phase2e-reaction-state-progression`
+- Active PR: #33 — `feat(sim): add Phase 2E reaction state progression`
 
 ## Current Objective
-Implement a bounded deterministic generic reaction-candidate engine that consumes the existing molecular core and produces conservation-valid structural candidates without reaction-equation lookup tables or thermodynamic/kinetic evaluation.
+Implement the first deterministic production state-progression slice after candidate evaluation/ranking: competing-reaction resolution, bounded reaction extent, stoichiometric species mutation, post-mutation conservation, reaction progress events, and thermal handoff without duplicating 02 thermodynamics/kinetics.
 
-## Implemented Scope
-- Reused the existing `AtomNode`, `BondEdge`, `MolecularGraph`, `MoleculeRecord`, `SpeciesState`, `ElementProvider`, canonical identity, validation, and conservation primitives; no duplicate chemistry-domain types were introduced.
-- Added executable `ReactionCandidate` / `ReactionFamily` v1 contract and explicit 02 handoff metadata.
-- Added deterministic reactive-site detection for formal charge, hetero atoms, coarse under-coordination, polarized bonds when electronegativity exists, proton donor/acceptor hints, electron-rich/electron-poor hints, and breakable bonds.
-- Added coarse over-coordination rejection using provider-supplied `typicalValences`; positive-charge valence allowance is deliberately limited to elements with five or more valence electrons so H/C are not silently granted extra valence.
-- Preserved the existing neutral CO triple-bond fixture without molecule-specific hardcoding by allowing a tightly bounded coarse multiple-bond case: a neutral atom with exactly one incident multiple bond may exceed its typical-valence maximum by at most one bond-order unit. This remains a structural approximation, not a complete valence model.
-- Added immutable/copy-based graph transformations: bond add/remove/order change, graph merge/split, proton transfer, electron-transfer charge bookkeeping.
-- Added candidate generators for `BOND_FORMATION`, `BOND_CLEAVAGE`, `PROTON_TRANSFER`, and `ELECTRON_TRANSFER`.
-- Added family vocabulary for `ASSOCIATION`, `DISSOCIATION`, `SUBSTITUTION_GENERIC`, `COMBINATION`, and `DECOMPOSITION` without implementing reaction-specific lookup entries.
-- Added hard conservation gate for element count, atom count, net charge, and optional explicit-electron bookkeeping before candidates can be returned to 02.
-- Added deterministic candidate IDs/order, structural no-op elimination, structural deduplication, per-family caps, total cap, site caps, solid contact eligibility, and bounded pruning-reason samples.
-- Candidate structural dedup identity includes authoritative Species/phase-state identity so same molecular structure in different phase states is not incorrectly collapsed.
-- Added `docs/contracts/REACTION_CANDIDATE_V1.md` documenting executable guarantees and 02 handoff.
+## Implemented
+- Added `src/simulation/reaction-progression/` as the canonical Phase 2E progression module; duplicate progression paths were removed so there is one ownership path.
+- Added deterministic shared-reactant competition by rank group. Equal-rank candidates share group-start inventory through proportional demand scaling instead of candidateId-first winner selection.
+- Added bounded APPROXIMATED extent using 02 `relativeRate`, `dtS`, stoichiometric maximum extent, configured maximum fractional consumption, and a documented coarse timescale.
+- Default mutation defers INFEASIBLE, UNCERTAIN, unranked/OPEN, missing-rate, negligible-rate, and zero-initial-reactant candidates under the production evaluation/ranking contract.
+- Added product registry boundary: product graphs must map to an existing `SpeciesState` with matching canonical molecular identity; unresolved products are deferred and no species ID is invented.
+- Added finite/non-negative amount mutation, no-overconsumption guarantees, concentration-hint invalidation, and post-mutation element/atom/net-charge conservation re-check.
+- Added deterministic `ReactionProgressEvent` records with actual extent and species deltas.
+- Added thermal coupling through existing 02-owned `reactionHeatToSystem()` / `stepThermalState()` primitives using actual applied extent and existing `deltaH_J_per_mol`; missing enthalpy produces OPEN with no fabricated heat.
+- External thermal controls remain separate from reaction heat; reaction energy cannot bypass actual extent plus 02 thermochemical evidence.
+- Added canonical integration function `runPhase2EReactionProgression()`.
+- Added `docs/contracts/REACTION_PROGRESSION_V1.md`.
 
-## Changed Files
-- `src/simulation/reaction/types.ts`
-- `src/simulation/reaction/analysis.ts`
-- `src/simulation/reaction/transforms.ts`
-- `src/simulation/reaction/engine.ts`
-- `src/simulation/reaction/index.ts`
-- `tests/reaction-candidate.test.ts`
-- `docs/contracts/REACTION_CANDIDATE_V1.md`
-- `docs/workstream-status/01-simulation-engine.md`
+## Timestep Semantics
+1. Read current authoritative species/thermal state.
+2. Generate structural candidates.
+3. Evaluate/rank with existing 02 layer at current environment.
+4. Resolve ranked groups and shared-reactant competition.
+5. Compute bounded extents from current available amounts.
+6. Apply stoichiometric species amount changes.
+7. Re-check state conservation; mismatch is an explicit error.
+8. Emit deterministic progress events.
+9. Apply reaction heat only where 02 supplies deltaH, then apply external thermal controls.
+10. Return next state plus `phaseReevaluationRequired`; no phase solver is implemented here.
+
+Newly formed products do not trigger another reaction inside the same v1 timestep. They become eligible on the next timestep, avoiding hidden intra-step cascades.
 
 ## Tests Added
-- H2, O2, N2, H2O, CO, CO2, CH4, NH3 reactive-site/coarse-valence fixtures
-- explicit charged-fragment/H+ compatible structures
-- reactive-site determinism
-- immutable add/remove bond primitives
-- proton-transfer primitive
-- candidate ID/order determinism
-- conservation for every emitted candidate
-- structural duplicate elimination
-- structural no-op elimination check
-- candidate family/total caps
-- invalid graph rejection before candidate generation
-- bounded candidate count over the MVP species set
+`tests/reaction-progression.test.ts` covers:
+- limiting-reactant bounds;
+- no negative amounts / no overconsumption;
+- explicit atom inventory conservation before/after mutation;
+- shared-reactant tie competition;
+- deterministic repeated resolution/event ordering;
+- invalid dt;
+- NaN and positive/negative Infinity amount rejection;
+- unresolved product deferral;
+- zero-extent handling;
+- actual-extent reaction heat;
+- thermal ledger reaction-heat accounting;
+- missing-deltaH OPEN behavior with no fabricated heat.
 
-## Validation Performed
-- Local network clone / `npm ci`: BLOCKED in the execution environment because `github.com` DNS resolution failed.
-- Exact new TypeScript source + strict repository-compatible compiler settings: PASS using available `tsc 5.8.3`.
-- New Vitest source type/shape audit: PASS with a minimal local Vitest declaration because Vitest is not installed globally.
-- Independent executable runtime harness over the same new reaction-engine source: PASS for water/ammonia generic proton-transfer candidate generation, deterministic ordering, duplicate pruning, and conservation.
-- CO coarse-valence compatibility was explicitly rechecked after the generic multiple-bond refinement: PASS.
-- `npm run lint`: OPEN locally; ESLint is not globally installed and dependencies cannot be installed in this environment.
-- `npm test`: OPEN locally; Vitest is not globally installed and dependencies cannot be installed in this environment.
-- `npm run build`: OPEN locally; Vite is not globally installed and dependencies cannot be installed in this environment.
+A synthetic-but-contract-valid pre-registered product fixture is used because dynamic generated-species registration/persistence is not yet production functionality. A fully data-backed generated-candidate -> known-product progression fixture remains OPEN until the current chemistry/data set exposes a stable suitable case without reaction-specific hardcoding.
+
+## Validation
+- Local `git clone` / `npm ci`: BLOCKED because the execution environment cannot resolve `github.com`.
+- Repository-native `npm run typecheck`, `npm run lint`, targeted/full `npm test`, and `npm run build`: OPEN pending dependency-enabled CI/Codespaces/06/07 validation.
+- PR #33 currently has no applicable GitHub Actions workflow run for this code path.
+- Source-level contract audit against production reaction candidate, reaction evaluation/ranking, molecular conservation, integration, and thermal primitives: PASS.
 
 ## PASS / FAIL / OPEN
-
 ### PASS
-- Generic graph-derived candidate infrastructure exists without a stored reaction database.
-- Existing molecular core types and conservation utilities are reused.
-- Reactive-site detection is deterministic.
-- Candidate transformations are copy-based and do not mutate vessel state.
-- Every emitted candidate passes graph/coarse-valence sanity and conservation gates.
-- Candidate generation is bounded and deterministic with explicit pruning diagnostics.
-- 02 has a clean structurally validated handoff contract.
+- Deterministic competing-reaction resolver exists.
+- Stoichiometric maximum extent and shared-reactant overconsumption protection exist.
+- Species mutation remains finite/non-negative and re-checks conservation.
+- Unknown product identities cannot mutate state.
+- Reaction heat uses actual applied extent and existing 02 deltaH only.
+- Missing deltaH never creates invented heat.
+- 01 does not recalculate deltaG, activation barriers, Arrhenius terms, equilibrium, catalyst physics, or phase state.
 
 ### FAIL
-- None identified in the locally executable Phase 2A scope.
+- None established in the source/contract audit.
 
 ### OPEN
-- Repository-native `npm ci`, lint, Vitest, and production build in a dependency-enabled environment.
-- Full chemistry-aware valence, resonance/aromaticity, coordination, radical, stereochemical, implicit-H, hypervalent, solvent, and surface chemistry.
-- `SUBSTITUTION_GENERIC` and higher semantic family generators.
-- External electron/electrode reservoir bookkeeping.
-- Thermodynamic/kinetic ranking and rejection by 02.
-- Reaction extent / state mutation / competition resolution.
-- 06 randomized/property/performance validation against candidate explosion and graph permutations.
+- Dependency-enabled full regression/typecheck/lint/build.
+- 06 numerical/timestep-sensitivity validation.
+- Absolute physical rate laws; v1 extent is explicitly APPROXIMATED from dimensionless relative rate.
+- Dynamic Species Registry & Generated Species Persistence.
+- Composition-dependent heat-capacity refresh after species mutation.
+- Full phase re-evaluation after thermal/state update.
+- Full reversible equilibrium/network/ODE integration.
+- Electrochemistry.
 
-## 02 Handoff
-02 may consume emitted candidate IDs, family, reactant refs, validated product graphs, atom mapping, bond/charge changes, proton/electron metadata, stoichiometric coefficients, structural confidence, assumptions, rule ID, phase-bearing SpeciesState refs, and `conservation.valid === true`.
+## Handoffs
+- 02: continue owning evaluation, relative-rate semantics, reaction enthalpy, and thermal models. Phase 2E consumes these outputs but does not redefine them.
+- 03: no new hardcoded chemistry data is introduced; future physical rate/thermal fidelity still requires normalized data/provenance.
+- 04: gameplay may supply environmental controls but does not mutate chemistry/temperature directly.
+- 06: validate conservation, determinism, timestep sensitivity, tie/shared-reactant allocation, no-negative invariant, product deferral, and reaction-heat ledger accounting.
+- 07: run dependency-enabled `npm ci`, typecheck, lint, targeted/full tests, and build before integration.
 
-02 must independently evaluate thermodynamic direction, reaction enthalpy/free energy, activation/rate behavior, equilibrium, phase/rate corrections, and later competing-candidate resolution. `structuralConfidence` is not a thermodynamic or kinetic probability.
-
-## 03 Handoff
-01 only consumes `ElementProvider` fields already defined by the molecular core. Electronegativity and typical-valence data improve reactive-site detection, but authoritative values/provenance remain 03-owned.
-
-## 06 Handoff
-Run repository-native tests plus randomized graph-order/atom-ID permutations, conservation property tests, candidate-cap stress tests, duplicate/no-op checks, invalid/coarse-overvalence cases, and browser-relevant candidate-count/performance measurements.
-
-## Next Actions
-1. Run dependency-enabled repository validation for PR #21.
-2. 06 validates determinism, conservation, candidate bounds, and randomized graph transformations.
-3. 02 consumes `REACTION_CANDIDATE_V1.md` and defines/evaluates thermo/kinetics result interfaces without moving physical evaluation into 01.
-4. After validation, refine generic substitution/bond-order transformations and atom mapping only where scientifically justified; do not add reaction lookup tables.
+## Next
+After Phase 2E validation/integration: **Dynamic Species Registry & Generated Species Persistence**. Do not move to electrochemistry yet.

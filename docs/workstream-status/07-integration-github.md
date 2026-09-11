@@ -1,175 +1,102 @@
 # 07 — Integration & GitHub
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
-- Current phase: Phase 2 — Reaction Candidate/Data/Evaluation/Validation Foundation Integrated
-- Overall state: PASS — PHASE2_REACTION_FOUNDATION_INTEGRATED
+- Current phase: Phase 2E — Reaction State Progression Integration
+- Overall state: PASS — READY_TO_MERGE_PR33
 - Last updated: 2026-09-12
-- Starting production main SHA: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
-- Final functional main SHA before this status-only closeout: `22ac5bca99b9512a79de703fd1440474a8544d5d`
-- Final functional tree SHA: `102494e9ea60d9f3a1c39987897b031b0bc5aae2`
 
-## Phase 2 Source of Truth
-Exact owner PR HEADs used for integration:
-- PR #22 — Chemistry Data Pack: `cd99247c169a21cbfe684934a08a643a7f9a1570`
-- PR #21 — Reaction Candidate Engine: `2452ae3c28e15f14846784cea10ab6044e8b9a03`
-- PR #19 — Reaction Evaluation: `acb63f36dab34f491d92fb5ed8a9be24e88ea785`
-- PR #20 — Reaction Validation Matrix: `9370136bfe003e37c09d2d1eeb6d4c9c581b8d9d`
+## Current Source of Truth
+- Repository: `ogw07222-tech/chemical-lab`
+- Starting production main for this integration: `4baabda1bea03bbbef1b6f914cca075e0a7cf571`
+- Target PR: #33 — `feat(sim): add Phase 2E reaction state progression`
+- Original PR #33 source HEAD: `b2db3a9eb2128a8677b25193f1e8e91906715a53`
+- Latest-main ancestry refresh merge on feature branch: `029b38990071e0a7e6c4dc8449603c57a15f8c52`
+- Validated executable/test HEAD: `c57bcd03226acb270d2ef503030f43a3211d164a`
+- Consolidated validation run: `34633183345` — **SUCCESS**
 
-All four were rechecked against the task-start main, staged in dependency order `#22 -> #21 -> #19 -> #20`, validated together, and production-merged only from their exact HEADs using expected-head protection.
+## Refresh Audit
+PR #33 had diverged from main after PR #34 (Clean Workbench UI) and PR #35 (disable automatic Vercel Git deployments). The Phase 2E PR changed simulation/thermal/integration files, while the recent main advancement changed UI, UI tests/smoke, status documentation, one historical UI workflow, and root `vercel.json`.
 
-## Dependency / Interface Audit
-- 03 -> 01: **PASS** — `minimumElementProvider` implements the existing `ElementProvider`; no duplicate Atom/Bond/Species domain types; SI/provenance/missing-data behavior preserved.
-- 01 -> 02: **PASS** — actual `ReactionCandidate` is adapted through a narrow read-only projection; 02 does not duplicate candidate graph/reaction semantics.
-- 03 -> 02: **PASS** — species thermochemistry and element data are projected through production providers. A later integration audit found the existing 02 bond-energy fallback hook was not yet wired to 03 bond references; PR #30 added a conservative provenance-backed adapter. Ambiguous, formed-bond, or incomplete cases remain OPEN rather than receiving partial/fabricated estimates.
-- 01/02 -> 06: **PASS** — real production candidate/evaluation outputs are projected into the validation matrix. Validation logic is not copied into production chemistry and no tuning was introduced.
+Direct changed-file overlap between the original PR #33 delta and the recent main delta was **zero**. No simulation/core, reaction-progression, thermal, provider/type, or UI provider-contract conflict was found. Temporary PR #36 merged current main into the Phase 2E feature branch without changing Phase 2E chemistry semantics.
 
-No direct source/test overlap conflict, incompatible duplicate interface, or circular dependency was found in the four owner PRs.
+The refresh preserved root `vercel.json` and its manual-deployment policy:
 
-## Temporary Integration
-Primary integration branch: `integration/phase2-reaction-foundation`.
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
 
-Temporary staging PRs:
-- #23 staged #22
-- #24 staged #21
-- #25 staged #19
-- #26 staged #20
+No Vercel production deployment is part of this integration.
 
-Production integration wiring added:
-- `src/integration/phase2-reaction.ts`
-- `tests/phase2-reaction-integration.test.ts`
+## Phase 2E Contract Audit
+The production path represented by PR #33 is:
 
-The first two one-shot workflow attempts exposed integration-test assumptions about H2O phase/species-key spelling; owner production suites continued to pass. Canonical data keys from 03 are `H2`, `O2`, `N2`, `H2O`, `CO`, `CO2`, `CH4`, `NH3`. The proof was corrected to use the actual provider contract rather than invent an alias.
+`candidate generation -> evaluation/ranking -> deterministic competing-reaction resolution -> bounded reaction extent -> stoichiometric species mutation -> ReactionProgressEvent -> actual-extent reaction heat -> next state`
 
-Successful consolidated tested commit: `2d0273aadeb92db41f01b06a6b65e0b57c98f381`.
-GitHub Actions run: `34593811108` — **SUCCESS**.
+Integration gates:
+- finite species amounts / invalid NaN or Infinity rejection: **PASS**
+- limiting-reactant bounded extent: **PASS**
+- no negative amounts after mutation: **PASS**
+- explicit atom/element conservation across applied mutation: **PASS**
+- charge/conservation guard remains authoritative where represented: **PASS**
+- deterministic repeated identical timesteps: **PASS**
+- shared-reactant competition without overconsumption: **PASS**
+- candidate ID is not allowed to capture shared inventory ahead of tied competitors: **PASS**
+- unresolved product identity is deferred rather than assigned a fabricated species ID: **PASS**
+- zero-extent candidates are not applied: **PASS**
+- no newly produced product is recursively consumed in the same resolution step: **PASS** by Phase 2E resolver contract
+- reaction heat uses actual applied extent and existing `deltaH_J_per_mol`: **PASS**
+- missing/non-finite reaction enthalpy produces no fabricated heat and propagates `OPEN`: **PASS**
+- aggregate reaction heat ledger / double-specification guard: **PASS**
 
-Validation evidence:
-- `npm ci --no-audit --no-fund`: PASS
-- `npm run typecheck`: PASS
-- `npm run lint`: PASS
-- molecular core: 21/21 PASS
-- chemistry data: 16/16 PASS
-- reaction candidates: 16/16 PASS
-- reaction evaluation: 9/9 PASS
-- reaction validation matrix: 8/8 PASS
-- Phase 2 end-to-end proof: 2/2 PASS
-- full suite: 10 files / 124 tests PASS
-- `npm run build`: PASS
+The current coarse kinetic extent model remains an approximation; that scientific approximation status is separate from the integration verdict.
 
-After the four original PRs were merged to main, temporary PR #29 merged production main back into the integration branch only to normalize ancestry. PR #27 then contained exactly two integration-only files. Their blobs were byte-identical to the successful tested commit:
-- `src/integration/phase2-reaction.ts`: `fa524a2f8ca66205f6800bb69a9b272a398d7c63`
-- `tests/phase2-reaction-integration.test.ts`: `b14c5a831da73ffa292ff53dec1f892afe850ade`
+## Validation
+A temporary branch-scoped workflow was used only to validate the refreshed exact executable state, then removed before merge.
 
-## Production Merges
-- PR #22 source `cd99247c169a21cbfe684934a08a643a7f9a1570` -> merge `3f68b2badb296d1d93c5498bc22aa892f157924e`
-- PR #21 source `2452ae3c28e15f14846784cea10ab6044e8b9a03` -> merge `ba463e60819a4f423ac132f7e9ad23109f556b0f`
-- PR #19 source `acb63f36dab34f491d92fb5ed8a9be24e88ea785` -> merge `e87a7706462bda918ce930e98d3ab64f97aa9ef6`
-- PR #20 source `9370136bfe003e37c09d2d1eeb6d4c9c581b8d9d` -> merge `9c11c1c35d7a9c008c07811002229fa6528d7e75`
-- PR #27 integration wiring source `86328f5c0c87b25742010d4d007e740f8b3ea5e2` -> merge `1bb93cb23cf421c8453866dd8fb943fc49dc0930`
+Successful run: `34633183345`
+Tested commit: `c57bcd03226acb270d2ef503030f43a3211d164a`
 
-## Bond / Reference Data Wiring Completion
-A final contract audit found that the first production bridge connected 03 species thermochemistry but not 03 bond references to 02's already-defined `getBondEnergyApproximation` hook. This was treated as an integration gap, not a new chemistry-model task.
+Results:
+- `npm ci --no-audit --no-fund`: **PASS**
+- `npm run typecheck`: **PASS**
+- `npm run lint`: **PASS**
+- targeted Phase 2E + candidate + evaluation + thermal: **4 files / 48 tests PASS**
+  - reaction progression: 10/10
+  - reaction candidates: 16/16
+  - reaction evaluation: 9/9
+  - thermal: 13/13
+- full `npm test`: **12 files / 137 tests PASS**
+- reaction validation matrix: 8/8 PASS within full suite
+- UI workbench regression: 10/10 PASS within full suite
+- `npm run build`: **PASS**
 
-Branch: `integration/phase2-bond-reference-bridge`.
-Validated tested commit: `604191de71bec5e3c2ef6a8e97fc758945606763`.
-Actions run: `34598617732` — **SUCCESS**.
+Two validation defects were found and corrected before the successful run:
+1. one unused type import in `thermal-coupling.ts` caused lint failure; the import was removed with no runtime semantic change;
+2. the missing-DeltaH test helper used JavaScript default-parameter semantics that replaced explicit `undefined` with a default enthalpy. The fixture was corrected so omitted and explicitly missing enthalpy are distinct. Production missing-enthalpy handling itself already propagated `OPEN` without fabricating heat.
 
-Evidence:
-- npm ci: PASS
-- typecheck: PASS
-- lint: PASS
-- bond-reference integration: 2/2 PASS
-- Phase 2 targeted regression: 6 files / 72 tests PASS
-- full suite: 11 files / 126 tests PASS
-- build: PASS
-
-The adapter uses only exact reactant-species, bond-order and atom-element matches for complete cleavage-only transformations. It propagates existing 03 provenance/status/confidence. It refuses partial estimates for formed bonds, order changes, ambiguous records, or unresolved products, preserving OPEN semantics.
-
-After validation, only the branch-scoped workflow was removed. Production blobs remained byte-identical to the successful run:
-- `src/integration/phase2-bond-reference.ts`: `5c927ba1ae618d6300c7e7ae72014dd4b80dc462`
-- `tests/phase2-bond-reference-integration.test.ts`: `ba30ce4f2903019eaef07165784564ac50135c76`
-
-PR #30 source `a1afbc0f9d813ddd83fc99a13974bd3ded5924f9` -> merge `22ac5bca99b9512a79de703fd1440474a8544d5d`.
-Production main was re-read after merge and both blobs matched the validated values exactly, so no redundant full Actions run was required.
-
-## Scientific Integration Gates
-- Conservation — atoms/elements/charge/explicit electrons where represented: **PASS**
-- Structural sanity / invalid graph / current coarse over-valence checks / duplicate candidate removal: **PASS**
-- Deterministic candidate IDs/order and deterministic evaluation ranking: **PASS**
-- Thermodynamic sign/direction invariants: **PASS**; missing evidence remains OPEN and no fake precision is inserted
-- Kinetic model invariants: **PASS** for positive-Ea temperature behavior and catalyst thermodynamic isolation; real candidates lacking activation-barrier data remain **OPEN**, correctly
-- Provenance / SI / explicit missing values: **PASS**
-- Validation verdict `PASS|FAIL|OPEN` separated from scientific model status: **PASS**
-- Threshold authority remains `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`: **PASS**
-- Real-experiment quantitative benchmark corpus/metrics: **OPEN** — no eligible populated corpus exists yet
-
-## Minimum End-to-End Phase 2 Proof
-**PASS**.
-
-Production path now supports:
-`known SpeciesState -> reactive-site detection -> ReactionCandidate[] -> conservation gate -> thermo/kinetic evaluation -> deterministic ranking -> production validation view/result`.
-
-The integration proof uses actual 01 candidate generation, actual 02 evaluation, actual 03 providers, and actual 06 validation projections. Unknown product identity, absent barrier data, and unsupported bond-reference cases propagate OPEN.
-
-The foundation intentionally does **not** perform reaction extent or state mutation.
-
-## Explicitly Not Implemented in This Phase
-- competing-reaction resolution / reaction extent
-- species amount mutation
-- timestep reaction network
+## Explicitly Out of Scope
+This integration does not add:
+- DynamicSpeciesRegistry
+- generated-species persistence
 - equilibrium solver
-- dynamic species registry / generated-species persistence
-- UI production wiring for reactions
-- electrochemistry, Nernst, Faraday, Butler–Volmer, or electrode models
+- stiff ODE solver
+- electrochemistry
+- phase solver
+- new UI reaction visualization
+- new chemistry constants
 
-These remain outside this integration closeout.
+## Vercel Deployment Policy
+PR #35 remains authoritative. Automatic Git-triggered Vercel production and preview deployments are disabled by root `vercel.json`.
 
-## Owner Status Document Synchronization
-Owner implementation content is broadly consistent with merged code, but operational metadata is stale after integration:
-- 01 still describes PR #21 as active and repository-native validation as OPEN.
-- 02 still describes PR #19 as active and the executable 01 candidate type as absent.
-- 03 still describes PR #22 as active/ready for review.
-- 06 still states the production Phase 2 reaction engine is absent; this is now directly stale after production integration.
+Do not deploy as part of ordinary GitHub push/merge work. Manual production deployment occurs only when the user explicitly requests deployment/Vercel publication.
 
-This is a **documentation synchronization OPEN item**, not a functional/scientific integration blocker. Owners should refresh their own status documents from latest main rather than 07 rewriting domain status on their behalf.
-
-## PR #34 — Clean Laboratory Workbench UI Production Integration
-
-Source of truth:
-- pre-merge main: `fb1b1ed4605eca26745629d82812e216a139cc0c`
-- validated executable/UI HEAD: `0b7281cc592431afcb345a19d31b135f85f2c991`
-- PR #34 source HEAD: `3e28c551fd580e43d96e3e9899ecedd7a375bf18`
-- PR #34 merge / resulting functional main: `1dcf48cca1a367c6a6566c1cc2300f8914f22213`
-- validation run: `34606112975` — **SUCCESS**
-
-The delta from the validated implementation HEAD to the merged PR HEAD was only `docs/workstream-status/05-web-ui.md`; executable, UI, test, smoke, and workflow blobs were unchanged. No redundant full validation rerun was performed.
-
-PR #33 Phase 2E remained open during this integration. PR #33 and #34 had zero changed-file overlap, so no direct provider/source merge conflict or chemistry-semantics overwrite was identified.
-
-Contract integration audit:
-- 도감 / locked identity boundary: **PASS**
-- finite positive AddSubstance/provider ownership: **PASS**
-- central clean workbench layout: **PASS**
-- persistent substance inspector: **PASS**
-- free-form My Notes with no UI truth grading: **PASS**
-- temperature/pressure/volume request controls: **PASS**
-- Mix/Stir/Pause/Reset provider-bound operations: **PASS**
-- provider-backed disposal with confirmation: **PASS**
-- no chemistry/thermo/phase formulas in React: **PASS**
-
-Vercel production evidence for the PR #34 merge:
-- project: `chemical-lab` (`prj_Jg9sAvWZHkmldk4u1hToEXsmAriQ`)
-- deployment: `dpl_J5oXxpCyn1yrgHGJ4s83ikysgJxb`
-- branch: `main`
-- deployed commit: `1dcf48cca1a367c6a6566c1cc2300f8914f22213`
-- target/state: `production` / `READY`
-- production domain: `chemical-lab-kappa.vercel.app`
-- production HTTP: 200 OK
-
-The live production JS bundle contains the new workbench UI surfaces (`도감`, `실험실 작업대`, `물질 정보`, `내 메모`, `실험 조건`, `혼합`, `교반`, `반응 정지`, `초기화`, `폐기`) and the corresponding provider command wiring. This confirms production is serving the clean workbench implementation rather than the prior dashboard bundle. Pixel-level screenshot inspection was not available in the current integration environment; the validated Chromium run remains the visual/responsive browser evidence.
-
-## Final Status
-**PASS — PR #34 integrated and clean laboratory workbench UI is live on Vercel production.**
+## Integration Decision
+**PASS — PR #33 is refreshed onto latest main, consolidated validation is green, and Phase 2E is ready for exact-head protected merge.**
 
 ## Next Action
-Verify actual production UX visually when browser/screenshot automation is available or through user-visible inspection. Continue 05 polish only for observed UX defects. Do not mix UI polish with Phase 2E chemistry work.
+After production merge, proceed to **Dynamic Species Registry & Generated Species Persistence**. Do not mix that work into PR #33.
