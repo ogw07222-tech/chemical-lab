@@ -44,9 +44,25 @@ try {
   body = await text(desktop);
   assert(body.includes('250 W') && body.includes('150 W'), 'desktop: heater/cooler control failed');
 
-  await desktop.getByRole('checkbox', { name: 'Thermostat' }).check();
+  const thermostat = desktop.getByRole('checkbox', { name: 'Thermostat' });
+  const thermostatTarget = desktop.getByRole('spinbutton', { name: 'Thermostat target' });
+  const temperatureMetric = desktop.locator('.metric').filter({ hasText: 'Temperature' }).first();
+  const temperatureBeforeThermostat = await temperatureMetric.innerText();
+  await thermostatTarget.fill('37');
+  await thermostatTarget.blur();
+  assert((await thermostatTarget.inputValue()) === '37', 'desktop: thermostat target input did not retain 37 °C request');
+  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: thermostat target directly overwrote vessel temperature');
+  await thermostat.check();
+  assert(await thermostat.isChecked(), 'desktop: thermostat enabled state not reflected from provider snapshot');
+  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: enabling thermostat directly overwrote vessel temperature');
+  await desktop.getByRole('button', { name: 'Timeline' }).click();
   body = await text(desktop);
-  assert(body.includes('Thermostat enabled'), 'desktop: thermostat command feedback missing');
+  assert(body.includes('Thermostat enabled'), 'desktop: thermostat enable request missing from provider timeline');
+  await thermostat.uncheck();
+  assert(!(await thermostat.isChecked()), 'desktop: thermostat disabled state not reflected from provider snapshot');
+  body = await text(desktop);
+  assert(body.includes('Thermostat disabled'), 'desktop: thermostat disable request missing from provider timeline');
+  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: disabling thermostat directly overwrote vessel temperature');
 
   await desktop.getByRole('button', { name: 'Phase' }).click();
   await desktop.getByRole('img', { name: 'Phase diagram' }).waitFor();
