@@ -63,6 +63,8 @@ An entry should be able to retain:
 
 The encyclopedia does not define chemistry. It references Simulation/Data Layer identities and validated properties.
 
+Detailed rules for experiment notebooks, automatic measurements, player hypotheses, confirmed knowledge, encyclopedia promotion, generated/unverified species, and evidence/tolerance boundaries are defined in `docs/contracts/LAB_NOTEBOOK_SCIENTIFIC_KNOWLEDGE.md`.
+
 ## Inventory Unlock
 
 Once a species is validly registered as discovered, it becomes available as a reusable laboratory material in normal play.
@@ -173,6 +175,8 @@ Preferred dependency flow:
 Forbidden dependency direction:
 
 `Inventory/Progression -> Simulation chemistry rules`
+
+The notebook/knowledge refinement of the observation-to-encyclopedia path is specified in `docs/contracts/LAB_NOTEBOOK_SCIENTIFIC_KNOWLEDGE.md`.
 
 ## Validation Requirements
 

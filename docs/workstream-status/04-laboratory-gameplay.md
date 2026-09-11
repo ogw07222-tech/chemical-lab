@@ -1,179 +1,186 @@
 # 04 — Laboratory Gameplay
 
 - Owner: Lead Laboratory Gameplay Designer / Chemistry Sandbox Systems Designer / Progression Designer / Experiment Gameplay Developer
-- Current phase: Phase 1 — Progression runtime foundation
-- Overall state: IMPLEMENTED_PENDING_RUNTIME_VALIDATION
+- Current phase: Lab Notebook / Scientific Knowledge Contract
+- Overall state: NOTEBOOK_CONTRACT_REFRESHED / READY_FOR_MERGE
 - Last updated: 2026-09-11
-- Last checked main SHA: `567994693e56a7013cbcce0d95222a6cb98594af`
-- Active branch: `feature/phase1-progression-runtime`
-- Active PR: #8 — `feat(game): add Phase 1 progression runtime foundation`
+- Latest production main incorporated: `f282443e9b1c07f082fa43d2bcf7061c275d758a`
+- Active branch: `docs/lab-notebook-knowledge-contract`
+- Active PR: #28 — `docs(game): define lab notebook scientific knowledge contract`
 
 ## Current Objective
-Implement the approved Discovery -> Encyclopedia -> Unlimited Inventory contract as an executable deterministic Game Layer state machine, without implementing chemistry, analyzer physics, phase, thermal, or UI behavior.
 
-## Source of Truth Reviewed
-- `PROJECT.md`
-- `AGENTS.md`
-- `ROADMAP.md`
-- `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`
-- `docs/contracts/UNIT_SYSTEM.md`
-- this workstream status file
+Define a player-centered Lab Notebook / Encyclopedia contract that automatically records objective measurements while leaving interpretation primarily to the player rather than turning the notebook into a mandatory answer-submission system.
+
+This work is contract/design only. It does not implement chemistry formulas, analyzer physics, scientific tolerances, graph-equality algorithms, reaction logic, or production UI.
+
+## Canonical Direction
+
+The notebook has three separate concepts:
+
+1. **Scientific Record** — objective instrument/simulation observations and raw data, automatically recorded.
+2. **My Notes** — free-form player-authored observations, interpretations, hypotheses, and reminders; never graded as correct/incorrect.
+3. **Structured Hypothesis** — optional structured submissions only where verification has meaningful gameplay/scientific value, such as molecular identity, formula, structure, or selected quantitative estimates.
+
+Canonical principle:
+
+`direct measurement is automatic -> interpretation is player-owned -> formal verification is optional and targeted`
+
+The previous `PLAYER_INFERENCE` concept is retained as an acquisition category but no longer implies that every interpretation must be submitted for grading.
+
+## Completed Contract Work
+
+### Scientific Record
+
+Instrument-readable values and authoritative observations are AUTO-recorded with:
+
+- measurement/event identity;
+- value/unit;
+- uncertainty where available;
+- instrument/source reference;
+- timestamp;
+- condition/evidence references;
+- repeat-measurement history.
+
+The same authoritative observation is idempotent. Players are not asked to retype already known raw values.
+
+### My Notes
+
+Players may freely write notes such as:
+
+- “물과 닿으면 빠르게 발열하는 것 같음”
+- “공기 중 반응성 높음”
+- “가열 시 기체 생성”
+
+These notes:
+
+- may link to evidence;
+- are not evaluated against hidden truth;
+- do not become `CONFIRMED`/`REJECTED` merely from text;
+- do not unlock species by themselves;
+- remain distinct from validated Encyclopedia facts.
+
+Qualitative interpretations such as flammability, water reactivity, oxidizing behavior, or corrosiveness are not automatically mandatory system-defined answer fields.
+
+### Optional Structured Hypothesis
+
+Structured verification remains appropriate for high-value machine-verifiable targets such as:
+
+- molecular identity;
+- molecular formula;
+- formula-only / partial / full molecular structure;
+- selected quantitative estimates backed by approved provider/tolerance policy.
+
+Structured submissions are optional rather than the default representation for all player interpretation.
+
+### Notebook vs Encyclopedia
+
+Lab Notebook is experiment-centered research history containing Scientific Record, My Notes, calculations/evidence, and optional structured hypotheses.
+
+Encyclopedia is a species-centered curated player research record. It may show confirmed/validated/reference-backed facts and clearly labeled player research history, but it must not behave as an automatic ground-truth wiki merely because the backend knows a species.
+
+### Unknown Species / Identity Leak
 
 Canonical flow remains:
 
-`starter/unlocked material -> finite vessel addition -> experiment -> authoritative identity confirmation -> first discovery -> encyclopedia unlock -> inventory unlock -> unlimited reuse`
+`internal species -> unknownRef -> Scientific Record + My Notes -> optional structured identity/structure hypothesis or approved analyzer -> IdentityConfirmedEvent -> SpeciesDiscovery -> Encyclopedia -> InventoryUnlock`
 
-## Completed
+Normal projections must not leak hidden species keys, canonical graphs, reference matches, names, or developer metadata before disclosure is allowed.
 
-### Executable progression state
-Added `src/game/progression.ts` implementing:
+### Anti-Grind
 
-- `PlayerProgressionState`
-- `StarterMaterialSet`
-- `SpeciesDiscovery`
-- `EncyclopediaEntryState`
-- `InventoryUnlockState`
-- `IdentityConfirmedEvent` / `IdentityUnconfirmedEvent`
-- `FirstDiscoveryEvent`
-- initial progression creation
-- identity-event reducer
-- material-access selector
-- finite `AddUnlockedMaterial` validation
-- progression invariant validation
-- deterministic serialization/deserialization
-- explicit unsupported-save-version failure
+Canonical anti-grind requirements:
 
-### Identity confirmation and atomic unlock
-Only an authoritative `IdentityConfirmedEvent` can create a first discovery.
+- instrument-readable values auto-record;
+- duplicate observation ingestion is idempotent;
+- confirmed/raw values are never retyped for progression;
+- My Notes are freely authored and never graded;
+- structured submissions are optional and limited to meaningful fields;
+- confirmed structured knowledge is not repeatedly quizzed;
+- evidence may accumulate across experiments;
+- progression emphasizes experiment choice and interpretation rather than transcription.
 
-The first valid confirmation produces one state transition containing:
+## Ownership Boundaries
 
-1. `SpeciesDiscovery`
-2. matching encyclopedia entry
-3. matching inventory unlock
-4. one `FirstDiscoveryEvent`
+### 01 — Chemistry Simulation Engine
+Owns molecular/species identity, graph semantics/equality, formula/structure verification semantics, and reaction structure.
 
-Hidden/unconfirmed species do not unlock. Duplicate confirmation does not duplicate first-discovery state or inventory entitlement. A later confirming experiment may add a related experiment reference without replacing first-discovery metadata.
+### 02 — Thermodynamics & Kinetics
+Owns thermodynamic/kinetic truth and derived physical results.
 
-### Unlimited unlocked inventory
-Unlocked normal-play species use `UNLIMITED_UNLOCKED` entitlement semantics. There is no stock counter, depletion, replenishment, purchase loop, or giant sentinel stock quantity.
+### 03 — Chemistry Data & Validation
+Owns reference values, provenance, uncertainty, reference matching, and scientific data quality.
 
-Unlimited entitlement is Game Layer state only. Every Simulation-bound addition still contains finite `amountMol` and must satisfy `amountMol > 0`.
+### 04 — Laboratory Gameplay
+Owns:
 
-`NaN`, `Infinity`, `-Infinity`, zero, and negative amounts are rejected before Simulation dispatch.
+- Notebook state;
+- Scientific Record organization;
+- player My Notes;
+- evidence/history;
+- optional Structured Hypothesis lifecycle;
+- progression/Encyclopedia presentation rules;
+- unknownRef progression/disclosure;
+- anti-grind behavior.
 
-No arbitrary global maximum amount is introduced here; actual vessel/apparatus capacity limits remain a later apparatus boundary concern. Large finite values are never interpreted as unlimited-stock sentinels.
+04 does not own hardcoded chemistry-truth labels for qualitative property grading.
 
-### Developer Mode boundary
-Developer Mode may bypass material entitlement only at the Game Layer access check. It does not mutate progression state or provide chemistry modifiers. Developer additions still require finite positive `amountMol`.
+### 05 — Web UI
+Owns Scientific Record, My Notes, worksheet/hypothesis, unknown-species, and Encyclopedia UI surfaces.
 
-### Premium boundary
-Premium cannot bypass discovery. The premium flag is deliberately ignored by material-access logic.
+### 06 — Simulation Validation Lab
+Owns scientific acceptance/tolerance policy and validation that structured confirmation does not produce false scientific claims.
 
-### Deterministic persistence foundation
-Schema version is `1`. Serialization canonicalizes starter/unlocked species and record ordering while preserving first-discovery order explicitly. Deserialization validates discovery/encyclopedia/inventory synchronization.
+## Phase 2 Compatibility
 
-Version `0`, missing versions, and unknown versions are rejected with `UnsupportedProgressionSaveVersionError`. No implicit migration is performed yet.
+The branch was refreshed after Phase 2 reaction candidate/data/evaluation/validation integration and now incorporates production main `f282443e9b1c07f082fa43d2bcf7061c275d758a`.
 
-## Tests Added
-Added `tests/game/progression.test.ts` covering:
-
-- starter species accessible
-- locked species unavailable
-- hidden/unconfirmed species does not unlock
-- identity confirmation triggers atomic unlock
-- first confirmation unlocks exactly once
-- duplicate confirmation protection
-- later confirmation history without first-discovery mutation
-- encyclopedia/inventory synchronization
-- unlocked species reusable repeatedly without depletion
-- exact finite amount forwarded to Simulation-bound request
-- zero/negative amount rejection
-- `NaN` rejection
-- positive/negative `Infinity` rejection
-- Developer Mode bypass without progression mutation
-- Premium cannot bypass discovery
-- deterministic serialize -> deserialize -> serialize
-- explicit old/unknown save-version rejection
-
-## Validation Performed
-### PASS — contract/source audit
-- No chemistry/reaction/analyzer/phase/thermal formulas were added.
-- Progression state contains access/knowledge state, not vessel matter.
-- First discovery keeps discovery, encyclopedia, and inventory synchronized in one returned transition.
-- Unlimited stock is represented as entitlement semantics, never infinite physical amount.
-- Developer Mode and Premium remain outside chemistry outcome logic.
-- SI amount boundary is explicit as `amountMol`.
-
-### OPEN — executable tests
-Attempted:
-
-`git clone --branch feature/phase1-progression-runtime --single-branch https://github.com/ogw07222-tech/chemical-lab.git ...`
-
-The execution environment could not resolve `github.com`, so checkout stopped before `npm install`, `npm run typecheck`, or `npm test`. Therefore no executable/typecheck PASS is claimed here.
-
-The checked main had no `.github/workflows` directory available for an existing CI run to reuse.
+The Notebook contract does not overwrite or redefine Phase 2 reaction/data/thermo/validation semantics.
 
 ## PASS / FAIL / OPEN
 
 ### PASS
-- Progression state machine implemented.
-- Starter entitlement implemented.
-- Locked-species rejection implemented.
-- Authoritative identity-confirmation gate implemented.
-- Atomic encyclopedia + inventory unlock implemented.
-- Duplicate first-discovery protection implemented.
-- Unlimited unlocked-stock semantics implemented.
-- Finite positive amount validation implemented.
-- Developer Mode access-only bypass implemented.
-- Premium-neutral unlock rules implemented.
-- Deterministic persistence foundation implemented.
-- Old/unknown save behavior is explicit.
+
+- Scientific Record AUTO measurement direction defined.
+- My Notes free-form/ungraded direction defined.
+- optional Structured Hypothesis boundary defined.
+- Notebook and Encyclopedia responsibilities separated.
+- unknown species can accumulate research history without identity leakage.
+- anti-grind rules prevent measurement transcription gameplay.
+- player knowledge remains separate from scientific support.
+- scientific ownership remains in 01/02/03/06.
+- Phase 2 production docs/code semantics are not redefined by 04.
 
 ### FAIL
-- None established by executed evidence.
+
+- None identified at contract level.
 
 ### OPEN
-- `npm run typecheck` and `npm test` must run in a network-enabled environment before merge.
-- Exact adapter from Game Layer `SpeciesKey` to the final executable 01 species identity type.
-- Exact starter-material membership remains an HQ/content decision.
-- Actual analyzer implementation producing authoritative identity confirmations is out of scope.
-- Future save-schema migration policy; unsupported versions currently fail explicitly.
-- Vessel/apparatus maximum amount validation remains outside this foundation.
 
-## 05 Handoff — Web UI
-05 should consume Game Layer state/events rather than implement progression rules:
+- executable `LabNotebookState` persistence schema;
+- minimum Scientific Record field registry;
+- production ObservationRecord -> Notebook adapter;
+- exact MVP Structured Hypothesis fields;
+- analyzer/identity-confirmation progression;
+- field-specific evidence requirements;
+- 03/06 tolerance policy IDs where needed;
+- My Notes search/tagging UX;
+- graph-editor exchange format with 01/05;
+- long-save migration/checkpoint strategy.
 
-- normal inventory shows starter + unlocked species only;
-- unlocked species are displayed as unlimited stock, without a remaining-stock counter;
-- amount input describes the finite amount added to the current vessel;
-- first-discovery feedback is driven by `FirstDiscoveryEvent`;
-- encyclopedia and inventory appear unlocked from the same progression snapshot;
-- Developer Mode all-species access is clearly separated from normal play;
-- Premium UI must not expose discovery bypass.
+## Next Implementation Slice
 
-## 06 Handoff — Simulation Validation Lab
-Before runtime PASS, validate:
+### 04 — Minimum Executable Notebook Runtime
 
-- the committed progression test suite;
-- invalid-number/property tests around material-add validation;
-- synchronization under repeated/reordered confirmation events;
-- deterministic serialization round trips;
-- malformed/old save rejection;
-- Developer Mode only changes access and does not alter chemistry inputs beyond finite species/amount request;
-- Premium produces no unlock/access difference;
-- no `NaN`/`Infinity` crosses Game -> Simulation material boundary.
+Implement only:
 
-## 07 Handoff — Integration & GitHub
-For PR #8:
+- `LabNotebookState`;
+- AUTO Scientific Record ingestion with idempotent history;
+- free-form My Notes CRUD/persistence;
+- tiny optional Structured Hypothesis registry;
+- provider-neutral verification-result ingestion;
+- unknownRef -> confirmed species linking;
+- Encyclopedia projection of confirmed/disclosed fields;
+- deterministic serialization.
 
-1. re-check latest main because parallel Phase 1 work is active;
-2. update/rebase PR #8 if main moved;
-3. run `npm install`, `npm run typecheck`, and `npm test` in a network-enabled environment;
-4. resolve only interface-level conflicts; do not move chemistry logic into Game Layer;
-5. merge only after executable tests PASS and the 06 boundary review is acceptable.
-
-## Next Actions
-- Obtain executable typecheck/test evidence.
-- Reconcile stable species identity with 01 through an adapter rather than chemistry dependency.
-- Wire future analyzer/observation output into `IdentityConfirmedEvent` at the Game Layer boundary.
+Do not add scientific formulas, chemistry truth duplication, compulsory qualitative-property quizzes, or production UI in this runtime.
