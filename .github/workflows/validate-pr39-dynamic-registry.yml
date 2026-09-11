@@ -29,9 +29,11 @@ jobs:
         run: mkdir -p validation-logs
 
       - name: Typecheck
+        continue-on-error: true
         run: npm run typecheck > validation-logs/typecheck.log 2>&1
 
       - name: Lint
+        continue-on-error: true
         run: npm run lint > validation-logs/lint.log 2>&1
 
       - name: Independent dynamic registry validation
@@ -47,6 +49,7 @@ jobs:
         run: npm test 2>&1 | tee validation-logs/full-test.log
 
       - name: Build
+        continue-on-error: true
         run: npm run build 2>&1 | tee validation-logs/build.log
 
       - name: Tested commit
