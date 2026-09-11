@@ -7,7 +7,7 @@
 - Source main at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
 - Latest main incorporated before finalization: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
 - Active branch: `feature/phase2-chemistry-data-pack`
-- Active PR: pending creation
+- Active PR: #22 — Phase 2C minimum chemistry data pack
 - Exact data/code/test HEAD validated by Actions: `07d8eaa4f29b99ea21789d45d098dcdceeb69a0d`
 - Post-validation branch refresh commit: `457a9f818a701a4161775c22433c294671e63f5d`
 
@@ -130,4 +130,4 @@ The only commits after that validated code HEAD remove the one-shot workflow, in
 - **01 Chemistry Simulation Engine:** import `minimumElementProvider` for the current `ElementProvider` contract. Use `minimumChemistryDataProvider.getElementDefinition(symbol)` when direct per-symbol lookup is preferable. Treat absent symbols/properties as unsupported rather than defaulting them.
 - **02 Thermodynamics & Kinetics:** use `getSpeciesThermodynamics(speciesId, phase?)`, `getPhaseEquilibrium(speciesId)`, and bond lookup methods. Respect record `status`, `confidence`, reference conditions, uncertainty, and missing `undefined`; 03 does not decide reaction direction/rate/phase evolution.
 - **06 Simulation Validation Lab:** consume `minimumChemistryReferenceCases` plus `validateMinimumChemistryDataPack()` as the seed reference/eligibility layer. Reference cases are oracles only and must never be imported into production reaction logic.
-- **07 Integration & GitHub:** Phase 2C input now exists on `feature/phase2-chemistry-data-pack`; audit and integrate this exact submitted branch/PR using the validated code HEAD evidence above.
+- **07 Integration & GitHub:** Phase 2C input is PR #22 from `feature/phase2-chemistry-data-pack`; audit and integrate using the validated code HEAD evidence above and the final PR HEAD after this status-only commit.
