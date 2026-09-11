@@ -1,0 +1,75 @@
+name: Diagnose PR4 finite add
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4e458264dbf1eaa8bf241363b57242b752b48c09
+      - name: Verify exact HEAD
+        run: test "$(git rev-parse HEAD)" = "4e458264dbf1eaa8bf241363b57242b752b48c09"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Diagnose finite add
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          node <<'NODE'
+          const { chromium } = await import('playwright');
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+          const consoleErrors = [];
+          page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+          page.on('pageerror', e => consoleErrors.push(e.message));
+          await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
+          const amount = page.getByLabel('Amount');
+          const add = page.getByRole('button', { name: /Add H₂ to vessel/i });
+          const before = {
+            amountValue: await amount.inputValue(),
+            amountType: await amount.getAttribute('type'),
+            buttonDisabled: await add.isDisabled(),
+            buttonCount: await add.count(),
+            bodyHasEvent: (await page.locator('body').innerText()).includes('Added 0.250 mol H₂'),
+            bodyHasEmpty: (await page.locator('body').innerText()).includes('No material in vessel.'),
+            compositionRows: await page.locator('.analysis-content tbody tr').allInnerTexts(),
+          };
+          await add.click();
+          const afterBody = await page.locator('body').innerText();
+          const after = {
+            amountValue: await amount.inputValue(),
+            buttonDisabled: await add.isDisabled(),
+            bodyHasEvent: afterBody.includes('Added 0.250 mol H₂'),
+            bodyHasEmpty: afterBody.includes('No material in vessel.'),
+            bodyHasVesselAmount: afterBody.includes('0.250 mol · Current phase: unknown'),
+            bodyHasCompositionAmount: afterBody.includes('0.250 mol'),
+            compositionRows: await page.locator('.analysis-content tbody tr').allInnerTexts(),
+            vesselChips: await page.locator('.composition-chip').allInnerTexts(),
+          };
+          await page.getByRole('button', { name: 'Timeline' }).click();
+          const timelineBody = await page.locator('body').innerText();
+          const timeline = {
+            bodyHasEvent: timelineBody.includes('Added 0.250 mol H₂'),
+            timelineRows: await page.locator('.timeline-row').allInnerTexts(),
+          };
+          console.log(JSON.stringify({ before, after, timeline, consoleErrors }, null, 2));
+          await browser.close();
+          NODE
