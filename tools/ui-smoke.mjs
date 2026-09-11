@@ -76,8 +76,10 @@ try {
 
   await desktop.getByRole('button', { name: 'Analyze' }).click();
   body = await text(desktop);
-  assert(body.includes('Identity confirmed: Water'), 'desktop: discovery confirmation missing');
   assert(body.includes('Water'), 'desktop: encyclopedia/inventory unlock missing after analysis');
+  await desktop.getByRole('button', { name: 'Timeline' }).click();
+  body = await text(desktop);
+  assert(body.includes('Identity confirmed: Water'), 'desktop: discovery confirmation missing from provider timeline');
 
   await desktop.getByLabel(/Dev/i).check();
   body = await text(desktop);
