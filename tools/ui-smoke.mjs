@@ -44,7 +44,7 @@ try {
   body = await text(desktop);
   assert(body.includes('250 W') && body.includes('150 W'), 'desktop: heater/cooler control failed');
 
-  await desktop.getByLabel('Thermostat').check();
+  await desktop.getByRole('checkbox', { name: 'Thermostat' }).check();
   body = await text(desktop);
   assert(body.includes('Thermostat enabled'), 'desktop: thermostat command feedback missing');
 
