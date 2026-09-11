@@ -38,7 +38,7 @@ describe("Phase 2C minimum chemistry data pack", () => {
       atomicNumber: 6,
       symbol: "C",
       valenceElectrons: 4,
-      commonOxidationStates: [4, 2, -4],
+      commonOxidationStates: [4, 3, 2, 1, 0, -1, -2, -3, -4],
       typicalValences: [4],
       electronegativity: 2.55,
     });
