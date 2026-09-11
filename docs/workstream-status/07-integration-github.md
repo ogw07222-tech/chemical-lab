@@ -2,81 +2,85 @@
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
 - Current phase: Phase 1 — Executable Foundation Integration
-- Overall state: PHASE1_FOUNDATIONS_INTEGRATED / CONSOLIDATED_TESTS_PASS / UI_INTEGRATION_OPEN
+- Overall state: PHASE0_UI_AND_PHASE1_FOUNDATIONS_INTEGRATED / FINAL_REGRESSION_PASS
 - Last updated: 2026-09-11
-- Last checked executable main SHA: `ca7c0e36722a6475cfe9eb72379a5a0c4f33a0bb`
-- Consolidated validation branch: `integration/phase1-pr8-11-validation-20260911`
-- PR #4: intentionally excluded from this integration batch; validation/fix owned separately by 05
+- Last checked executable main SHA: `1678bcb5bcb041a485dd176701d2512aa8bc8ed8`
+- Final validated executable tree SHA: `79e65d7c4689fab5e310e126c9be039081de2c39`
 
 ## Current Objective
-Maintain production integration integrity after merging the Phase 1 executable foundations while minimizing redundant GitHub Actions usage. Preserve specialist ownership and explicit adapter boundaries; do not redesign chemistry models for integration convenience.
+Keep production integration deterministic after the validated Phase 0 UI scaffold and Phase 1 executable foundations are on `main`. Preserve specialist ownership and explicit provider/adapter boundaries; do not move chemistry, thermal physics, progression authority, or phase calculation into React for integration convenience.
 
-## Completed
-- Confirmed PR #3 Chemistry Data Contract was already integrated before this batch; starting production main was `122b8ffde306f077349eacfbf42eeafef0ebea5e`.
-- Re-audited exact HEADs, mergeability, changed files, package/tsconfig coverage, and cross-PR file overlap for PR #8, #9, #10, and #11.
-- Confirmed no direct `src/` or `tests/` path overlap between #8–#11. Each PR also updates only its own workstream status document.
-- Confirmed current root `tsconfig.json` includes both `src` and `tests`; no Phase 1 PR requires an added npm dependency.
-- Confirmed root `package.json` currently defines `typecheck` and `test`, but no `lint` or `build` script and no root `package-lock.json` is present.
-- Created a temporary integration-only branch from starting main and composed exact audited heads in order #10 -> #9 -> #8 -> #11 using expected-head-protected staging merges.
-- Consolidated pre-workflow integration commit: `5a1d5f4457038bb9e1ac3270cb7c37bbec6ad57b`.
-- Added a branch-scoped one-shot validation workflow at `c5c93605742a396c0f19d3511388ed5b30646013`; it does not exist on production main.
-- GitHub Actions run `34522254283` completed successfully with one dependency installation, repository typecheck, and the complete current Vitest suite.
-- Merged production PR #10 Molecular Core using exact HEAD `e5c6044c1a9a5eda92d396b1e27a4276c3b47c61`; merge SHA `93e9b5e55b3375cd66f0a5f5d315098645747b33`.
-- Merged production PR #9 Thermal State Primitives using exact HEAD `ecfef820d40b7fa7f01a95bf95c1d12da3a30195`; merge SHA `6589dc4f5043e205c70705b173d43a2c40fa945c`.
-- Merged production PR #8 Gameplay Progression Runtime using exact HEAD `6d6cb32487e081e2b48a1e046f7f59c2c4f765f3`; merge SHA `0aff1d35485ff826ef954d08fbf0b5d26fe6b66c`.
-- Merged production PR #11 Validation Harness using exact HEAD `fb0a348b17550bac452a7252a7a97debc7515246`; merge SHA `ca7c0e36722a6475cfe9eb72379a5a0c4f33a0bb`.
-- Verified the final executable production tree SHA `17ab080ac8ee479cc5fe42bec03a3bb3549622b2` exactly equals the consolidated pre-workflow validation tree, so a redundant second full Actions run was not required.
+## Completed — Phase 1 Foundations
+- Confirmed PR #3 Chemistry Data Contract was integrated before the Phase 1 executable batch; starting production main for that batch was `122b8ffde306f077349eacfbf42eeafef0ebea5e`.
+- Re-audited and integrated PR #10 Molecular Core, PR #9 Thermal State Primitives, PR #8 Gameplay Progression Runtime, and PR #11 Validation Harness in dependency order #10 -> #9 -> #8 -> #11.
+- Used one consolidated integration branch and one repository-level Actions checkpoint rather than repeating full CI for all four PRs.
+- Consolidated run `34522254283`: install PASS, typecheck PASS, 4 files / 64 tests PASS; lint/build were not yet configured in that pre-UI tree.
+- Production merge SHAs:
+  - PR #10 -> `93e9b5e55b3375cd66f0a5f5d315098645747b33`
+  - PR #9 -> `6589dc4f5043e205c70705b173d43a2c40fa945c`
+  - PR #8 -> `0aff1d35485ff826ef954d08fbf0b5d26fe6b66c`
+  - PR #11 -> `ca7c0e36722a6475cfe9eb72379a5a0c4f33a0bb`
+- Previous status-only merge advanced main to `27c32f93eb16d1061959bd02f8cf10bfe502b9f3` without changing executable code.
 
-## Consolidated Validation Evidence
-- Install: PASS — `npm install --no-audit --no-fund`; 52 packages installed. `npm ci` was not applicable because the root repository has no lockfile.
-- Typecheck: PASS — `npm run typecheck` / `tsc --noEmit`.
-- Lint: OPEN / SKIPPED — no `lint` script exists in current root `package.json`.
-- Tests: PASS — 4 files / 64 tests.
-  - `tests/game/progression.test.ts`: 16 PASS.
-  - `tests/thermal.test.ts`: 13 PASS.
-  - `tests/molecular-core.test.ts`: 21 PASS.
-  - `tests/validation.foundation.test.ts`: 14 PASS.
-- Build: OPEN / SKIPPED — no `build` script exists in current root `package.json`; PR #4 UI was intentionally excluded.
-- Browser smoke: NOT APPLICABLE to this batch because PR #4 UI remains outside production main.
-- Scientific benchmark corpus: OPEN; no real benchmark execution was introduced or claimed.
+## Final PR #4 Integration
+- Pre-merge latest `main`: `1c4037ece672cfe0612f111f0b5d63081ee1a735`.
+- The two commits after `27c32f93eb16d1061959bd02f8cf10bfe502b9f3` only added and then reverted an accidental diagnostic workflow; their final tree remained `0daead8950d8d8023014ab84ce88d0a6107ac502`, identical to the prior production tree.
+- PR #4 title: `feat(ui): runnable Phase 0 laboratory scaffold`.
+- Exact validated PR HEAD: `c1f2205d82754f810fc08ab9525dab7830f092ca`.
+- Rechecked before merge: PR open, base `main`, `mergeable=true`, exact HEAD unchanged.
+- Validation run `34588525677` completed successfully on exact HEAD `c1f2205d82754f810fc08ab9525dab7830f092ca`.
+- Merged PR #4 with expected-head SHA protection; merge SHA `1678bcb5bcb041a485dd176701d2512aa8bc8ed8`.
+- Resulting production executable tree SHA `79e65d7c4689fab5e310e126c9be039081de2c39` exactly equals the validated PR #4 HEAD tree SHA. No product/source byte changed between validated tree and merged main tree.
 
-## Phase 1 Integration Audit
-- PR #10 Molecular Core: PASS for this foundation scope — `ElementProvider` dependency inversion retained; finite/NaN/Infinity amount validation, deterministic graph representation foundation, formula/net-charge derivation, conservation primitives, and no scientific property/reaction lookup hardcoding. Full production canonicalization, advanced valence/aromatic/coordination chemistry, and the concrete 03 adapter remain OPEN.
-- PR #9 Thermal State Primitives: PASS for this foundation scope — heater energy adds, cooler energy is explicitly removed, reaction heat follows `Q = -ΔH * extent`, thermostat exchanges bounded explicit energy rather than overwriting temperature, temperature must remain > 0 K, total sensible heat capacity must be > 0, timestep behavior is deterministic, and energy ledger fields remain explicit. Latent heat/full phase equilibrium/EOS remain OPEN.
-- PR #8 Gameplay Progression Runtime: PASS for this foundation scope — authoritative discovery occurs once, first discovery updates encyclopedia/inventory atomically, unlocked stock is unlimited at Game Layer only, every actual vessel addition must be finite and positive, Developer Mode bypass is isolated, Premium does not bypass discovery, and schema-versioned deterministic persistence is present.
-- PR #11 Validation Harness: PASS for this foundation scope — PASS/FAIL/OPEN is separate from scientific model status, tolerances/acceptance policy are centralized, SI/finite validators exist, OPEN cases are excluded from eligible aggregation, manifest loading is behind an adapter boundary, and no fake real benchmark corpus/data is introduced.
+## Final Main Regression Evidence
+The final executable `main` tree is byte-identical to the tree tested by run `34588525677`, so the same tests were not rerun solely to reproduce identical evidence and consume additional Actions time.
+
+Validated identical-tree evidence:
+- `npm ci --no-audit --no-fund`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run lint`: PASS.
+- targeted UI `tests/ui/LaboratoryWorkspace.test.tsx`: 9/9 PASS.
+- full `npm test`: 5 files / 73/73 PASS.
+- `npm run build`: PASS.
+- Chromium install: PASS.
+- browser smoke: PASS at Desktop 1440x900, Tablet 1024x768, and Mobile 390x844.
+- no blocking browser console/page errors.
+
+Browser smoke coverage includes app load, starter inventory, finite AddSubstance, unlimited unlocked stock semantics, heater, cooler, thermostat request behavior without direct temperature teleport, Run/Pause, Phase view, unknown observation analysis, discovery, encyclopedia/inventory unlock, Developer Mode, responsive navigation, and overflow checks.
+
+## Final Contract Audit
+- Molecular/Data: PASS — molecular core and SI-normalized data schema are present; UI remains a provider/view-model consumer rather than a chemistry solver.
+- Thermal: PASS — heater/cooler are power requests, thermostat is an explicit target/controller request, no `SetTemperature` command exists, and authoritative thermal physics remains outside React.
+- Progression: PASS — starter access, one-time discovery, encyclopedia/inventory synchronization, unlimited unlocked Game Layer stock, finite vessel addition, and Developer Mode isolation remain intact.
+- Phase: PASS — phase is supplied by provider/simulation state; no manual phase selector exists; the UI phase diagram is supplied-data rendering and the current mock diagram is explicitly marked non-scientific.
+- Validation: PASS — PASS/FAIL/OPEN remains separate from scientific model status; integration did not alter canonical scientific acceptance thresholds.
+- SI: PASS — authoritative UI/provider-facing implemented quantities remain K, Pa, m^3, mol, and W with display conversions centralized at the UI boundary.
 
 ## Integration Architecture
 - SI remains authoritative at production boundaries.
 - Vessel matter remains finite; unlimited stock exists only as Game Layer entitlement semantics.
-- Molecular, thermal, progression, and validation foundations remain separate modules with no circular cross-import introduced by this batch.
-- Shared-type unification was not forced. Future 03 -> 02 phase, 01 reaction event -> 02 thermal, 04 progression -> 05 UI, and production provider wiring should use explicit adapters/projections where appropriate.
+- Molecular, thermal, progression, validation, data, and UI modules remain separated by provider/adapter boundaries.
 - Phase transition remains distinct from chemical molecular-graph reaction semantics.
-- No chemistry logic was moved into React and PR #4 was not modified in this batch.
+- The current UI provider is a mock integration surface. Real production data/thermal/reaction/progression adapters remain future work under their owner workstreams.
 
-## CI Strategy
-Use targeted/local checks before pushes and reserve repository-level Actions for meaningful integrated checkpoints. The Phase 1 #8–#11 batch used one consolidated Actions run rather than four per-PR full runs. Once a canonical lockfile is available, prefer reproducible `npm ci`. Do not run randomized/scientific/performance suites until their runtime/corpus prerequisites exist.
-
-## Blockers / OPEN
-- PR #4 runnable UI integration and browser smoke remain separate work under 05/07 handoff.
-- Root reproducible npm lockfile policy remains unresolved on current production main.
-- Root lint/build scripts are not configured yet; these gates are OPEN rather than PASS.
-- Scientific benchmark corpus and real-experiment execution remain OPEN.
-- Full reaction candidate/product engine remains OPEN.
-- Full phase equilibrium, latent heat, EOS/vapor-pressure behavior, detailed heat transfer, and production thermochemical property wiring remain OPEN.
-- Production runtime adapters remain OPEN, including 03 data -> molecular/thermal providers, 01 reaction progress -> 02 thermal input, and 04 progression -> 05 UI provider projection.
+## Remaining OPEN Work
+These are future capability work, not blockers to the completed PR #4 integration:
+- scientific benchmark corpus and real-experiment execution;
+- full reaction candidate/product runtime;
+- full phase equilibrium, latent heat, EOS/vapor-pressure, detailed heat transfer, and production thermochemical property wiring;
+- production adapters connecting 03 data providers, 01 reaction progress, 02 thermal/phase runtime, 04 progression authority, and 05 UI projections.
 
 ## Next Actions
-1. Receive the separately validated/fixed PR #4 result from 05 without changing its UI/chemistry ownership boundaries.
-2. Re-audit PR #4 exact HEAD against the new Phase 1 production main and run its required UI build/browser gates before merge.
-3. After UI integration, establish the canonical reproducible frontend/root install strategy and only the minimum path-filtered CI needed for ongoing development.
-4. Continue the next parallel Phase 1 specialist batch for reaction/runtime adapters, thermo/phase capability expansion, benchmark corpus preparation, and production provider wiring under the relevant owner workstreams.
+1. Start the next parallel Phase 1 development batch only from the current integrated `main`.
+2. Prioritize production adapter/runtime wiring without collapsing specialist ownership boundaries.
+3. Add scientific benchmark corpus/runtime validation only when the corresponding chemistry capabilities exist.
+4. Keep CI targeted and consolidated; avoid redundant identical-tree reruns.
 
 ## Handoffs
-- 00: arbitrate cross-system design questions only; no new chemistry/gameplay model was introduced by this integration.
-- 01: continue molecular/reaction runtime beyond the merged #10 foundation and define production reaction-event adapter details.
-- 02: continue thermal/phase implementation beyond #9, including latent heat/phase equilibrium/EOS when designed.
-- 03: provide concrete SI-normalized provider adapters/data without coupling molecular core to concrete tables.
-- 04: preserve merged progression authority and expose projection/provider boundaries for UI.
-- 05: return PR #4 only after actual tests/build/browser smoke satisfy its gate.
-- 06: build real benchmark corpus/runtime validation on top of #11; keep unsupported scientific capabilities OPEN.
+- 00: arbitrate cross-system design questions only.
+- 01: continue reaction/runtime implementation and reaction-event adapter work.
+- 02: continue thermal/phase capability expansion and authoritative adapters.
+- 03: provide concrete SI-normalized production data providers.
+- 04: preserve progression authority and expose provider projections.
+- 05: PR #4 is integrated; continue UI only against production provider contracts.
+- 06: build real scientific benchmark corpus/runtime validation on top of the merged validation harness.
