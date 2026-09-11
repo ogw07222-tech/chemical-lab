@@ -56,8 +56,8 @@ function candidate(id: string): ReactionCandidate {
   };
 }
 
-function evaluation(id: string, rank = 1, relativeRate = 1, deltaH: number | undefined | null = null): RankedReactionEvaluation {
-  const resolvedDeltaH = deltaH === null ? 100 : deltaH;
+function evaluation(id: string, rank = 1, relativeRate = 1, deltaH?: number): RankedReactionEvaluation {
+  const resolvedDeltaH = arguments.length >= 4 ? deltaH : 100;
   return {
     candidateId: id,
     thermo: {
