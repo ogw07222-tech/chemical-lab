@@ -32,18 +32,24 @@ jobs:
         run: npm run lint
 
       - name: Unit and component tests
+        id: tests
+        continue-on-error: true
         shell: bash
         run: |
-          set +e
-          npm test 2>&1 | tee /tmp/ui-tests.log
-          TEST_EXIT=${PIPESTATUS[0]}
-          {
-            echo '### Fresh npm test output'
-            echo '```text'
-            tail -n 200 /tmp/ui-tests.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit "$TEST_EXIT"
+          set -o pipefail
+          npm test 2>&1 | tee ui-test-output.txt
+
+      - name: Preserve test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-output
+          path: ui-test-output.txt
+          if-no-files-found: error
+
+      - name: Fail on test failure
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
 
       - name: Production build
         run: npm run build
