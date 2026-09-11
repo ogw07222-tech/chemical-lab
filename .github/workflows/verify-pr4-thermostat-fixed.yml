@@ -1,0 +1,68 @@
+name: Verify fixed PR4 thermostat
+
+on:
+  push:
+    branches:
+      - diagnostic/pr4-thermostat-fixed-373640bf
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-thermostat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 373640bf9c5bf92a1770f637e4d78135976171a0
+      - name: Verify exact HEAD
+        run: test "$(git rev-parse HEAD)" = "373640bf9c5bf92a1770f637e4d78135976171a0"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Desktop thermostat smoke only
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          node <<'NODE'
+          const { chromium } = await import('playwright');
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+          const consoleErrors = [];
+          page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+          page.on('pageerror', e => consoleErrors.push(e.message));
+          await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
+          const thermostat = page.getByRole('checkbox', { name: 'Thermostat' });
+          const target = page.getByRole('spinbutton', { name: 'Thermostat target' });
+          const temperatureMetric = page.locator('.metric').filter({ hasText: 'Temperature' }).first();
+          const beforeTemperature = await temperatureMetric.innerText();
+          await target.fill('37');
+          await target.blur();
+          if ((await target.inputValue()) !== '37') throw new Error('target did not retain 37 C');
+          if ((await temperatureMetric.innerText()) !== beforeTemperature) throw new Error('target directly changed vessel temperature');
+          await thermostat.check();
+          if (!(await thermostat.isChecked())) throw new Error('thermostat enable not reflected');
+          if ((await temperatureMetric.innerText()) !== beforeTemperature) throw new Error('enable directly changed vessel temperature');
+          await page.getByRole('button', { name: 'Timeline' }).click();
+          let body = await page.locator('body').innerText();
+          if (!body.includes('Thermostat enabled')) throw new Error('provider timeline missing enable event');
+          await thermostat.uncheck();
+          if (await thermostat.isChecked()) throw new Error('thermostat disable not reflected');
+          body = await page.locator('body').innerText();
+          if (!body.includes('Thermostat disabled')) throw new Error('provider timeline missing disable event');
+          if ((await temperatureMetric.innerText()) !== beforeTemperature) throw new Error('disable directly changed vessel temperature');
+          if (consoleErrors.length) throw new Error(consoleErrors.join('\n'));
+          console.log(JSON.stringify({ targetC: await target.inputValue(), beforeTemperature, afterTemperature: await temperatureMetric.innerText(), enableEvent: true, disableEvent: true, consoleErrors }, null, 2));
+          await browser.close();
+          NODE
