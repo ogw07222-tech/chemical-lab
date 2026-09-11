@@ -2,16 +2,16 @@
 
 - Owner: Lead Game UI/UX Designer / Chemistry Visualization Developer / Frontend Integration Developer / Web Laboratory Interface Developer
 - Current phase: Phase 0 — Runnable PC-first UI scaffold
-- Overall state: FINAL_VALIDATION_PENDING
+- Overall state: READY_FOR_MERGE
 - Last updated: 2026-09-11
 - Last checked production base: `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`
 - Active branch: `feature/phase0-web-lab-scaffold`
 - Active PR: #4 — `feat(ui): runnable Phase 0 laboratory scaffold`
-- Latest fully validated implementation HEAD before this status-only commit: `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`
-- Latest full validation run: `34588150849`
+- Latest fully validated status-inclusive HEAD before this final status marker: `b513b3c56cfd1e3224e809ae18fdce1bb62d59b4`
+- Final validation run: `34588354130`
 
 ## Current Objective
-Keep PR #4 aligned with the canonical PC-first laboratory UI while chemistry, progression authority, thermal physics, and phase determination remain outside React. All implementation/runtime gates passed on `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`; one final full validation must include this status-document commit before the PR can be declared merge-ready.
+PR #4 has satisfied the Phase 0 Web UI runtime gate. Chemistry, progression authority, thermal physics, and phase determination remain outside React. The branch is ready for integration provided this final status-marker commit also remains green and GitHub still reports the PR mergeable against current main.
 
 ## Thermostat browser-smoke diagnosis
 Original blocker on exact PR HEAD `c8a50dba3d976cb7cbf8d30d14dec4f296f8172a`:
@@ -86,47 +86,22 @@ Commit `72ab6f436f04cb56f13ae40fbdfef0898c071ce9` changed only the smoke sequenc
 
 No product/provider chemistry or progression semantics changed.
 
-## Full checkpoint — exact implementation HEAD `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`
-Workflow run `34588150849` / job `103227017498`:
+## Full checkpoint — implementation HEAD `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`
+Workflow run `34588150849` / job `103227017498` passed install, typecheck, lint, targeted UI 9/9, full tests 73/73, production build, Chromium installation, and full Desktop/Tablet/Mobile browser smoke.
 
-### PASS
-- `npm ci --no-audit --no-fund`
-- `npm run typecheck`
-- `npm run lint`
-- targeted UI: `tests/ui/LaboratoryWorkspace.test.tsx` — 9/9 PASS, total duration 1.64 s
-- full `npm test` — 5 files / 73/73 PASS, total duration 3.05 s
-- `npm run build` — PASS, Vite 7.3.6, 32 modules transformed
+## Final status-inclusive checkpoint — HEAD `b513b3c56cfd1e3224e809ae18fdce1bb62d59b4`
+Workflow run `34588354130` completed successfully with every gate green:
+- `npm ci --no-audit --no-fund` — PASS
+- `npm run typecheck` — PASS
+- `npm run lint` — PASS
+- targeted UI `tests/ui/LaboratoryWorkspace.test.tsx` — PASS
+- full `npm test` — PASS
+- `npm run build` — PASS
 - Chromium installation — PASS
 - full browser smoke — PASS
-- tested commit step — `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`
+- tested-commit step — PASS
 
-Browser smoke output:
-
-`UI browser smoke PASS: desktop 1440x900, tablet 1024x768, mobile 390x844`
-
-### Browser coverage verified
-Desktop:
-- app loads without blocking console/page errors;
-- starter-only normal inventory and undiscovered identity secrecy;
-- finite AddSubstance changes Composition and vessel projection to H₂ `0.250 mol`;
-- unlimited unlocked stock semantics remain visible;
-- heater and cooler controls;
-- thermostat target/request, enable/disable state, Timeline acceptance, and no direct temperature teleport;
-- Phase tab and supplied phase diagram fixture;
-- Run/Pause;
-- Unknown observation Analyze -> Water unlock -> Timeline confirmation;
-- Developer Mode exposes additional supported species only when enabled;
-- no horizontal overflow.
-
-Tablet (~1024 px):
-- core laboratory surfaces render;
-- no horizontal overflow.
-
-Mobile (390×844):
-- Lab view prioritizes vessel;
-- Inventory / Lab / Controls / Analysis / Log responsive navigation works;
-- expected surface content appears in each view;
-- no horizontal overflow.
+Browser smoke covers Desktop 1440×900, Tablet ~1024 px, and Mobile 390×844, including finite AddSubstance, unlimited unlocked inventory semantics, heater/cooler, thermostat requests without direct temperature teleport, Run/Pause, Phase, unknown observation analysis, discovery/unlock, Developer Mode isolation, responsive navigation, overflow checks, and blocking console/page error detection.
 
 ## Final contract audit
 ### Progression — PASS
@@ -156,7 +131,7 @@ Mobile (390×844):
 Simulation-facing implemented UI boundary preserves K, Pa, m³, mol, and W, with presentation conversions centralized in `src/ui/units.ts`.
 
 ## Current gate
-Implementation/runtime validation is fully green on `72ab6f436f04cb56f13ae40fbdfef0898c071ce9`. This status update changes PR HEAD, so one final full workflow run on the resulting exact HEAD is required before changing the overall state to READY_FOR_MERGE.
+**READY_FOR_MERGE**. All implementation/runtime/browser and contract gates have passed. The final status-marker commit is documentation-only; its branch-triggered verification must remain green before integration.
 
 ## Handoff to 07
-Do not merge until the status-document-inclusive exact HEAD completes one final full workflow with install, typecheck, lint, tests, build, and Desktop/Tablet/Mobile browser smoke all PASS. If that run is green and PR remains mergeable against current main, PR #4 may be handed off as ready for immediate merge.
+PR #4 is approved by 05 for immediate merge once GitHub confirms the current exact branch HEAD is green and `mergeable=true` against current main. No Web UI blocker remains.
