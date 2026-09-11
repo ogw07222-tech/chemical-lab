@@ -11,6 +11,25 @@ type CatalogFilter = 'all' | 'element' | 'compound' | 'favorite';
 type InspectorTab = 'info' | 'notes';
 type MobileView = 'catalog' | 'lab' | 'info' | 'controls' | 'notes';
 
+const STRUCTURE_NOTATION: Record<string, string> = {
+  'H₂': 'H-H',
+  'O₂': 'O=O',
+  'N₂': 'N≡N',
+  'H₂O': 'H-O-H',
+  'CO': 'C≡O',
+  'CO₂': 'O=C=O',
+  'CH₄': 'H\n |\nH-C-H\n |\n H',
+  'NH₃': ' H\n |\nH-N-H',
+  'NaCl': 'Na⁺ · Cl⁻',
+  'NaOH': 'Na⁺ · OH⁻',
+  'CuSO₄': 'Cu²⁺ · SO₄²⁻',
+};
+
+function structureNotation(substance?: SubstanceSummary) {
+  if (!substance) return '—';
+  return STRUCTURE_NOTATION[substance.formula] ?? substance.formula;
+}
+
 function TopBar() {
   const { snapshot, dispatch } = useLaboratory();
   const running = snapshot.simulationStatus === 'running';
@@ -21,9 +40,9 @@ function TopBar() {
   </header>;
 }
 
-function MoleculePreview({ substance, compact = false }: { substance?: SubstanceSummary; compact?: boolean }) {
-  return <div className={`molecule-preview ${compact ? 'compact' : ''}`} aria-label={substance ? `${substance.koreanName ?? substance.name} preview` : '선택된 물질 없음'}>
-    <span className="orb orb-a"/><span className="orb orb-b"/><span className="molecule-formula">{substance?.formula ?? '—'}</span>
+function StructurePreview({ substance, compact = false }: { substance?: SubstanceSummary; compact?: boolean }) {
+  return <div className={`structure-preview ${compact ? 'compact' : ''}`} aria-label={substance ? `${substance.koreanName ?? substance.name} 구조식` : '선택된 물질 없음'}>
+    <pre>{structureNotation(substance)}</pre>
   </div>;
 }
 
@@ -39,7 +58,7 @@ function AddSubstanceControl({ selected }: { selected?: SubstanceSummary }) {
   </div>;
 }
 
-function SubstanceCatalog({ selectedId, onSelect }: { selectedId?: string; onSelect: (id: string) => void }) {
+function SubstanceCatalog({ selectedId, onSelect, collapsed, onToggle }: { selectedId?: string; onSelect: (id: string) => void; collapsed: boolean; onToggle: () => void }) {
   const lab = useLaboratory();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<CatalogFilter>('all');
@@ -52,25 +71,20 @@ function SubstanceCatalog({ selectedId, onSelect }: { selectedId?: string; onSel
     return true;
   });
   const selected = selectSpecies(visible, selectedId) ?? visible[0];
+
+  if (collapsed) return <aside className="catalog-panel collapsed" aria-label="도감"><button className="panel-rail-toggle" aria-label="도감 펼치기" onClick={onToggle}><span>›</span><b>도감</b></button></aside>;
+
   return <aside className="catalog-panel" aria-label="도감">
-    <div className="catalog-head"><h1>도감</h1><label className="dev-switch"><input aria-label="Developer Mode" type="checkbox" checked={lab.snapshot.developerMode} onChange={(e) => lab.dispatch({ type: 'SetDeveloperMode', enabled: e.target.checked })}/><span>DEV</span></label></div>
+    <div className="catalog-head"><div className="panel-title-row"><h1>도감</h1><button className="collapse-button" aria-label="도감 접기" onClick={onToggle}>‹</button></div><label className="dev-switch"><input aria-label="Developer Mode" type="checkbox" checked={lab.snapshot.developerMode} onChange={(e) => lab.dispatch({ type: 'SetDeveloperMode', enabled: e.target.checked })}/><span>DEV</span></label></div>
     <div className="search-wrap"><span>⌕</span><input aria-label="물질 검색" placeholder="물질 검색..." value={query} onChange={(e) => setQuery(e.target.value)}/></div>
     <div className="catalog-filters" role="tablist">{([['all','전체'],['element','원소'],['compound','화합물'],['favorite','즐겨찾기']] as const).map(([key,label]) => <button key={key} className={filter===key?'active':''} onClick={() => setFilter(key)}>{label}</button>)}</div>
     <div className="catalog-list">{filtered.map((item) => <div key={item.speciesId} className={`catalog-item ${selected?.speciesId===item.speciesId?'selected':''}`}>
-      <button className="catalog-select" onClick={() => onSelect(item.speciesId)}><MoleculePreview substance={item} compact/><span><strong>{item.koreanName ?? item.name}</strong><small>{item.formula}</small></span><span className="chevron">›</span></button>
+      <button className="catalog-select" onClick={() => onSelect(item.speciesId)}><StructurePreview substance={item} compact/><span className="catalog-copy"><strong>{item.koreanName ?? item.name}</strong><small>{item.formula}</small></span><span className="chevron">›</span></button>
       <button aria-label={`Favorite ${item.name}`} className="favorite-button" onClick={() => lab.dispatch({ type: 'ToggleFavorite', speciesId: item.speciesId })}>{lab.snapshot.favoriteSpeciesIds.includes(item.speciesId) ? '★' : '☆'}</button>
     </div>)}</div>
     <AddSubstanceControl selected={selected}/>
   </aside>;
 }
-
-function GlassBeaker({ small = false, label }: { small?: boolean; label?: string }) {
-  return <div className={`glass-beaker ${small ? 'small' : ''}`}><div className="beaker-lip"/><div className="beaker-liquid"/><div className="beaker-marks"><i/><i/><i/><i/></div>{label && <span className="tool-label">{label}</span>}</div>;
-}
-function TestTubeRack() { return <div className="tube-rack"><div className="tubes"><i/><i/><i/><i/></div><div className="rack-bar"/><div className="rack-base"/><span className="tool-label">시험관</span></div>; }
-function Hotplate() { return <div className="hotplate"><div className="plate"/><div className="hotplate-body"><i/></div><span className="tool-label">교반기</span></div>; }
-function ClampStand() { return <div className="clamp-stand"><div className="stand-base"/><div className="stand-pole"/><div className="clamp-arm"/><span className="tool-label">스탠드</span></div>; }
-function LabBottle() { return <div className="lab-bottle"><div className="bottle-cap"/><div className="bottle-body"/><span className="tool-label">세척병</span></div>; }
 
 function PhaseDiagram({ data }: { data?: PhaseDiagramViewModel }) {
   if (!data) return <div className="analysis-empty">상 경계 데이터가 연결되지 않았습니다.</div>;
@@ -93,10 +107,9 @@ function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
 function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {
   const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab); const selectedContent = lab.snapshot.contents.find((c)=>c.speciesId===selected?.speciesId);
   return <main className="lab-center" aria-label="실험실 작업대">
-    <div className="workspace-title"><span>LAB WORKSPACE</span><strong>{lab.snapshot.experimentName}</strong><div>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</div></div>
+    <div className="workspace-title"><strong>{lab.snapshot.experimentName}</strong><div>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</div></div>
     <div className="lab-wall">
-      <div className="overhead-light"/><div className="bench-note">작은 혼합이<br/>새로운 관찰을 만든다.</div>
-      <div className="bench-tools"><GlassBeaker label={selectedContent ? `${selectedContent.displayIdentity} ${selectedContent.amountMol.toFixed(3)} mol` : '주 용기'}/><GlassBeaker small label="보조 용기"/><TestTubeRack/><Hotplate/><ClampStand/><LabBottle/></div>
+      <div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong><span>{selectedContent ? `${selectedContent.displayIdentity} · ${selectedContent.amountMol.toFixed(3)} mol` : '비어 있음'}</span></div>
       <div className="counter-edge"/>
     </div>
     {unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}
@@ -110,11 +123,11 @@ function SubstanceInspector({ selected, forceNotes = false }: { selected?: Subst
   return <aside className="inspector-panel" aria-label="물질 정보">
     <div className="inspector-tabs"><button className={currentTab==='info'?'active':''} onClick={()=>setTab('info')}>물질 정보</button><button className={currentTab==='notes'?'active':''} onClick={()=>setTab('notes')}>내 메모</button></div>
     {!selected ? <div className="inspector-empty">도감에서 물질을 선택하세요.</div> : currentTab==='info' ? <div className="reference-sheet">
-      <div className="substance-heading"><MoleculePreview substance={selected}/><div><h2>{selected.koreanName ?? selected.name}</h2><strong className="formula-large">{selected.formula}</strong></div></div>
+      <div className="substance-heading"><StructurePreview substance={selected}/><div><h2>{selected.koreanName ?? selected.name}</h2><strong className="formula-large">{selected.formula}</strong></div></div>
       <dl><dt>종류</dt><dd>{selected.category==='element'?'원소':'화합물'}</dd><dt>현재 상</dt><dd>{content?.phase ?? entry?.phaseInfo ?? '데이터 없음'}</dd><dt>과학 상태</dt><dd>{selected.scientificStatus}</dd><dt>몰 질량</dt><dd>권위 데이터 대기</dd><dt>최초 발견</dt><dd>{entry?.firstDiscoveryLabel ?? '시작 물질 / 미기록'}</dd></dl>
       <section><h3>알려진 물성</h3>{entry?.knownProperties.length?<ul>{entry.knownProperties.map((p)=><li key={p}>{p}</li>)}</ul>:<p>검증된 물성 데이터가 아직 연결되지 않았습니다.</p>}</section>
       <section><h3>설명</h3><p>{selected.description ?? '설명 데이터가 아직 연결되지 않았습니다.'}</p></section>
-      <section><h3>구조식</h3><div className="structure-placeholder">{selected.graph ? 'MolecularGraph 연결됨' : selected.formula}</div></section>
+      <section><h3>구조식</h3><div className="structure-placeholder">{selected.graph ? 'MolecularGraph 연결됨' : structureNotation(selected)}</div></section>
     </div> : <div className="notes-sheet"><label htmlFor={`note-${selected.speciesId}`}>{selected.koreanName ?? selected.name} 메모</label><textarea id={`note-${selected.speciesId}`} aria-label="내 메모" value={notes[selected.speciesId] ?? ''} onChange={(e)=>setNotes((prev)=>({...prev,[selected.speciesId]:e.target.value}))} placeholder="관찰한 점을 자유롭게 기록하세요. 시스템은 이 메모의 정답 여부를 판정하지 않습니다."/><small>UI draft only · 자동 해석/판정 없음</small></div>}
   </aside>;
 }
@@ -123,21 +136,25 @@ function ConditionRow({ icon,label,unit,value,min,max,step,onChange,actual }: { 
   return <div className="condition-row"><span className="condition-icon">{icon}</span><label>{label}</label><div className="numeric-box"><input aria-label={label} type="number" value={Number(value.toFixed(2))} min={min} max={max} step={step} onChange={(e)=>onChange(Number(e.target.value))}/><span>{unit}</span></div><input aria-label={`${label} slider`} type="range" value={value} min={min} max={max} step={step} onChange={(e)=>onChange(Number(e.target.value))}/>{actual&&<small>{actual}</small>}</div>;
 }
 
-function ExperimentConsole({ selected }: { selected?: SubstanceSummary }) {
+function ExperimentConsole({ selected, collapsed, onToggle }: { selected?: SubstanceSummary; collapsed: boolean; onToggle: () => void }) {
   const lab=useLaboratory(); const { snapshot, dispatch }=lab; const [confirmDispose,setConfirmDispose]=useState(false);
   const tempC=snapshot.controls.thermostatTargetK-273.15; const pressureAtm=pascalsToAtmospheres(snapshot.controls.requestedPressurePa); const volumeL=cubicMetersToLiters(snapshot.controls.requestedVolumeM3); const selectedPresent=selected&&snapshot.contents.some((c)=>c.speciesId===selected.speciesId);
   const setTemperature=(c:number)=>{if(Number.isFinite(c)) dispatch({type:'SetThermostat',vesselId:snapshot.vesselId,enabled:true,targetTemperatureK:celsiusToKelvin(c)});};
   const setPressure=(atm:number)=>{if(Number.isFinite(atm)&&atm>0) dispatch({type:'SetPressureTarget',vesselId:snapshot.vesselId,targetPressurePa:atm*101325});};
   const setVolume=(l:number)=>{if(Number.isFinite(l)&&l>0) dispatch({type:'ChangeVolume',vesselId:snapshot.vesselId,targetVolumeM3:litersToCubicMeters(l)});};
   const dispose=()=>{if(selected&&selectedPresent){dispatch({type:'RemoveSubstance',vesselId:snapshot.vesselId,speciesId:selected.speciesId});setConfirmDispose(false);}};
+
+  if (collapsed) return <section className="experiment-console collapsed" aria-label="실험 콘솔"><div className="console-summary"><button className="console-expand" aria-label="실험 조건 펼치기" onClick={onToggle}>⌃ 실험 조건</button><span>온도 {tempC.toFixed(0)} °C</span><span>압력 {pressureAtm.toFixed(2)} atm</span><span>부피 {volumeL.toFixed(2)} L</span><small>실제 {formatTemperature(snapshot.temperatureK)} · {pascalsToAtmospheres(snapshot.pressurePa).toFixed(2)} atm</small></div></section>;
+
   return <section className="experiment-console" aria-label="실험 콘솔">
-    <div className="conditions"><h2>실험 조건</h2><ConditionRow icon="♨" label="온도" unit="°C" value={tempC} min={-100} max={300} step={1} onChange={setTemperature} actual={`실제 ${formatTemperature(snapshot.temperatureK)}`}/><ConditionRow icon="◴" label="압력" unit="atm" value={pressureAtm} min={0.1} max={5} step={0.1} onChange={setPressure} actual={`실제 ${pascalsToAtmospheres(snapshot.pressurePa).toFixed(2)} atm`}/><ConditionRow icon="△" label="부피" unit="L" value={volumeL} min={0.1} max={cubicMetersToLiters(snapshot.capacityM3)} step={0.1} onChange={setVolume}/><label className="controller-toggle"><input aria-label="온도 제어" type="checkbox" checked={snapshot.controls.thermostatEnabled} onChange={(e)=>dispatch({type:'SetThermostat',vesselId:snapshot.vesselId,enabled:e.target.checked,targetTemperatureK:snapshot.controls.thermostatTargetK})}/><span>온도 제어</span></label></div>
+    <button className="console-collapse" aria-label="실험 조건 접기" onClick={onToggle}>⌄</button>
+    <div className="conditions"><h2>실험 조건</h2><ConditionRow icon="T" label="온도" unit="°C" value={tempC} min={-100} max={300} step={1} onChange={setTemperature} actual={`실제 ${formatTemperature(snapshot.temperatureK)}`}/><ConditionRow icon="P" label="압력" unit="atm" value={pressureAtm} min={0.1} max={5} step={0.1} onChange={setPressure} actual={`실제 ${pascalsToAtmospheres(snapshot.pressurePa).toFixed(2)} atm`}/><ConditionRow icon="V" label="부피" unit="L" value={volumeL} min={0.1} max={cubicMetersToLiters(snapshot.capacityM3)} step={0.1} onChange={setVolume}/><label className="controller-toggle"><input aria-label="온도 제어" type="checkbox" checked={snapshot.controls.thermostatEnabled} onChange={(e)=>dispatch({type:'SetThermostat',vesselId:snapshot.vesselId,enabled:e.target.checked,targetTemperatureK:snapshot.controls.thermostatTargetK})}/><span>온도 제어</span></label></div>
     <div className="operations"><h2>조작</h2><div className="operation-grid"><button onClick={()=>dispatch({type:'Mix',vesselId:snapshot.vesselId})}>◎ <span>혼합</span></button><button onClick={()=>dispatch({type:'Stir',vesselId:snapshot.vesselId})}>↻ <span>교반</span></button><button onClick={()=>dispatch({type:'PauseSimulation',vesselId:snapshot.vesselId})}>■ <span>반응 정지</span></button><button onClick={()=>dispatch({type:'ResetExperiment',vesselId:snapshot.vesselId})}>↺ <span>초기화</span></button></div></div>
-    <div className="disposal"><h2>폐기</h2><div className="trash-icon">♲</div><strong>{selectedPresent ? `${selected?.koreanName ?? selected?.name} 제거` : '제거할 물질 없음'}</strong><p>현재 선택한 물질을 주 용기에서 제거합니다.</p>{confirmDispose&&selectedPresent?<div className="confirm-row"><button onClick={()=>setConfirmDispose(false)}>취소</button><button className="danger" onClick={dispose}>폐기 확인</button></div>:<button disabled={!selectedPresent} onClick={()=>setConfirmDispose(true)}>선택 물질 폐기</button>}</div>
+    <div className="disposal"><h2>폐기</h2><div className="trash-icon">⌫</div><strong>{selectedPresent ? `${selected?.koreanName ?? selected?.name} 제거` : '제거할 물질 없음'}</strong><p>현재 선택한 물질을 주 용기에서 제거합니다.</p>{confirmDispose&&selectedPresent?<div className="confirm-row"><button onClick={()=>setConfirmDispose(false)}>취소</button><button className="danger" onClick={dispose}>폐기 확인</button></div>:<button disabled={!selectedPresent} onClick={()=>setConfirmDispose(true)}>선택 물질 폐기</button>}</div>
   </section>;
 }
 
 export function LaboratoryWorkspace() {
-  const lab=useLaboratory(); const visible=selectVisibleInventory(lab); const [selectedId,setSelectedId]=useState<string>(); const selected=useMemo(()=>selectSpecies(visible,selectedId)??visible[0],[visible,selectedId]); const [mobileView,setMobileView]=useState<MobileView>('lab');
-  return <div className="lab-shell"><TopBar/><nav className="mobile-nav">{([['catalog','도감'],['lab','실험실'],['info','정보'],['controls','조작'],['notes','메모']] as const).map(([key,label])=><button key={key} className={mobileView===key?'active':''} onClick={()=>setMobileView(key)}>{label}</button>)}</nav><div className={`lab-layout mobile-${mobileView}`}><SubstanceCatalog selectedId={selected?.speciesId} onSelect={setSelectedId}/><LabWorkspace selected={selected}/><SubstanceInspector selected={selected} forceNotes={mobileView==='notes'}/><ExperimentConsole selected={selected}/></div></div>;
+  const lab=useLaboratory(); const visible=selectVisibleInventory(lab); const [selectedId,setSelectedId]=useState<string>(); const selected=useMemo(()=>selectSpecies(visible,selectedId)??visible[0],[visible,selectedId]); const [mobileView,setMobileView]=useState<MobileView>('lab'); const [catalogOpen,setCatalogOpen]=useState(true); const [consoleOpen,setConsoleOpen]=useState(true);
+  return <div className="lab-shell"><TopBar/><nav className="mobile-nav">{([['catalog','도감'],['lab','실험실'],['info','정보'],['controls','조작'],['notes','메모']] as const).map(([key,label])=><button key={key} className={mobileView===key?'active':''} onClick={()=>{setMobileView(key); if(key==='catalog') setCatalogOpen(true); if(key==='controls') setConsoleOpen(true);}}>{label}</button>)}</nav><div className={`lab-layout mobile-${mobileView} ${catalogOpen?'':'catalog-collapsed'} ${consoleOpen?'':'console-collapsed'}`}><SubstanceCatalog selectedId={selected?.speciesId} onSelect={setSelectedId} collapsed={!catalogOpen} onToggle={()=>setCatalogOpen((value)=>!value)}/><LabWorkspace selected={selected}/><SubstanceInspector selected={selected} forceNotes={mobileView==='notes'}/><ExperimentConsole selected={selected} collapsed={!consoleOpen} onToggle={()=>setConsoleOpen((value)=>!value)}/></div></div>;
 }

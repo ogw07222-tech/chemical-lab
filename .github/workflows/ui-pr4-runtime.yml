@@ -5,6 +5,7 @@ on:
     branches:
       - feature/phase0-web-lab-scaffold
       - feature/lab-ui-workbench-redesign
+      - feature/lab-ui-workbench-refinement
 
 permissions:
   contents: read
