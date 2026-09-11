@@ -25,26 +25,36 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
+      - name: Prepare logs
+        run: mkdir -p validation-logs
+
       - name: Typecheck
-        run: npm run typecheck
+        run: npm run typecheck > validation-logs/typecheck.log 2>&1
 
       - name: Lint
-        run: npm run lint
+        run: npm run lint > validation-logs/lint.log 2>&1
 
       - name: Independent dynamic registry validation
-        run: npm test -- tests/validation.dynamic-species-registry.pr39.test.ts
+        run: npm test -- tests/validation.dynamic-species-registry.pr39.test.ts 2>&1 | tee validation-logs/independent.log
 
       - name: Production dynamic registry tests
-        run: npm test -- tests/dynamic-species-registry.test.ts
+        run: npm test -- tests/dynamic-species-registry.test.ts 2>&1 | tee validation-logs/production-registry.log
 
       - name: Reaction progression regression
-        run: npm test -- tests/reaction-progression.test.ts
+        run: npm test -- tests/reaction-progression.test.ts 2>&1 | tee validation-logs/reaction-progression.log
 
       - name: Full test suite
-        run: npm test
+        run: npm test 2>&1 | tee validation-logs/full-test.log
 
       - name: Build
-        run: npm run build
+        run: npm run build 2>&1 | tee validation-logs/build.log
 
       - name: Tested commit
-        run: git rev-parse HEAD
+        run: git rev-parse HEAD | tee validation-logs/tested-commit.txt
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr39-validation-logs
+          path: validation-logs
