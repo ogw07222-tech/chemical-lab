@@ -29,7 +29,6 @@ interface PendingResolution {
   speciesId: SpeciesId;
   record: DynamicSpeciesRecord;
   provenance: GeneratedSpeciesProvenance;
-  invalidReason?: string;
 }
 
 function productKey(candidateId: string, productIndex: number): string {
@@ -56,7 +55,7 @@ function existingStateForCanonicalKey(
     .sort((a, b) => a.id.localeCompare(b.id))[0];
 }
 
-function createZeroAmountGeneratedState(record: DynamicSpeciesRecord): SpeciesState {
+function createZeroAmountRegistryState(record: DynamicSpeciesRecord): SpeciesState {
   return {
     id: record.speciesId,
     molecule: record.molecule,
@@ -127,7 +126,7 @@ export function resolveReactionCandidatesWithRegistry(
         continue;
       }
       if (!existingState) {
-        workingSpecies.push(createZeroAmountGeneratedState({ ...resolution.record, speciesId }));
+        workingSpecies.push(createZeroAmountRegistryState({ ...resolution.record, speciesId }));
         stateIds.set(speciesId, resolution.record.canonicalKey);
       }
       pending.set(productKey(candidate.id, productIndex), {
@@ -169,13 +168,14 @@ export function resolveReactionCandidatesWithRegistry(
       const product = candidate.productGraphs[productIndex];
       if (!product) throw new Error(`SELECTED_REACTION_MISSING_PRODUCT:${candidate.id}:${productIndex}`);
       const provenance = provenanceFor(candidate, productIndex, input.timestepId);
+      const existedBefore = committedRegistry.lookupByCanonicalKey(product.canonicalKey);
       const committed = committedRegistry.resolveOrRegister({ molecule: product, provenance });
       if (committed.status === "INVALID") {
         // No externally visible state has been committed yet: fail atomically.
         throw new Error(`PRODUCT_REGISTRATION_FAILED:${candidate.id}:${productIndex}:${committed.reason}`);
       }
       committedRegistry = committed.registry;
-      if (committed.status === "GENERATED") generatedSpeciesIds.add(committed.speciesId);
+      if (!existedBefore && committed.status === "GENERATED") generatedSpeciesIds.add(committed.speciesId);
       else reusedSpeciesIds.add(committed.speciesId);
     }
   }
