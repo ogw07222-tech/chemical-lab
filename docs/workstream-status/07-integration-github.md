@@ -3,7 +3,7 @@
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
 - Current phase: Phase 2 — Reaction Candidate/Data/Evaluation/Validation Foundation Integrated
 - Overall state: PASS — PHASE2_REACTION_FOUNDATION_INTEGRATED
-- Last updated: 2026-09-11
+- Last updated: 2026-09-12
 - Starting production main SHA: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
 - Final functional main SHA before this status-only closeout: `22ac5bca99b9512a79de703fd1440474a8544d5d`
 - Final functional tree SHA: `102494e9ea60d9f3a1c39987897b031b0bc5aae2`
@@ -133,11 +133,43 @@ Owner implementation content is broadly consistent with merged code, but operati
 
 This is a **documentation synchronization OPEN item**, not a functional/scientific integration blocker. Owners should refresh their own status documents from latest main rather than 07 rewriting domain status on their behalf.
 
+## PR #34 — Clean Laboratory Workbench UI Production Integration
+
+Source of truth:
+- pre-merge main: `fb1b1ed4605eca26745629d82812e216a139cc0c`
+- validated executable/UI HEAD: `0b7281cc592431afcb345a19d31b135f85f2c991`
+- PR #34 source HEAD: `3e28c551fd580e43d96e3e9899ecedd7a375bf18`
+- PR #34 merge / resulting functional main: `1dcf48cca1a367c6a6566c1cc2300f8914f22213`
+- validation run: `34606112975` — **SUCCESS**
+
+The delta from the validated implementation HEAD to the merged PR HEAD was only `docs/workstream-status/05-web-ui.md`; executable, UI, test, smoke, and workflow blobs were unchanged. No redundant full validation rerun was performed.
+
+PR #33 Phase 2E remained open during this integration. PR #33 and #34 had zero changed-file overlap, so no direct provider/source merge conflict or chemistry-semantics overwrite was identified.
+
+Contract integration audit:
+- 도감 / locked identity boundary: **PASS**
+- finite positive AddSubstance/provider ownership: **PASS**
+- central clean workbench layout: **PASS**
+- persistent substance inspector: **PASS**
+- free-form My Notes with no UI truth grading: **PASS**
+- temperature/pressure/volume request controls: **PASS**
+- Mix/Stir/Pause/Reset provider-bound operations: **PASS**
+- provider-backed disposal with confirmation: **PASS**
+- no chemistry/thermo/phase formulas in React: **PASS**
+
+Vercel production evidence for the PR #34 merge:
+- project: `chemical-lab` (`prj_Jg9sAvWZHkmldk4u1hToEXsmAriQ`)
+- deployment: `dpl_J5oXxpCyn1yrgHGJ4s83ikysgJxb`
+- branch: `main`
+- deployed commit: `1dcf48cca1a367c6a6566c1cc2300f8914f22213`
+- target/state: `production` / `READY`
+- production domain: `chemical-lab-kappa.vercel.app`
+- production HTTP: 200 OK
+
+The live production JS bundle contains the new workbench UI surfaces (`도감`, `실험실 작업대`, `물질 정보`, `내 메모`, `실험 조건`, `혼합`, `교반`, `반응 정지`, `초기화`, `폐기`) and the corresponding provider command wiring. This confirms production is serving the clean workbench implementation rather than the prior dashboard bundle. Pixel-level screenshot inspection was not available in the current integration environment; the validated Chromium run remains the visual/responsive browser evidence.
+
 ## Final Status
-**PASS — Phase 2 reaction candidate/data/evaluation/validation foundation integrated on main.**
+**PASS — PR #34 integrated and clean laboratory workbench UI is live on Vercel production.**
 
 ## Next Action
-Only after this PASS, proceed to **Phase 2E — Reaction Resolution & State Progression**:
-`candidate ranking -> competing reaction resolution -> reaction extent -> species amount update -> reaction heat -> thermal feedback -> next timestep`.
-
-Do not move to electrochemistry yet.
+Verify actual production UX visually when browser/screenshot automation is available or through user-visible inspection. Continue 05 polish only for observed UX defects. Do not mix UI polish with Phase 2E chemistry work.
