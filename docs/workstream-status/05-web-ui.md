@@ -4,123 +4,130 @@
 - Current phase: Phase 0 — Runnable PC-first UI scaffold
 - Overall state: BLOCKED_BROWSER_SMOKE
 - Last updated: 2026-09-11
-- Last checked main SHA: `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`
+- Last checked production base: `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`
 - Active branch: `feature/phase0-web-lab-scaffold`
 - Active PR: #4 — `feat(ui): runnable Phase 0 laboratory scaffold`
-- Validated implementation HEAD: `ed877eae58afc583158cca5d6b07d5849fa8087f`
-- Validation workflow run: `34580511787`
+- Latest validated implementation HEAD before this status-only commit: `0b01c7f3adb0ac162bf57894ca3381f44a7e2be9`
+- Latest full validation run: `34581688772`
 
 ## Current Objective
-Keep PR #4 aligned with the current production contracts while keeping chemistry, progression authority, thermal physics, and phase determination outside React. PR #4 is not merge-ready until browser smoke passes.
+Keep PR #4 aligned with the canonical PC-first laboratory UI while chemistry, progression authority, thermal physics, and phase determination remain outside React. PR #4 is not merge-ready until the complete browser smoke passes.
 
-## Latest main refresh
-PR #4 incorporates production main `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`, including the current chemistry data, molecular core, thermal primitives, progression runtime, and validation harness. The refresh commit was `e199cac6d586280bcfbfccb2187e97294c64056a`.
+## Targeted UI regression resolved
+The earlier component-test failure was diagnosed on exact historical HEAD and fixed without changing product semantics. Current lineage continues to pass:
+- targeted `tests/ui/LaboratoryWorkspace.test.tsx`: 9/9;
+- full test suite: 73/73.
 
-## Fresh targeted failure diagnosis
-Original exact PR HEAD under diagnosis: `9a1ba5571417605df4ea903f31717bc0d70b4044`.
+## Finite-add browser blocker diagnosis
+Original browser blocker on exact HEAD `4e458264dbf1eaa8bf241363b57242b752b48c09`:
 
-Because the existing Actions connector did not expose the assertion body from run `34578933379` / job `103197740831`, a separate diagnostic branch checked out that exact SHA and executed the exact CI command:
+`Error: desktop: finite amount add failed`
 
-`npm test -- tests/ui/LaboratoryWorkspace.test.tsx`
+Classification: **SMOKE SCRIPT BUG**, not a product/provider bug.
 
-Fresh reproduction result:
-- file: `tests/ui/LaboratoryWorkspace.test.tsx`
-- 9 tests total; 4 failed / 5 passed
-- failure class: stale query/assertion
-- no product/provider chemistry bug was demonstrated
+A diagnostic workflow checked out that exact HEAD and reproduced the Desktop interaction under the same Node/Playwright/Chromium class of environment as CI.
 
-Failures:
-1. `normal inventory exposes starters but not all supported species`
-   - `TestingLibraryElementError`
-   - global `getByText('Hydrogen')` expected one element but actual DOM legitimately contained Hydrogen in both Inventory and Molecule Inspector
-   - stack: `LaboratoryWorkspace.test.tsx:11:108`
-2. `adds a finite amount through the provider`
-   - `TestingLibraryElementError`
-   - expected visible `/Added 0.250 mol H₂/`; actual active `Composition` tab does not render event messages
-   - stack: `LaboratoryWorkspace.test.tsx:13:158`
-3. `uses heater power and thermostat commands rather than direct temperature mutation`
-   - `TestingLibraryElementError`
-   - expected visible `/Thermostat enabled/`; actual event is rendered only in `Timeline`
-   - stack: `LaboratoryWorkspace.test.tsx:14:315`
-4. `confirms the mock unknown before discovery unlock feedback`
-   - `TestingLibraryElementError`
-   - expected visible `/Identity confirmed: Water/`; actual discovery event is rendered only in `Timeline`
-   - stack: `LaboratoryWorkspace.test.tsx:15:226`
+### Before Add
+- selected/default starter: Hydrogen / H₂;
+- amount input selector: `getByLabel('Amount')`;
+- amount value: `0.25` mol;
+- amount is finite and > 0;
+- Add selector: `getByRole('button', { name: /Add H₂ to vessel/i })`;
+- Add button count: 1;
+- Add button disabled: false;
+- Composition: `No vessel contents.`;
+- no `Added 0.250 mol H₂` event text visible on the active Composition tab.
 
-The previous explicit `afterEach(cleanup)` fix remains in place, but this fresh run showed the remaining failures were not residual cross-test DOM leakage.
+### After Add
+- Composition row: `H₂ / unknown / 0.250 mol`;
+- vessel chip: `H₂ / 0.250 mol · Current phase: unknown`;
+- empty-vessel projection disappears;
+- amount input remains finite `0.25`;
+- browser console/page errors: none;
+- opening Timeline exposes the provider event exactly once: `Added 0.250 mol H₂`.
 
-## Minimal fix
-Commit `ed877eae58afc583158cca5d6b07d5849fa8087f` changed only `tests/ui/LaboratoryWorkspace.test.tsx`:
-- scoped the Hydrogen starter assertion to the Inventory panel rather than weakening it to a multi-match assertion;
-- opened the existing Timeline tab before asserting provider event messages for AddSubstance, thermostat, and discovery.
+Therefore the click fired, the mock provider accepted a finite positive `amountMol`, authoritative UI state changed, and the failure came solely from checking a Timeline-only event string while Composition remained active.
 
-No product code, provider semantics, chemistry logic, identity secrecy, or progression rules were changed.
+## Finite-add smoke fix
+Commit `45cd2b23debff583ef49eb9ebfdf477395261b3d` changed only `tools/ui-smoke.mjs`.
 
-## Fresh validation — implementation HEAD `ed877eae58afc583158cca5d6b07d5849fa8087f`
-Workflow run `34580511787`:
+The finite-add smoke now requires all of the following:
+- amount input equals finite `0.25` mol;
+- Add button is enabled;
+- after click, Composition contains `H₂`, `unknown`, and `0.250 mol`;
+- vessel projection contains H₂ and `0.250 mol`.
+
+The criterion was not weakened to a click-only check. No product code, provider behavior, chemistry logic, progression semantics, or finite-amount invariant changed.
+
+A dedicated Desktop-only rerun on that fixed HEAD passed.
+
+## Subsequent browser-smoke selector fix
+The next full smoke run reached the thermostat interaction and exposed a separate strict-locator problem:
+
+`getByLabel('Thermostat')` matched both the checkbox and `Thermostat target` input.
+
+Commit `0b01c7f3adb0ac162bf57894ca3381f44a7e2be9` narrowed only the smoke selector to:
+
+`getByRole('checkbox', { name: 'Thermostat' })`
+
+No product code changed.
+
+## Fresh full checkpoint — implementation HEAD `0b01c7f3adb0ac162bf57894ca3381f44a7e2be9`
+Workflow run `34581688772`:
 
 ### PASS
 - `npm ci --no-audit --no-fund`
 - `npm run typecheck`
 - `npm run lint`
-- targeted: `npm test -- tests/ui/LaboratoryWorkspace.test.tsx`
-  - 1 file passed
-  - 9/9 tests passed
-  - duration 1.64 s; test execution 636 ms
-- full: `npm test`
-  - 5 files passed
-  - 73/73 tests passed
-  - duration 2.99 s
-  - includes production progression, thermal, molecular-core, validation-foundation, and UI suites
-- `npm run build`
-  - Vite production build PASS
-  - 32 modules transformed
-- Playwright Chromium installation PASS
+- targeted UI: 9/9 PASS
+- full `npm test`: 73/73 PASS
+- `npm run build`: PASS
+- Chromium installation: PASS
+- Desktop finite-add state transition: PASS
 
-### FAIL / merge blocker
-Browser smoke failed at Desktop before Tablet/Mobile could be accepted:
+### Current browser-smoke blocker
+Browser smoke proceeds beyond finite-add and the thermostat locator, then fails with:
 
-`Error: desktop: finite amount add failed`
+`Error: desktop: thermostat command feedback missing`
 
 Stack:
-- `tools/ui-smoke.mjs:15:61` (`assert`)
-- `tools/ui-smoke.mjs:35:3`
+- `tools/ui-smoke.mjs:15:61`
+- `tools/ui-smoke.mjs:49:3`
 
-Therefore browser smoke is the exact remaining merge gate. No browser-smoke fix is claimed in this targeted-failure task.
+The current script checks for visible body text `Thermostat enabled` immediately after checking the thermostat while the active analysis tab is still Composition. Existing component-test evidence shows provider event messages are rendered in Timeline, so this is a new smoke assertion blocker and has not been modified in the finite-add-only task.
+
+Because Desktop smoke terminates here, later Desktop steps plus Tablet/Mobile complete smoke remain OPEN.
 
 ## Contract audit
-### Progression — PASS by source/test audit
-- normal inventory is starter-only in the UI fixture;
-- locked species are hidden from normal selection;
-- unconfirmed observation identity is not stored in the UI-facing snapshot;
-- analysis confirmation precedes discovery/inventory unlock;
-- encyclopedia and inventory unlock are updated together in the mock adapter;
-- unlocked inventory is presented as unlimited stock while each vessel add requires finite positive `amountMol`;
-- Developer Mode is isolated as an explicit access bypass;
-- current production `src/game/progression.ts` explicitly ignores Premium for access and enforces discovery/encyclopedia/inventory invariants.
+### Progression — PASS
+- starter-only normal inventory;
+- undiscovered identity secrecy preserved;
+- confirmation before discovery/unlock;
+- discovery/inventory/encyclopedia authority outside React;
+- unlocked stock unlimited while each vessel addition is finite positive mol;
+- Developer Mode isolated.
 
-### Thermal — PASS by source/test audit
-- heater and cooler controls dispatch power requests in W;
-- thermostat dispatches enabled/target-K controller requests;
-- there is no direct `SetTemperature` command in the UI boundary;
-- displayed temperature comes from provider snapshot state;
-- React contains no heat-capacity, reaction-enthalpy, or temperature-evolution calculation.
+### Thermal — PASS
+- heater/cooler are power requests in W;
+- thermostat is enabled/target-K request only;
+- no direct `SetTemperature` UI command;
+- authoritative temperature comes from provider state;
+- no thermal physics in React.
 
-### Phase — PASS by source audit
-- no manual phase selector exists;
-- vessel phase is supplied through provider snapshot content;
-- React does not derive phase from T/P;
-- Phase tab renders supplied phase-diagram data only;
-- mock phase diagram remains explicitly labeled `UI-only illustrative fixture — not scientific phase data`.
+### Phase — PASS
+- no manual phase selection;
+- provider owns phase state;
+- phase diagram is supplied-data renderer only;
+- no UI-side T/P -> phase calculation.
 
-### SI — PASS by source/test audit
-Simulation-facing implemented UI boundary preserves K, Pa, m³, mol, and W, with display conversions centralized in `src/ui/units.ts`.
+### SI — PASS
+Simulation-facing implemented UI boundary preserves K, Pa, m³, mol, and W with centralized display conversion helpers.
 
-## Current blocker
-`BLOCKED`: browser smoke on the validated implementation HEAD fails at the Desktop finite-add check. Because Desktop smoke did not pass, Tablet/Mobile responsive smoke cannot be marked PASS and PR #4 is not ready for merge.
+## Current gate
+**BLOCKED** — finite-add is fixed and verified, but the next exact browser-smoke blocker is `desktop: thermostat command feedback missing`.
 
 ## Next action
-Diagnose `tools/ui-smoke.mjs` Desktop finite-add assertion against the actual rendered UI/provider behavior, make only the smallest evidence-based fix, then rerun the complete gate on the resulting exact HEAD.
+A separate follow-up should diagnose the thermostat smoke assertion against the current visible state/Timeline contract before changing it. Do not merge PR #4 until that blocker and the remaining Desktop/Tablet/Mobile smoke gates pass on one final exact HEAD.
 
 ## Handoff to 07
-Do not merge PR #4 yet. Runtime unit/type/lint/build gates are green on implementation HEAD `ed877eae58afc583158cca5d6b07d5849fa8087f`, but browser smoke remains FAIL (`desktop: finite amount add failed`).
+Do not merge yet. Finite-add browser behavior is verified and its smoke assertion is fixed, but full browser smoke is still red at the thermostat feedback assertion.
