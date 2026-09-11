@@ -1,8 +1,8 @@
 # 07 — Integration & GitHub
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
-- Current phase: Phase 2E — Reaction State Progression Integration
-- Overall state: PASS — READY_TO_MERGE_PR33
+- Current phase: Phase 2E — Reaction State Progression Integrated
+- Overall state: PASS — PHASE2E_REACTION_PROGRESSION_INTEGRATED
 - Last updated: 2026-09-12
 
 ## Current Source of Truth
@@ -12,14 +12,16 @@
 - Original PR #33 source HEAD: `b2db3a9eb2128a8677b25193f1e8e91906715a53`
 - Latest-main ancestry refresh merge on feature branch: `029b38990071e0a7e6c4dc8449603c57a15f8c52`
 - Validated executable/test HEAD: `c57bcd03226acb270d2ef503030f43a3211d164a`
+- Final PR #33 HEAD: `5de68123327a9c191a6e1ea8a4a7fa55675926e0`
 - Consolidated validation run: `34633183345` — **SUCCESS**
+- PR #33 production merge SHA: `fcea2fd11a16474dae0935589ab665e899af5d93`
 
 ## Refresh Audit
 PR #33 had diverged from main after PR #34 (Clean Workbench UI) and PR #35 (disable automatic Vercel Git deployments). The Phase 2E PR changed simulation/thermal/integration files, while the recent main advancement changed UI, UI tests/smoke, status documentation, one historical UI workflow, and root `vercel.json`.
 
 Direct changed-file overlap between the original PR #33 delta and the recent main delta was **zero**. No simulation/core, reaction-progression, thermal, provider/type, or UI provider-contract conflict was found. Temporary PR #36 merged current main into the Phase 2E feature branch without changing Phase 2E chemistry semantics.
 
-The refresh preserved root `vercel.json` and its manual-deployment policy:
+The refresh and production merge preserved root `vercel.json` and its manual-deployment policy:
 
 ```json
 {
@@ -30,10 +32,10 @@ The refresh preserved root `vercel.json` and its manual-deployment policy:
 }
 ```
 
-No Vercel production deployment is part of this integration.
+No Vercel production deployment was requested or performed as part of this integration.
 
 ## Phase 2E Contract Audit
-The production path represented by PR #33 is:
+Production now supports:
 
 `candidate generation -> evaluation/ranking -> deterministic competing-reaction resolution -> bounded reaction extent -> stoichiometric species mutation -> ReactionProgressEvent -> actual-extent reaction heat -> next state`
 
@@ -48,15 +50,15 @@ Integration gates:
 - candidate ID is not allowed to capture shared inventory ahead of tied competitors: **PASS**
 - unresolved product identity is deferred rather than assigned a fabricated species ID: **PASS**
 - zero-extent candidates are not applied: **PASS**
-- no newly produced product is recursively consumed in the same resolution step: **PASS** by Phase 2E resolver contract
+- no newly produced product is recursively consumed in the same resolution step: **PASS**
 - reaction heat uses actual applied extent and existing `deltaH_J_per_mol`: **PASS**
 - missing/non-finite reaction enthalpy produces no fabricated heat and propagates `OPEN`: **PASS**
 - aggregate reaction heat ledger / double-specification guard: **PASS**
 
-The current coarse kinetic extent model remains an approximation; that scientific approximation status is separate from the integration verdict.
+The coarse kinetic extent model remains an approximation; that scientific approximation status is separate from the integration verdict.
 
 ## Validation
-A temporary branch-scoped workflow was used only to validate the refreshed exact executable state, then removed before merge.
+A temporary branch-scoped workflow was used only to validate the refreshed exact executable state, then removed before production merge.
 
 Successful run: `34633183345`
 Tested commit: `c57bcd03226acb270d2ef503030f43a3211d164a`
@@ -75,9 +77,11 @@ Results:
 - UI workbench regression: 10/10 PASS within full suite
 - `npm run build`: **PASS**
 
-Two validation defects were found and corrected before the successful run:
-1. one unused type import in `thermal-coupling.ts` caused lint failure; the import was removed with no runtime semantic change;
-2. the missing-DeltaH test helper used JavaScript default-parameter semantics that replaced explicit `undefined` with a default enthalpy. The fixture was corrected so omitted and explicitly missing enthalpy are distinct. Production missing-enthalpy handling itself already propagated `OPEN` without fabricating heat.
+Two validation defects were corrected before the green run:
+1. an unused type import in `thermal-coupling.ts` caused lint failure; removing it did not change runtime semantics;
+2. the missing-DeltaH test helper initially could not represent explicit `undefined` because of JavaScript default-parameter behavior. The test fixture was corrected. Production missing-enthalpy handling already propagated `OPEN` without fabricating heat.
+
+After the successful run, only the temporary validation workflow was removed and this integration status was updated; executable/test blobs remained those validated at `c57bcd03226acb270d2ef503030f43a3211d164a`.
 
 ## Explicitly Out of Scope
 This integration does not add:
@@ -96,7 +100,7 @@ PR #35 remains authoritative. Automatic Git-triggered Vercel production and prev
 Do not deploy as part of ordinary GitHub push/merge work. Manual production deployment occurs only when the user explicitly requests deployment/Vercel publication.
 
 ## Integration Decision
-**PASS — PR #33 is refreshed onto latest main, consolidated validation is green, and Phase 2E is ready for exact-head protected merge.**
+**PASS — Phase 2E reaction state progression integrated into latest main.**
 
 ## Next Action
-After production merge, proceed to **Dynamic Species Registry & Generated Species Persistence**. Do not mix that work into PR #33.
+Proceed to **Dynamic Species Registry & Generated Species Persistence**. Do not mix that work back into the completed PR #33 integration.
