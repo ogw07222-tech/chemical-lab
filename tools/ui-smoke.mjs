@@ -96,7 +96,7 @@ try {
   for (const label of ['도감','실험실','정보','조작','메모']) assert(body.includes(label), `mobile: ${label} navigation missing`);
   assert(body.includes('Untitled experiment') && body.includes('주 용기'), 'mobile: lab view should be initial');
   await mobile.getByRole('button',{name:'도감',exact:true}).click();
-  assert((await text(mobile)).includes('물질 검색'), 'mobile: catalog view failed');
+  await mobile.getByRole('textbox',{name:'물질 검색'}).waitFor();
   await mobile.getByRole('button',{name:'정보',exact:true}).click();
   assert((await text(mobile)).includes('과학 상태'), 'mobile: info view failed');
   await mobile.getByRole('button',{name:'조작',exact:true}).click();
