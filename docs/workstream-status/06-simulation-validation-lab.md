@@ -1,139 +1,227 @@
 # 06 — Simulation Validation Lab
 
 - Owner: Chemistry Simulation Validation Engineer / Regression Test Developer / Scientific Model Auditor / Performance Validation Engineer
-- Current phase: Phase 1 — Executable Validation Harness Foundation
-- Overall state: HARNESS_FOUNDATION_IMPLEMENTED / VITEST_EXECUTION_BLOCKED / SCIENTIFIC_BENCHMARKS_OPEN
+- Current phase: Phase 2D — Reaction Engine Validation Matrix
+- Overall state: EXECUTABLE_MATRIX_IMPLEMENTED / PRODUCTION_REACTION_ENGINE_OPEN / REAL_BENCHMARK_CORPUS_OPEN
 - Last updated: 2026-09-11
-- Last checked main SHA: 567994693e56a7013cbcce0d95222a6cb98594af
-- Active branch: feature/06-phase1-validation-harness
-- Active PR: #11
+- Last checked main SHA: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
+- Active branch: `feature/phase2-reaction-validation`
+- Active PR: #20
 
 ## Current Objective
-Provide executable validation primitives before a real scientific benchmark corpus exists, without tuning chemistry or fabricating experiment values.
 
-## Implemented Validation Primitives
+Provide an independent executable validation matrix for the future Phase 2 reaction candidate/evaluation engine without implementing or tuning production chemistry.
 
-Production-independent code now exists under `src/validation/`:
+## Source of Truth / Threshold Authority
 
-- `policy.ts`
-  - `VALIDATION_POLICY_SOURCE = docs/contracts/REAL_EXPERIMENT_VALIDATION.md`
-  - centralized frozen `CanonicalValidationPolicy`
-  - deterministic dimension-aware numerical tolerance policy/helpers
-- `core.ts`
-  - `PASS` / `FAIL` / `OPEN` validation verdicts
-  - separate `VERIFIED` / `APPROXIMATED` / `EMPIRICAL` / `GAMEPLAY_SIMPLIFICATION` / `OPEN` scientific-model status
-  - absolute-gate override helper
-  - finite-number and non-negative physical-state validation
-  - authoritative SI-state sanity validation
-  - deterministic canonical result serialization
-- `invariants.ts`
-  - exact invariant assertions
-  - tolerance-aware numeric invariant assertions
-  - exact element-inventory conservation assertion
-- `metrics.ts`
-  - absolute error
-  - relative error with explicit zero-reference handling
-  - median
-  - percentile / P90
-  - signed bias
-  - NRMSE
-- `benchmark.ts`
-  - benchmark/manifest adapter interfaces independent of 03 concrete schema
-  - manifest source/loader boundary
-  - manifest identity/duplicate validation
-  - eligibility skeleton
-  - OPEN exclusion from aggregate denominator
-  - median/P90/max/signed-bias aggregation
-- `index.ts`
-  - validation harness public exports
+- Production source of truth: latest `main`.
+- Scientific acceptance authority: `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`.
+- Existing validation primitives: `src/validation/` from merged Phase 1 harness.
+- 03 data schema is merged, but no populated real-experiment `benchmarks/` corpus exists on main; no real-experiment score is claimed.
 
-No real experimental measurements or reaction-specific scientific fixture numbers were introduced.
+## Main-State Finding
 
-## Canonical Threshold Authority
+Latest main contains Phase 1 molecular core, thermal primitives, gameplay progression, chemistry-data schema, validation harness, and UI integration. A production Phase 2 reaction candidate/evaluation engine is not present on main yet.
 
-`docs/contracts/REAL_EXPERIMENT_VALIDATION.md` remains the sole scientific acceptance-threshold authority.
+Therefore 06 does not recreate reaction generation, thermodynamics, or kinetics. `ReactionValidationAdapter` is the dependency-inversion boundary for future 01/02 outputs.
 
-Threshold values are centralized in `CanonicalValidationPolicy`; metric, invariant, eligibility, and aggregation helpers do not carry independent copies.
+## Implemented Validation Matrix
 
-The deterministic tolerance table is explicitly a floating-point representation policy, not a scientific acceptance policy. It cannot depend on a desired PASS/FAIL outcome.
+### Conservation — absolute gates
 
-## Adapter / Dependency Boundary
+- exact element inventory;
+- exact atom count;
+- exact net charge;
+- exact explicit electron bookkeeping when represented.
 
-The executable harness does not import PR #3 benchmark schema types directly. `BenchmarkManifestAdapter`, `BenchmarkAdapterRecord`, and `ManifestSource` provide a dependency-inversion boundary so a future 03 schema adapter can be connected without making validation primitives depend on the concrete data implementation.
+Any violation is `FAIL` regardless of later scores.
 
-## Tests Added
+### Structural validity
 
-`tests/validation.foundation.test.ts` covers:
+- over-valence flag;
+- invalid bond;
+- dangling atom;
+- duplicate atom mapping;
+- malformed product graph;
+- invalid/non-finite numeric state.
 
-- PASS result
-- FAIL result
-- OPEN result
-- scientific status separated from validation verdict
-- absolute-gate violation always yields FAIL
-- deterministic same-input result representation
-- absolute error
-- median
-- P90
-- signed bias
-- NRMSE
-- normal relative error
-- zero-reference relative-error handling
-- invalid absolute-temperature SI state rejection
-- negative physical state rejection
-- NaN rejection
-- Infinity rejection
-- exact element-inventory conservation
-- tolerance independence from desired verdict
-- canonical threshold-authority identity/frozen policy
-- insufficient benchmark eligibility -> OPEN
-- schema-independent manifest validation/loading
-- OPEN case exclusion from aggregate denominator
+### Candidate generation sanity
 
-All test values are synthetic validation-tooling examples, not scientific experiment fixtures.
+- candidate ID uniqueness;
+- canonical-key deduplication;
+- raw/deduplicated/pruned counter sanity;
+- positive-control expected-candidate assertion;
+- negative-control outcome handling;
+- deterministic same-input candidate ordering and evaluation.
 
-## Validation Performed
+### Negative controls
+
+Allowed outcomes are:
+
+- no candidate -> `PASS` for the control;
+- candidate definitely thermo/kinetic infeasible -> `PASS` for the control;
+- insufficient thermo/kinetic information -> `OPEN`;
+- a candidate remains explicitly feasible -> `FAIL`.
+
+Missing information is never upgraded to PASS.
+
+### Thermodynamics
+
+- finite deltaH/deltaG checks;
+- internal deltaG sign/direction sanity;
+- reference-backed exothermic/endothermic sign;
+- reference-backed major reaction direction;
+- unavailable/open data -> `OPEN`.
+
+A reference-backed reversed major reaction direction remains an absolute scientific failure under the canonical validation contract.
+
+### Kinetics
+
+- finite/non-negative kinetic values;
+- positive-Ea temperature response direction;
+- catalyst affects kinetic rate but must not alter equilibrium thermodynamics;
+- relative effective-rate ordering helper;
+- unknown barrier/status -> `OPEN`.
+
+### Performance / candidate explosion observability
+
+Recorded adapter counters:
+
+- reactive sites;
+- eligible pairs;
+- raw candidates;
+- deduplicated candidates;
+- pruned candidates;
+- runtime ms.
+
+Engineering runtime/candidate budgets are deliberately separate from scientific acceptance thresholds. No scientific threshold was invented for performance.
+
+## Executable Tests
+
+Added `tests/reaction-validation.matrix.test.ts` covering:
+
+- conservation PASS/FAIL for elements/atoms/charge/electrons;
+- structural invalidity rejection;
+- duplicate candidate rejection;
+- invalid/NaN performance counters;
+- positive and negative controls;
+- negative-control OPEN behavior for missing evaluation data;
+- thermo sign and deltaG-direction checks;
+- missing thermo -> OPEN;
+- positive-Ea temperature direction;
+- catalyst equilibrium isolation;
+- unknown kinetic barrier -> OPEN;
+- relative rate ordering;
+- deterministic candidate/order/evaluation replay;
+- candidate/performance counter observation separated from scientific acceptance.
+
+All numeric values in this test file are synthetic validation-tooling values, not experimental chemistry measurements.
+
+## Reference Data / Metrics
+
+03 reference data may later be adapted into the matrix for eligible cases with provenance. The existing benchmark harness already supports OPEN exclusion and median/P90/max/bias aggregation.
+
+Current real-reference metrics:
+
+- case count: `OPEN` — no populated corpus;
+- qualitative accuracy: `OPEN`;
+- median absolute relative error: `OPEN`;
+- P90: `OPEN`;
+- max error: `OPEN`;
+- bias: `OPEN`.
+
+No fabricated benchmark values were introduced to fill these fields.
+
+## Performance Observations
+
+Scientific production performance: `OPEN` because no production Phase 2 reaction engine is on main.
+
+The executable harness proves only that candidate-performance counters and engineering budget classification can be represented and validated. Synthetic fixture runtime values are not interpreted as production benchmarks.
+
+## Tests Executed / Not Executed
+
+Executed:
+
+- source/contract audit against latest main and `REAL_EXPERIMENT_VALIDATION.md`;
+- main-state audit confirming no production Phase 2 reaction runtime is present;
+- branch refresh onto latest main `a4606143e8f249e5b9a398f72c86c8171ca405b5` after main advanced during the task;
+- static review of new validation interfaces/tests against merged Phase 1 validation primitives.
+
+Blocked / not executed:
+
+- repository `npm run typecheck` and Vitest execution in the local tool environment because `github.com` DNS resolution failed while cloning the public repository;
+- production reaction-engine validation: OPEN because implementation is absent from main;
+- real-experiment benchmark execution: OPEN because a populated eligible corpus is absent;
+- candidate-explosion stress/performance matrix: OPEN until 01 exposes production candidate generation.
+
+No runtime PASS is inferred from unexecuted tests.
+
+## PASS / FAIL / OPEN
 
 ### PASS
 
-- Latest main rechecked during task. Initial audited main was `c33f5e0bb6d30db63c4097edce30c4333a14b0c5`; main advanced during work to `567994693e56a7013cbcce0d95222a6cb98594af` through an accidental placeholder plus immediate revert with no intended net content change.
-- Feature branch was merged forward to include latest main before closeout.
-- Available local TypeScript compiler (`tsc 5.8.3`) strict-compiled the reconstructed `src/validation/*.ts` source with zero diagnostics.
-- Validation result/scientific-status separation is implemented.
-- Absolute-gate override, SI/finite-state validation, tolerance helpers, metric primitives, OPEN exclusion, deterministic result representation, eligibility, and manifest adapter foundation are implemented.
-- No production chemistry tuning or fabricated scientific data was added.
+- Phase 2D validation matrix architecture is implemented independently of production reaction logic.
+- Conservation absolute gates, structural checks, candidate sanity, negative controls, thermo/kinetic OPEN discipline, determinism, rate ordering, and performance observability are represented executablely.
+- Validation verdict and scientific-model status remain separate.
+- `REAL_EXPERIMENT_VALIDATION.md` remains the threshold authority.
+- No tuning and no fabricated experiment values were introduced.
 
 ### FAIL
 
-- None identified in the implemented validation primitive source during the available static compile/audit.
+- No production-scientific FAIL can be claimed because the Phase 2 reaction engine is not yet available for execution.
+- No validation-infrastructure defect was confirmed by the available static audit.
 
 ### OPEN / BLOCKED
 
-- Repository `npm test` / Vitest execution: BLOCKED in this execution environment because Vitest is not installed globally and external npm/GitHub DNS access is unavailable.
-- Repository full `npm run typecheck` using installed project dependencies: OPEN for the same environment reason. Source-only strict TypeScript validation passed separately.
-- No GitHub Actions workflow exists on current main to supply an automatic PR test result.
-- Real-experiment benchmark corpus execution: OPEN; no corpus was added in this task.
-- Monte Carlo stress, full reaction-network validation, large performance matrices, timestep matrices, and production chemistry scientific PASS remain outside this task.
+- repository-native typecheck/Vitest run: BLOCKED in this local execution environment;
+- production candidate-generation scientific correctness: OPEN;
+- production thermo/kinetics correctness: OPEN;
+- real-reference quantitative metrics: OPEN;
+- production candidate-explosion/runtime scaling: OPEN.
 
 ## Handoffs
 
 ### 01 — Chemistry Simulation Engine
-Connect molecular-core/reaction outputs to the invariant helpers through adapters. Provide authoritative element/charge inventories and accepted-transition state snapshots. PR #10 is a relevant Phase 1 implementation branch but is not modified by 06.
+
+Expose/adapt production reaction outputs into `ReactionValidationAdapter`, including:
+
+- canonical candidate ID/key;
+- reactant/product element and atom inventory;
+- charge/electron bookkeeping;
+- structural/product-graph sanity result;
+- candidate generation diagnostics and counts;
+- deterministic output ordering;
+- production candidate runtime metrics.
+
+Any conservation, graph/mapping, duplicate/order, or candidate-explosion defect routes to 01.
 
 ### 02 — Thermodynamics & Kinetics
-Expose finite SI thermal/phase/kinetic state and explicit energy-ledger quantities for future invariant and benchmark adapters. PR #9 is a relevant Phase 1 thermal implementation branch but is not modified by 06.
+
+Expose/adapt:
+
+- deltaH / deltaG / direction / feasibility;
+- scientific status and missing-data state;
+- barrier availability and activation energy;
+- controlled-temperature rates;
+- catalyst-vs-uncatalyzed rates;
+- effective relative rate/ranking diagnostics.
+
+Thermo/kinetics/catalyst defects route to 02.
 
 ### 03 — Chemistry Data & Validation
-Provide/adapt the benchmark manifest/schema and later provenance-backed corpus into `BenchmarkManifestAdapter`; do not duplicate canonical threshold logic in data files.
+
+Populate provenance-backed eligible reaction/no-reaction, thermochemistry, kinetics, and quantitative reference benchmarks. Missing or weak data must remain OPEN.
+
+Data/provenance/eligibility defects route to 03.
 
 ### 04 — Laboratory Gameplay
-Connect deterministic progression/save state to validation adapters when production progression is integrated. PR #8 is a relevant Phase 1 progression implementation branch but is not modified by 06.
+
+No gameplay tuning or gameplay-dependent chemistry path was introduced. Future Game Layer integration must not change validation outcomes for identical Simulation inputs.
 
 ### 07 — Integration & GitHub
-Run repository-native dependency install, `npm run typecheck`, and `npm test` in a network-enabled/CI environment before merge. Add CI wiring separately according to the approved PR-fast/main/manual-nightly strategy; do not infer scientific PASS from tooling-unit PASS.
 
-## Next Actions
+Run repository-native typecheck and full/targeted Vitest in a dependency-enabled environment before merge, then integrate the adapter/matrix without converting tooling PASS into scientific engine PASS.
 
-1. Run PR #11 with repository-installed Vitest/typecheck through 07 or another network-enabled environment.
-2. Add adapters to integrated 01/02/03/04 production interfaces without moving validation policy into those layers.
-3. Add real benchmark loader/schema/provenance validation only when an approved corpus is available.
-4. Preserve `PASS` / `FAIL` / `OPEN` discipline: missing data/capability remains OPEN, not inferred PASS.
+## No Tuning
+
+**No tuning performed.**
