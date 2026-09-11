@@ -31,7 +31,7 @@ try {
     await noHorizontalOverflow(desktop, `desktop-${width}`);
 
     if (width === 1536) {
-      const amount = desktop.getByLabel('추가할 양');
+      const amount = desktop.getByRole('spinbutton', { name: '추가할 양' });
       await amount.fill('0.25');
       const add = desktop.getByRole('button', { name: /실험실에 추가/ });
       assert(!(await add.isDisabled()), 'desktop: finite add unexpectedly disabled');
@@ -41,12 +41,12 @@ try {
 
       const actualTemperature = desktop.getByText(/실제 298.1 K \/ 25.0 °C/);
       await actualTemperature.waitFor();
-      await desktop.getByLabel('온도').fill('37');
+      await desktop.getByRole('spinbutton', { name: '온도' }).fill('37');
       body = await text(desktop);
       assert(body.includes('실제 298.1 K / 25.0 °C'), 'desktop: temperature target teleported actual temperature');
-      assert(await desktop.getByLabel('온도 제어').isChecked(), 'desktop: temperature controller request not enabled');
+      assert(await desktop.getByRole('checkbox', { name: '온도 제어' }).isChecked(), 'desktop: temperature controller request not enabled');
 
-      await desktop.getByLabel('압력').fill('2');
+      await desktop.getByRole('spinbutton', { name: '압력' }).fill('2');
       body = await text(desktop);
       assert(body.includes('실제 1.00 atm'), 'desktop: pressure target overwrote actual pressure');
 
@@ -71,7 +71,7 @@ try {
       await desktop.getByRole('button', { name: '타임라인' }).click();
       assert((await text(desktop)).includes('Identity confirmed: Water'), 'desktop: discovery event missing');
 
-      await desktop.getByLabel('Developer Mode').check();
+      await desktop.getByRole('checkbox', { name: 'Developer Mode' }).check();
       assert((await text(desktop)).includes('메테인'), 'desktop: Developer Mode access failed');
 
       await desktop.getByRole('button', { name: '선택 물질 폐기' }).click();
