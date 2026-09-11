@@ -1,90 +1,172 @@
 # 02 — Thermodynamics & Kinetics
 
 - Owner: Thermodynamics Simulation Developer / Chemical Kinetics Systems Developer / Equilibrium Model Designer / Energy Model Architect
-- Current phase: Phase 1 — Executable Foundation
+- Current phase: Phase 2B — Reaction Candidate Evaluation Foundation
 - Overall state: IN_PROGRESS
 - Last updated: 2026-09-11
-- Last checked main SHA: 567994693e56a7013cbcce0d95222a6cb98594af
-- Task-start main SHA: c33f5e0bb6d30db63c4097edce30c4333a14b0c5
-- Active branch: feature/phase1-thermal-state-primitives
-- Active PR: #9
+- Last checked main SHA: `901f812edad16b67c0382e1a30ce744f2e6cd234`
+- Active branch: `feature/phase2-reaction-evaluation`
+- Active PR: pending at status-write time
 
 ## Current Objective
-Implement a deterministic, browser-safe executable thermal foundation from the approved Phase 0 contract without introducing numerical thermochemistry databases, phase-diagram data, latent-heat solving, EOS logic, or detailed heat-transfer models.
+Provide a production-facing foundation that evaluates an 01 reaction candidate through thermodynamic evidence, kinetic accessibility, environment modifiers, and deterministic competing-candidate ranking without taking ownership of candidate generation, products, stoichiometry, or reaction extent.
 
-## Implemented Primitives
-- SI-facing aliases for K, J, W, J/K, J/mol, mol, and s.
-- `ThermalState` with temperature, mixture/vessel sensible heat capacities, and cumulative energy ledger.
-- `ThermalEnergyLedger` with explicit sign semantics for reaction heat, heater energy, cooler energy removed, thermostat exchange, environment exchange, latent-heat extension point, and other external exchange.
-- `createThermalState` and runtime validation for finite values, `T > 0 K`, non-negative component heat capacities, and positive total sensible heat capacity.
-- `integrateHeaterEnergy`: enabled heater power times timestep, positive energy into system.
-- `integrateCoolerEnergyRemoved`: enabled cooler extraction power times timestep, positive ledger magnitude removed from system.
-- `reactionHeatToSystem`: `Q_reaction = -deltaH * extent`, using a loosely coupled non-negative forward reaction extent input suitable for future 01 `ReactionProgressEvent` adaptation.
-- `computeThermostatEnergyExchange`: bounded proportional controller skeleton that returns signed external energy and never directly mutates/overwrites temperature.
-- `applySensibleEnergy`: converts signed sensible-energy change to temperature change using total sensible heat capacity.
-- `stepThermalState`: deterministic per-timestep composition of reaction/heater/cooler/thermostat/environment/external energy into sensible temperature change and cumulative ledger updates.
-- Public barrel exports under `src/simulation/thermal/index.ts`.
+## Source-of-Truth / Candidate Contract
+- Re-checked production `main` at `901f812edad16b67c0382e1a30ce744f2e6cd234`.
+- Production runtime currently contains the Phase 1 molecular core but does not yet expose an executable `ReactionCandidate` TypeScript type.
+- The canonical 01 contract in `docs/contracts/MOLECULAR_REACTION_CORE.md` defines `ReactionCandidate`, phase/access mode, `ThermodynamicsQuery`, `KineticsQuery`, and `ReactionProgressEvent` semantics.
+- 02 therefore does not recreate 01 candidate generation semantics. It consumes candidates through a generic `ReactionCandidateAdapter<TCandidate>` producing a narrow read-only `ReactionCandidateEvaluationView`. When 01 publishes the executable type, only an adapter is required.
 
-## Canonical Sign Semantics
-- Heater energy: positive input to system; ledger field stores positive supplied magnitude.
-- Cooler: system energy contribution is negative; ledger field stores positive removed magnitude.
-- Exothermic forward reaction (`deltaH < 0`): positive `reactionHeat_J` into system.
-- Endothermic forward reaction (`deltaH > 0`): negative `reactionHeat_J`, absorbing thermal energy.
-- Thermostat: signed external exchange; positive supplies heat, negative removes heat.
-- Environment/other external exchange: signed into system.
-- Latent heat: reserved for later explicit allocation; not applied in this Phase 1 primitive.
+## Implemented Foundation
+Added `src/simulation/reaction-evaluation/`:
+- `types.ts`
+  - `ReactionEvaluation`
+  - thermodynamic / kinetic / environment outputs
+  - canonical scientific statuses: VERIFIED / APPROXIMATED / EMPIRICAL / GAMEPLAY_SIMPLIFICATION / OPEN
+  - 03-facing `ReactionEvaluationDataProvider`
+  - generic 01 candidate adapter boundary
+- `evaluator.ts`
+  - direct reaction thermochemistry precedence
+  - formation-thermochemistry reconstruction
+  - bond-energy-assisted approximation hook
+  - structural approximation hook
+  - explicit OPEN fallback
+  - deltaG calculation only when sufficient data exists
+  - Arrhenius-compatible relative-rate model
+  - activation-barrier known/unknown handling
+  - catalyst barrier/rate correction without changing thermodynamics
+  - coarse phase accessibility classification/factor
+  - temperature, pressure relevance, activity placeholder, catalyst modifier outputs
+  - final feasibility/status/reason-code/rank-score calculation
+- `ranking.ts`
+  - deterministic score ordering
+  - stable candidateId tiebreak ordering
+  - equal-score tie preservation
+  - unavailable/OPEN scores sorted last with `rank=null`
+- `index.ts`
+  - public module exports
+
+## Thermodynamic Model
+Resolution order:
+1. direct validated reaction thermochemistry from the provider;
+2. phase-specific formation thermochemistry;
+3. bond-energy-assisted enthalpy approximation;
+4. coarse structural enthalpy approximation;
+5. OPEN.
+
+Rules:
+- authoritative energies are J/mol and entropy is J/(mol*K);
+- when both deltaH and deltaS exist, `deltaG = deltaH - T*deltaS`;
+- when entropy is absent, deltaG is not fabricated;
+- formation Gibbs energy may provide deltaG when available even if explicit entropy is missing;
+- result status/confidence/source IDs propagate from data inputs;
+- bond/structural fallback cannot silently claim VERIFIED precision.
+
+## Kinetic Model
+- Uses positive activation energy in J/mol when available.
+- Relative temperature contribution is Arrhenius-compatible: `exp(-Ea/(R*T))`.
+- Absolute dimensional rate constants are not invented because reaction order/mechanism dimensions are not yet authoritative.
+- `relativeRate` is dimensionless and intended for candidate comparison only.
+- Coarse classes: NEGLIGIBLE / SLOW / MODERATE / FAST / VERY_FAST / UNKNOWN.
+- Missing activation barrier yields UNKNOWN + OPEN, not fake kinetic PASS.
+- `activityScale` is an explicit dimensionless placeholder until rate-law/reaction-order contracts exist.
+
+## Catalyst Invariant
+- Catalyst may reduce effective activation barrier and/or multiply kinetic rate contribution.
+- Catalyst never changes deltaH, deltaS, deltaG, or thermodynamic direction.
+- Catalyst scientific status/confidence propagates into the kinetic result.
+
+## Phase Accessibility
+Current coarse deterministic categories:
+- GAS_GAS
+- SOLUTION
+- HETEROGENEOUS
+- SOLID_SOLID_LOW
+- UNKNOWN
+
+These are accessibility/transport placeholders only. They do not calculate phase state. Phase determination remains owned by the existing thermal/phase architecture. Unknown phase propagates OPEN.
 
 ## Tests Added
-`tests/thermal.test.ts` covers:
-- heater increases system energy and temperature;
-- cooler decreases system energy and temperature;
-- exothermic reaction adds thermal energy;
-- endothermic reaction removes thermal energy;
-- thermostat exchanges explicit bounded energy;
-- thermostat does not teleport temperature to target;
-- energy-ledger sign consistency;
-- reaction-heat ledger accumulation;
-- heater/cooler ledger accumulation;
-- deterministic identical-input timestep integration;
-- `T > 0 K` invariant and rejection of cooling through absolute zero;
-- finite/positive total sensible heat capacity requirements;
-- NaN rejection;
-- Infinity rejection.
+`tests/reaction-evaluation.test.ts` covers:
+- exothermic sign;
+- endothermic sign;
+- deltaG direction sanity;
+- missing entropy handling;
+- higher relative rate at higher T for positive Ea;
+- catalyst changes kinetics but not deltaG;
+- OPEN propagation;
+- missing data does not become fake PASS;
+- deterministic ranking and ties;
+- invalid absolute-temperature rejection / SI boundary sanity.
 
 ## Validation Performed
-- Source-of-truth docs reviewed at task start: `PROJECT.md`, `AGENTS.md`, `ROADMAP.md`, `docs/contracts/UNIT_SYSTEM.md`, `docs/contracts/THERMODYNAMICS_PHASE_THERMAL.md`, `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`, and this workstream status.
-- Runtime repository clone / `npm install` could not be performed in the execution sandbox because DNS resolution for github.com failed.
-- Reconstructed the exact thermal primitive source in the local execution sandbox and ran TypeScript compilation with available global `tsc`: PASS.
-- Ran a direct Node runtime harness against the compiled primitives covering heater, cooler, exothermic/endothermic reaction heat, thermostat bounded exchange, deterministic repeated integration, and rejection of 0 K / NaN / Infinity: PASS.
-- Repository `npm test` / Vitest suite: OPEN, not executed locally because dependencies could not be fetched. The Vitest tests are committed for CI/integration execution.
-- No scientific real-experiment benchmark PASS is claimed; this task validates executable semantics, not thermochemical fidelity.
+- Repository clone / `npm ci` could not be executed in the local sandbox because github.com DNS resolution is unavailable.
+- Reconstructed the implementation source locally and ran strict TypeScript compile with available `tsc 5.8.3`: PASS.
+- Compiled test source against a minimal local Vitest declaration for type/shape validation: PASS.
+- Direct executable Node harness: PASS for thermodynamic sign/direction, Arrhenius temperature response, catalyst thermodynamic invariance, OPEN propagation, and ranking execution.
+- Actual repository `npm ci`: OPEN due network/DNS environment.
+- Actual repository `npm run typecheck`: OPEN locally; source-equivalent strict compile PASS.
+- Actual repository `npm run lint`: OPEN locally because repository dependencies cannot be installed.
+- Actual repository `npm test`: OPEN locally; committed Vitest suite awaits dependency-enabled CI/06/07.
+- Actual repository `npm run build`: OPEN locally because Vite dependencies cannot be installed.
 
 ## PASS / FAIL / OPEN
-- Thermal primitive implementation against requested Phase 1 scope: PASS by code review + local TypeScript compile + runtime harness.
-- Sign conventions / deterministic sensible-energy integration: PASS in local runtime harness.
-- Repository Vitest execution: OPEN pending environment/CI with installed dependencies.
-- Scientific thermochemistry accuracy: OPEN; no numerical reaction enthalpy data provider implemented.
-- Full phase equilibrium / latent heat / EOS / vapor pressure / detailed heat transfer: OPEN and intentionally out of scope.
-- Accurate thermostat tuning/control dynamics: OPEN; current controller is a bounded deterministic skeleton.
-- Production readiness: OPEN pending 06/07 validation and integration.
+### PASS
+- Phase 2B reaction-evaluation module implemented within 02 ownership.
+- Scientific status propagation implemented.
+- No missing-data precision fabrication.
+- DeltaG calculation and direction logic implemented when evidence is sufficient.
+- Thermodynamically favorable and kinetically slow/unknown states remain distinguishable.
+- Catalyst changes kinetics without rewriting thermodynamics.
+- Deterministic ranking/tie interface implemented.
+- Pure evaluator has no hardcoded thermochemical database.
 
-## OPEN / Extension Points
-- Latent heat allocation and phase coexistence coupling.
-- Full phase equilibrium and phase-transition solver.
-- EOS / pressure / partial-pressure ownership.
-- Vapor-pressure correlations.
-- Detailed environment/apparatus heat-transfer model.
-- Temperature-dependent mixture Cp from 03 data.
-- Apparatus/vessel heat-capacity source from 04/00 contract.
-- Exact thermostat tuning and timestep-stability calibration.
-- Final adapter to 01 `ReactionProgressEvent` once a production event/type exists.
+### FAIL
+- None identified in source-equivalent strict compile/runtime harness.
+
+### OPEN
+- Dependency-enabled repository npm ci/typecheck/lint/test/build run.
+- Scientific benchmark validation by 06.
+- Executable 01 `ReactionCandidate` type and production adapter.
+- Absolute/dimensioned rate-law contract and reaction-order inference.
+- Calibrated rate-class thresholds.
+- Data-backed phase accessibility factors / transport behavior.
+- Full competing-reaction extent/flux solver.
+
+## Required 03 Data
+Provider adapters should eventually expose, in canonical SI with provenance/status/confidence:
+- phase-specific standard enthalpy of formation, J/mol;
+- phase-specific standard molar entropy, J/(mol*K);
+- phase-specific standard Gibbs energy of formation, J/mol;
+- direct trusted reaction thermochemistry where available;
+- molecule-specific or clearly labeled average bond-energy records for fallback approximation;
+- activation-energy/barrier data and optional pre-exponential/rate-law data where available;
+- catalyst-specific empirical barrier/rate corrections where evidence exists.
+
+No bulk constants are embedded in the evaluator.
+
+## Limitations
+- Formation-property calculation currently assumes the adapter supplies correct stoichiometric coefficients and phase-resolved species keys; 02 does not validate 01 stoichiometry semantics.
+- Standard-state thermochemistry is not yet corrected for full non-ideal concentration/activity effects.
+- Current phase-accessibility factors are coarse APPROXIMATED placeholders, not validated transport models.
+- `relativeRate` is dimensionless and not an absolute reaction rate.
+- Rank score is a deterministic comparison heuristic, not reaction extent or probability.
+- Strongly reverse-favored thermodynamics is classified infeasible in this foundation, but future nonequilibrium/electrochemical/external-driving channels will require explicit coupled-energy semantics rather than hidden exceptions.
+
+## Future Reaction-Resolution Requirements
+A later reaction-resolution layer must:
+1. consume ranked/evaluated candidates;
+2. compute dimensioned forward/reverse fluxes where supported;
+3. resolve shared-reactant competition;
+4. respect stoichiometric maximum extent from 01;
+5. integrate actual timestep extent without negative amounts;
+6. emit `ReactionProgressEvent` for thermal coupling;
+7. preserve deterministic ordering/tie behavior;
+8. support reversible/equilibrium channels rather than choosing only the top rank.
 
 ## Handoffs
-- 01: expose actual applied reaction extent per timestep; 02 can adapt it to `ReactionHeatInput` without coupling to candidate internals.
-- 03: provide normalized SI phase-specific heat capacities and reaction/formation thermochemistry later; no hardcoded database was introduced here.
-- 04: provide heater/cooler/thermostat command values and apparatus heat-capacity parameters through typed SI boundaries; do not set authoritative temperature directly.
-- 06: run committed Vitest suite plus timestep/energy-accounting regressions; later validate real thermal benchmarks under `REAL_EXPERIMENT_VALIDATION.md`.
-- 07: run repository typecheck/tests, inspect PR integration, and preserve deterministic thermal semantics.
-
-## Repository Note
-During setup, an empty placeholder was accidentally created on `main` and immediately removed in the next commit. Net repository content was restored before the feature branch was created. This advanced `main` history from the task-start `c33f5e0b...` to `56799469...` without an intended content change. All actual Phase 1 implementation work is on `feature/phase1-thermal-state-primitives`.
+- 01: publish executable `ReactionCandidate` / `ReactionProgressEvent` types matching the canonical contract; provide an adapter or stable import boundary. 02 will not duplicate graph/product/stoichiometry logic.
+- 03: implement provider adapters for thermochemistry, bond-energy fallback, kinetic barriers, catalyst empirical corrections, and provenance/status propagation.
+- 04: pass only explicit environmental controls/catalyst selections; do not decide chemistry outcomes.
+- 06: execute committed Vitest suite, then add scientific benchmark fixtures for thermo sign/direction, Arrhenius response, catalyst invariance, OPEN propagation, ranking determinism, and phase accessibility.
+- 07: run repository npm ci/typecheck/lint/test/build and integrate only after normal review/CI gates.
