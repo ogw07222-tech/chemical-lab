@@ -76,8 +76,11 @@ try {
 
       await desktop.getByRole('button', { name: '선택 물질 폐기' }).click();
       await desktop.getByRole('button', { name: '폐기 확인' }).click();
-      body = await text(desktop);
-      assert(!body.includes('0.250 mol'), 'desktop: disposal did not mutate provider vessel state');
+      await desktop.getByRole('button', { name: '구성' }).click();
+      const compositionRowsAfterDisposal = await desktop.locator('.analysis-body tbody tr').allInnerTexts();
+      assert(compositionRowsAfterDisposal.some((row) => row.includes('실험 용기가 비어 있습니다.')), 'desktop: disposal did not clear authoritative composition state');
+      await desktop.getByRole('button', { name: '타임라인' }).click();
+      assert((await text(desktop)).includes('Disposed H₂ from vessel'), 'desktop: disposal provider event missing');
     }
     await desktop.close();
   }
