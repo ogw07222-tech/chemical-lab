@@ -169,7 +169,6 @@ export function computeThermostatEnergyExchange(
   const exactTargetEnergyJ =
     totalSensibleHeatCapacity_JPerK(state) * errorK;
 
-  // Do not overshoot the target within this simple controller skeleton.
   if (errorK > 0) {
     return Math.min(powerLimitedEnergyJ, exactTargetEnergyJ);
   }
@@ -200,10 +199,18 @@ export function stepThermalState(
 ): ThermalStepResult {
   validateThermalState(state);
   assertNonNegative(input.dtS, "dtS");
+  if (input.reactionHeat && input.reactionHeat_J !== undefined) {
+    throw new Error("Provide either reactionHeat or reactionHeat_J, not both.");
+  }
 
-  const reactionHeat_J = input.reactionHeat
-    ? reactionHeatToSystem(input.reactionHeat)
-    : 0;
+  let reactionHeat_J = 0;
+  if (input.reactionHeat_J !== undefined) {
+    assertFinite(input.reactionHeat_J, "reactionHeat_J");
+    reactionHeat_J = input.reactionHeat_J;
+  } else if (input.reactionHeat) {
+    reactionHeat_J = reactionHeatToSystem(input.reactionHeat);
+  }
+
   const heaterEnergy_J = integrateHeaterEnergy(input.heater, input.dtS);
   const coolerEnergyRemoved_J = integrateCoolerEnergyRemoved(
     input.cooler,
@@ -219,7 +226,6 @@ export function stepThermalState(
   assertFinite(environmentHeat_J, "environmentHeat_J");
   assertFinite(otherExternalEnergy_J, "otherExternalEnergy_J");
 
-  // Latent heat is intentionally not implemented in this Phase 1 primitive.
   const sensibleEnergyDelta_J =
     reactionHeat_J +
     heaterEnergy_J -

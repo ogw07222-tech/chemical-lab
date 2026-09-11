@@ -1,0 +1,151 @@
+import type { ElementProvider, MoleculeRecord, ScientificStatus, SpeciesId, SpeciesState } from "../molecular";
+import type { ReactionCandidate } from "../reaction";
+import type { RankedReactionEvaluation } from "../reaction-evaluation";
+import type { ThermalState, ThermalStepInput } from "../thermal";
+
+export type ReactionResolutionReasonCode =
+  | "SELECTED"
+  | "INFEASIBLE"
+  | "UNCERTAIN_DEFERRED"
+  | "UNRANKED_DEFERRED"
+  | "MISSING_KINETIC_SIGNAL"
+  | "NEGLIGIBLE_KINETICS"
+  | "ZERO_INITIAL_REACTANT"
+  | "ZERO_EXTENT"
+  | "UNRESOLVED_PRODUCT_IDENTITY"
+  | "PRODUCT_IDENTITY_MISMATCH"
+  | "SHARED_REACTANT_SCALED"
+  | "MAX_FRACTION_BOUNDED"
+  | "COARSE_RELATIVE_RATE_EXTENT"
+  | "MISSING_REACTION_ENTHALPY"
+  | "REACTION_HEAT_APPLIED";
+
+export interface ReactionProductStateResolution {
+  speciesId: SpeciesId;
+}
+
+export interface ReactionProductStateResolver {
+  resolveProductState(
+    candidate: ReactionCandidate,
+    productIndex: number,
+    product: MoleculeRecord,
+    currentSpecies: readonly SpeciesState[],
+  ): ReactionProductStateResolution | undefined;
+}
+
+export interface ReactionResolutionOptions {
+  /** Hard safety bound on any reactant fraction consumed by one candidate in one step. */
+  maxFractionalConsumptionPerStep?: number;
+  /** Characteristic time used only to turn dimensionless relativeRate into an APPROXIMATED step fraction. */
+  coarseRateTimescaleS?: number;
+  /** Floating point tolerance used only for tiny negative-roundoff handling and zero-extent detection. */
+  amountToleranceMol?: number;
+  /** Absolute conservation tolerance for mole-weighted element/atom/charge totals. */
+  conservationTolerance?: number;
+  /** Default false: UNCERTAIN/OPEN candidates do not mutate authoritative species amounts. */
+  allowUncertainEvaluations?: boolean;
+}
+
+export interface ReactionResolutionInput {
+  species: readonly SpeciesState[];
+  elements: ElementProvider;
+  candidates: readonly ReactionCandidate[];
+  rankedEvaluations: readonly RankedReactionEvaluation[];
+  productStateResolver: ReactionProductStateResolver;
+  dtS: number;
+  timestepId: string;
+  startTimeS: number;
+  temperatureK: number;
+  pressurePa?: number;
+  volumeM3?: number;
+  options?: ReactionResolutionOptions;
+}
+
+export interface SpeciesAmountDelta {
+  speciesId: SpeciesId;
+  deltaMol: number;
+}
+
+export interface ResolvedReaction {
+  candidateId: string;
+  rank: number;
+  requestedExtentMol: number;
+  maxAvailableExtentMol: number;
+  appliedExtentMol: number;
+  limitingReactantIds: readonly SpeciesId[];
+  evaluation: RankedReactionEvaluation;
+  scientificStatus: ScientificStatus;
+  reasonCodes: readonly ReactionResolutionReasonCode[];
+  speciesAmountDeltas: readonly SpeciesAmountDelta[];
+}
+
+export interface DeferredReaction {
+  candidateId: string;
+  reasonCodes: readonly ReactionResolutionReasonCode[];
+  evaluation?: RankedReactionEvaluation;
+}
+
+export interface ReactionProgressEvent {
+  id: string;
+  timestepId: string;
+  candidateId: string;
+  sequence: number;
+  startTimeS: number;
+  endTimeS: number;
+  dtS: number;
+  extentMol: number;
+  reactantDeltasMol: Readonly<Record<SpeciesId, number>>;
+  productDeltasMol: Readonly<Record<SpeciesId, number>>;
+  speciesAmountDeltaMol: Readonly<Record<SpeciesId, number>>;
+  deltaH_JPerMolExtent?: number;
+  heatJ?: number;
+  temperatureBeforeK?: number;
+  temperatureAfterK?: number;
+  scientificStatus: ScientificStatus;
+  reasonCodes: readonly ReactionResolutionReasonCode[];
+}
+
+export interface ReactionResolutionDiagnostics {
+  considered: number;
+  selected: number;
+  deferred: number;
+  rankGroups: number;
+  sharedReactantScaled: number;
+  unresolvedProducts: number;
+}
+
+export interface ReactionResolutionResult {
+  speciesBefore: readonly SpeciesState[];
+  speciesAfter: readonly SpeciesState[];
+  selected: readonly ResolvedReaction[];
+  deferred: readonly DeferredReaction[];
+  progressEvents: readonly ReactionProgressEvent[];
+  netSpeciesAmountDeltaMol: Readonly<Record<SpeciesId, number>>;
+  diagnostics: ReactionResolutionDiagnostics;
+}
+
+export interface ReactionThermalCouplingResult {
+  state: ThermalState;
+  events: readonly ReactionProgressEvent[];
+  scientificStatus: ScientificStatus;
+  missingHeatCandidateIds: readonly string[];
+  knownReactionHeat_J: number;
+}
+
+/**
+ * External thermal controls may add/remove heater/cooler/thermostat/environment
+ * energy, but may not inject reaction heat. Reaction heat is exclusively derived
+ * from applied extent plus 02 thermochemical evidence in this Phase 2E path.
+ */
+export type ExternalThermalStepInput = Omit<
+  ThermalStepInput,
+  "dtS" | "reactionHeat" | "reactionHeat_J"
+>;
+
+export interface ReactionThermalCouplingInput {
+  thermalState: ThermalState;
+  progressEvents: readonly ReactionProgressEvent[];
+  evaluations: readonly RankedReactionEvaluation[];
+  dtS: number;
+  externalThermal?: ExternalThermalStepInput;
+}
