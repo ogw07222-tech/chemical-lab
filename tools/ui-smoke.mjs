@@ -94,7 +94,7 @@ try {
   const mobile = await openAt(390, 844);
   body = await text(mobile);
   for (const label of ['도감','실험실','정보','조작','메모']) assert(body.includes(label), `mobile: ${label} navigation missing`);
-  assert(body.includes('LAB WORKSPACE'), 'mobile: lab view should be initial');
+  assert(body.includes('Untitled experiment') && body.includes('주 용기'), 'mobile: lab view should be initial');
   await mobile.getByRole('button',{name:'도감',exact:true}).click();
   assert((await text(mobile)).includes('물질 검색'), 'mobile: catalog view failed');
   await mobile.getByRole('button',{name:'정보',exact:true}).click();
