@@ -9,15 +9,15 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  desktop-finite-add:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 4e458264dbf1eaa8bf241363b57242b752b48c09
+          ref: 45cd2b23debff583ef49eb9ebfdf477395261b3d
       - name: Verify exact HEAD
-        run: test "$(git rev-parse HEAD)" = "4e458264dbf1eaa8bf241363b57242b752b48c09"
+        run: test "$(git rev-parse HEAD)" = "45cd2b23debff583ef49eb9ebfdf477395261b3d"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -25,7 +25,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Diagnose finite add
+      - name: Desktop finite-add smoke only
         shell: bash
         run: |
           npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
@@ -45,32 +45,23 @@ jobs:
           await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
           const amount = page.getByLabel('Amount');
           const add = page.getByRole('button', { name: /Add H₂ to vessel/i });
-          const beforeBody = await page.locator('body').innerText();
           const before = {
             amountValue: await amount.inputValue(),
             buttonDisabled: await add.isDisabled(),
-            buttonCount: await add.count(),
-            bodyHasEvent: beforeBody.includes('Added 0.250 mol H₂'),
-            bodyHasEmpty: beforeBody.includes('No material in vessel.'),
             compositionRows: await page.locator('.analysis-content tbody tr').allInnerTexts(),
           };
+          if (before.amountValue !== '0.25') throw new Error(`desktop targeted: expected 0.25 mol input, got ${before.amountValue}`);
+          if (before.buttonDisabled) throw new Error('desktop targeted: add button disabled');
           await add.click();
-          const afterBody = await page.locator('body').innerText();
           const after = {
-            amountValue: await amount.inputValue(),
-            buttonDisabled: await add.isDisabled(),
-            bodyHasEvent: afterBody.includes('Added 0.250 mol H₂'),
-            bodyHasEmpty: afterBody.includes('No material in vessel.'),
-            bodyHasVesselAmount: afterBody.includes('0.250 mol · Current phase: unknown'),
             compositionRows: await page.locator('.analysis-content tbody tr').allInnerTexts(),
             vesselChips: await page.locator('.composition-chip').allInnerTexts(),
           };
-          await page.getByRole('button', { name: 'Timeline' }).click();
-          const timelineBody = await page.locator('body').innerText();
-          const timeline = {
-            bodyHasEvent: timelineBody.includes('Added 0.250 mol H₂'),
-            timelineRows: await page.locator('.timeline-row').allInnerTexts(),
-          };
-          console.log(JSON.stringify({ before, after, timeline, consoleErrors }, null, 2));
+          const compositionOK = after.compositionRows.some(row => row.includes('H₂') && row.includes('unknown') && row.includes('0.250 mol'));
+          const vesselOK = after.vesselChips.some(chip => chip.includes('H₂') && chip.includes('0.250 mol'));
+          if (!compositionOK || !vesselOK) throw new Error(`desktop targeted: finite add projection missing ${JSON.stringify(after)}`);
+          if (consoleErrors.length) throw new Error(`desktop targeted: console errors ${consoleErrors.join(' | ')}`);
+          console.log(JSON.stringify({ before, after, consoleErrors }, null, 2));
+          console.log('DESKTOP_FINITE_ADD_PASS');
           await browser.close();
           NODE
