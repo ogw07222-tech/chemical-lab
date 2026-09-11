@@ -1,227 +1,156 @@
 # 06 — Simulation Validation Lab
 
 - Owner: Chemistry Simulation Validation Engineer / Regression Test Developer / Scientific Model Auditor / Performance Validation Engineer
-- Current phase: Phase 2D — Reaction Engine Validation Matrix
-- Overall state: EXECUTABLE_MATRIX_IMPLEMENTED / PRODUCTION_REACTION_ENGINE_OPEN / REAL_BENCHMARK_CORPUS_OPEN
-- Last updated: 2026-09-11
-- Last checked main SHA: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
-- Active branch: `feature/phase2-reaction-validation`
-- Active PR: #20
+- Current phase: Dynamic Species Registry validation preparation
+- Overall state: STAGE_A_PREPARED / STAGE_B_WAITING_FOR_01_PR / INTEGRATION_APPROVAL_OPEN
+- Last updated: 2026-09-12
+- Latest production main SHA checked: `4c12c2b9be6053887f471c288618590114dc32b4`
+- Validation-prep branch: `feature/06-dynamic-species-validation-prep`
+- 01 Dynamic Species Registry branch observed: `feature/dynamic-species-registry`
+- 01 Dynamic Species Registry PR: `NOT YET CREATED` at last check
+- Exact 01 tested HEAD: `OPEN`
 
 ## Current Objective
+Prepare and then execute independent validation for 01 Dynamic Species Registry & Generated Species Persistence without tuning or modifying 01 production implementation.
 
-Provide an independent executable validation matrix for the future Phase 2 reaction candidate/evaluation engine without implementing or tuning production chemistry.
+## Source of Truth
+- Production baseline: latest `main` at `4c12c2b9be6053887f471c288618590114dc32b4`.
+- Scientific threshold authority: `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`.
+- Phase 2E reaction progression is already integrated on main and currently defers unresolved products rather than inventing IDs.
+- Stage B may begin only after 01 opens a PR; the exact PR number and exact HEAD SHA must be rechecked before execution.
 
-## Source of Truth / Threshold Authority
+## Stage A — Prepared Validation Matrix
+Added `docs/validation/DYNAMIC_SPECIES_REGISTRY_VALIDATION.md` and executable validation helpers/tests.
 
-- Production source of truth: latest `main`.
-- Scientific acceptance authority: `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`.
-- Existing validation primitives: `src/validation/` from merged Phase 1 harness.
-- 03 data schema is merged, but no populated real-experiment `benchmarks/` corpus exists on main; no real-experiment score is claimed.
+Priority risks covered:
+- duplicate species explosion;
+- atom/bond ordering dependent identity;
+- isomer false merge;
+- charge false merge;
+- malformed graph registration;
+- unstable generated IDs;
+- save/load ID drift;
+- partial state mutation;
+- reactants consumed while products are missing;
+- conservation failure;
+- same-step hidden cascades;
+- nondeterministic registry ordering;
+- next-timestep product inaccessibility;
+- registry lookup/resolve/timestep performance degradation.
 
-## Main-State Finding
+## Executable Preparation
+### Current-main canonical foundation tests
+`tests/dynamic-species-registry.validation.test.ts` includes:
+- 100 fixed-seed atom/bond/runtime-ID permutations of the same graph -> same structural representation/canonical key;
+- same-formula different-connectivity fixture -> different canonical key;
+- bond-order distinction;
+- formal/net-charge distinction;
+- malformed missing endpoint, self bond, duplicate semantic bond, zero/NaN bond order, non-integer formal charge rejection.
 
-Latest main contains Phase 1 molecular core, thermal primitives, gameplay progression, chemistry-data schema, validation harness, and UI integration. A production Phase 2 reaction candidate/evaluation engine is not present on main yet.
+### Registry observation/handoff gates
+`src/validation/species-registry.ts` defines adapter-independent validation for:
+- canonical identity stability;
+- false merge / hash collision safety;
+- 10/100/1000 duplicate suppression observations;
+- failed-registration atomic mutation;
+- element/atom/charge conservation plus finite/non-negative amounts;
+- timestep N/N+1 semantics and same-step cascade prohibition;
+- deterministic replay;
+- serialize/restore identity and behavior stability;
+- known-species reuse;
+- valid unknown-species internal identity without fabricated real-world truth/properties;
+- performance samples with explicit OPEN when no canonical engineering threshold exists.
 
-Therefore 06 does not recreate reaction generation, thermodynamics, or kinetics. `ReactionValidationAdapter` is the dependency-inversion boundary for future 01/02 outputs.
+No fake production registry implementation is introduced.
 
-## Implemented Validation Matrix
+## Failure Criteria / Absolute Blockers
+The following are immediate integration-blocking FAIL conditions:
+- distinct connectivity/bond-order/charge structures false-merged;
+- malformed graph registered into authoritative state;
+- registration failure leaves any partial registry/vessel mutation;
+- reactants consumed when product registration fails;
+- element/atom/applicable-charge conservation violation;
+- negative, NaN, or infinite authoritative amount;
+- generated species ID/canonical key nondeterministic for identical input/config;
+- serialize/restore ID drift or duplicate creation;
+- generated product participates in a hidden same-step cascade;
+- generated product cannot participate in candidate generation on timestep N+1.
 
-### Conservation — absolute gates
+## Canonicalization / Collision Audit
+Current molecular core canonical identity is based on deterministic structural representation plus a 64-bit FNV-1a hash key. Therefore Stage B requires evidence that registry identity resolution does not rely on hash equality alone when exact structures differ. Same-hash/different-structure merge is FAIL; exact-verified collision-safe disambiguation can PASS; unobservable collision handling is OPEN.
 
-- exact element inventory;
-- exact atom count;
-- exact net charge;
-- exact explicit electron bookkeeping when represented.
+Current unsupported/uncertified identity semantics remain OPEN unless 01 explicitly implements them:
+- stereochemistry;
+- resonance-equivalent representations;
+- aromatic representation equivalence;
+- complete radical distinctions;
+- complete unsupported/over-valence chemistry-domain rejection.
 
-Any violation is `FAIL` regardless of later scores.
+## Known / Unknown Species Policy
+Known graph reuse must derive the actual canonical known set from the exact tested 01 PR/repository state. A known graph such as H2O must reuse its existing ID rather than create a generated duplicate.
 
-### Structural validity
+A structurally valid unmatched graph is allowed to receive an internal generated identity if supported by 01. Real-world identity and property completeness remain OPEN without 03 evidence. Registry correctness and 03 reference matching are separate verdicts.
 
-- over-valence flag;
-- invalid bond;
-- dangling atom;
-- duplicate atom mapping;
-- malformed product graph;
-- invalid/non-finite numeric state.
+## Performance Plan
+Stage B records versus registry size:
+- lookup latency;
+- resolve/register latency;
+- timestep overhead;
+- registry-size growth under duplicate attempts;
+- candidate counts when combined with candidate generation.
 
-### Candidate generation sanity
+Recommended sizes: 10, 100, 1000 plus the largest cheap deterministic case. No engineering threshold is currently canonical, so finite measurements are baseline/WATCH and performance remains OPEN unless a pre-committed budget exists. Inspect for naive full-registry graph-isomorphism scans.
 
-- candidate ID uniqueness;
-- canonical-key deduplication;
-- raw/deduplicated/pruned counter sanity;
-- positive-control expected-candidate assertion;
-- negative-control outcome handling;
-- deterministic same-input candidate ordering and evaluation.
+## Test Execution
+### Attempted on Stage A branch
+- `git clone` of validation branch: BLOCKED in local execution environment because `github.com` DNS resolution failed.
+- Therefore `npm ci`, repository-native `npm run typecheck`, Vitest, lint, and build were not executed locally in this task stage.
+- Available global runtime: Node v22.16.0, npm 10.9.2, TypeScript 5.8.3; Vitest is not installed globally.
 
-### Negative controls
+No runtime PASS is inferred from unexecuted repository tests.
 
-Allowed outcomes are:
+### Stage B required exact-HEAD execution
+After 01 PR creation, execute where environment permits:
+- `npm ci`;
+- `npm run typecheck`;
+- `npm run lint`;
+- dynamic-registry targeted tests;
+- reaction-progression tests;
+- randomized/property-style registry tests;
+- full `npm test`;
+- `npm run build`;
+- targeted performance baseline.
 
-- no candidate -> `PASS` for the control;
-- candidate definitely thermo/kinetic infeasible -> `PASS` for the control;
-- insufficient thermo/kinetic information -> `OPEN`;
-- a candidate remains explicitly feasible -> `FAIL`.
-
-Missing information is never upgraded to PASS.
-
-### Thermodynamics
-
-- finite deltaH/deltaG checks;
-- internal deltaG sign/direction sanity;
-- reference-backed exothermic/endothermic sign;
-- reference-backed major reaction direction;
-- unavailable/open data -> `OPEN`.
-
-A reference-backed reversed major reaction direction remains an absolute scientific failure under the canonical validation contract.
-
-### Kinetics
-
-- finite/non-negative kinetic values;
-- positive-Ea temperature response direction;
-- catalyst affects kinetic rate but must not alter equilibrium thermodynamics;
-- relative effective-rate ordering helper;
-- unknown barrier/status -> `OPEN`.
-
-### Performance / candidate explosion observability
-
-Recorded adapter counters:
-
-- reactive sites;
-- eligible pairs;
-- raw candidates;
-- deduplicated candidates;
-- pruned candidates;
-- runtime ms.
-
-Engineering runtime/candidate budgets are deliberately separate from scientific acceptance thresholds. No scientific threshold was invented for performance.
-
-## Executable Tests
-
-Added `tests/reaction-validation.matrix.test.ts` covering:
-
-- conservation PASS/FAIL for elements/atoms/charge/electrons;
-- structural invalidity rejection;
-- duplicate candidate rejection;
-- invalid/NaN performance counters;
-- positive and negative controls;
-- negative-control OPEN behavior for missing evaluation data;
-- thermo sign and deltaG-direction checks;
-- missing thermo -> OPEN;
-- positive-Ea temperature direction;
-- catalyst equilibrium isolation;
-- unknown kinetic barrier -> OPEN;
-- relative rate ordering;
-- deterministic candidate/order/evaluation replay;
-- candidate/performance counter observation separated from scientific acceptance.
-
-All numeric values in this test file are synthetic validation-tooling values, not experimental chemistry measurements.
-
-## Reference Data / Metrics
-
-03 reference data may later be adapted into the matrix for eligible cases with provenance. The existing benchmark harness already supports OPEN exclusion and median/P90/max/bias aggregation.
-
-Current real-reference metrics:
-
-- case count: `OPEN` — no populated corpus;
-- qualitative accuracy: `OPEN`;
-- median absolute relative error: `OPEN`;
-- P90: `OPEN`;
-- max error: `OPEN`;
-- bias: `OPEN`.
-
-No fabricated benchmark values were introduced to fill these fields.
-
-## Performance Observations
-
-Scientific production performance: `OPEN` because no production Phase 2 reaction engine is on main.
-
-The executable harness proves only that candidate-performance counters and engineering budget classification can be represented and validated. Synthetic fixture runtime values are not interpreted as production benchmarks.
-
-## Tests Executed / Not Executed
-
-Executed:
-
-- source/contract audit against latest main and `REAL_EXPERIMENT_VALIDATION.md`;
-- main-state audit confirming no production Phase 2 reaction runtime is present;
-- branch refresh onto latest main `a4606143e8f249e5b9a398f72c86c8171ca405b5` after main advanced during the task;
-- static review of new validation interfaces/tests against merged Phase 1 validation primitives.
-
-Blocked / not executed:
-
-- repository `npm run typecheck` and Vitest execution in the local tool environment because `github.com` DNS resolution failed while cloning the public repository;
-- production reaction-engine validation: OPEN because implementation is absent from main;
-- real-experiment benchmark execution: OPEN because a populated eligible corpus is absent;
-- candidate-explosion stress/performance matrix: OPEN until 01 exposes production candidate generation.
-
-No runtime PASS is inferred from unexecuted tests.
+Record exact test counts and exact tested HEAD.
 
 ## PASS / FAIL / OPEN
-
 ### PASS
-
-- Phase 2D validation matrix architecture is implemented independently of production reaction logic.
-- Conservation absolute gates, structural checks, candidate sanity, negative controls, thermo/kinetic OPEN discipline, determinism, rate ordering, and performance observability are represented executablely.
-- Validation verdict and scientific-model status remain separate.
-- `REAL_EXPERIMENT_VALIDATION.md` remains the threshold authority.
-- No tuning and no fabricated experiment values were introduced.
+- Stage A validation matrix, fixtures, adapter boundary, and failure criteria are prepared on latest main.
+- Existing main molecular canonical foundation passes prior integrated tests and the new Stage A suite is written to attack permutation, false-merge, and malformed-graph risks.
+- Validation verdict remains separate from scientific model/reference status.
+- No tuning, property fabrication, threshold relaxation, or 01 production modification was performed.
 
 ### FAIL
-
-- No production-scientific FAIL can be claimed because the Phase 2 reaction engine is not yet available for execution.
-- No validation-infrastructure defect was confirmed by the available static audit.
+- No Dynamic Species Registry implementation FAIL can be asserted before an exact 01 PR HEAD is tested.
 
 ### OPEN / BLOCKED
+- Stage B exact-head validation: OPEN — no 01 PR exists yet.
+- Integration approval: OPEN.
+- Repository-native Stage A execution in current local environment: BLOCKED by DNS/dependency access.
+- Stereochemistry/resonance/aromatic/radical identity completeness: OPEN unless implemented by 01.
+- Real-world identity/property completeness: OPEN pending 03 evidence.
+- Performance PASS threshold: OPEN; only baseline/WATCH is allowed without a committed budget.
 
-- repository-native typecheck/Vitest run: BLOCKED in this local execution environment;
-- production candidate-generation scientific correctness: OPEN;
-- production thermo/kinetics correctness: OPEN;
-- real-reference quantitative metrics: OPEN;
-- production candidate-explosion/runtime scaling: OPEN.
+## Owner Handoffs
+- 01: registry identity/canonicalization, exact collision verification, malformed rejection, atomic commit, persistence, conservation, timestep semantics, performance.
+- 03: reference matching, provenance, real-world identity, authoritative properties.
+- 04: player discovery/knowledge semantics only; must not change registry identity.
+- 02: thermo/kinetic evaluation of generated species and missing-property handling.
+- 05: UI presentation only; generated IDs/properties must not be fabricated in UI.
+- 07: exact-head CI/integration execution and merge sequencing.
 
-## Handoffs
-
-### 01 — Chemistry Simulation Engine
-
-Expose/adapt production reaction outputs into `ReactionValidationAdapter`, including:
-
-- canonical candidate ID/key;
-- reactant/product element and atom inventory;
-- charge/electron bookkeeping;
-- structural/product-graph sanity result;
-- candidate generation diagnostics and counts;
-- deterministic output ordering;
-- production candidate runtime metrics.
-
-Any conservation, graph/mapping, duplicate/order, or candidate-explosion defect routes to 01.
-
-### 02 — Thermodynamics & Kinetics
-
-Expose/adapt:
-
-- deltaH / deltaG / direction / feasibility;
-- scientific status and missing-data state;
-- barrier availability and activation energy;
-- controlled-temperature rates;
-- catalyst-vs-uncatalyzed rates;
-- effective relative rate/ranking diagnostics.
-
-Thermo/kinetics/catalyst defects route to 02.
-
-### 03 — Chemistry Data & Validation
-
-Populate provenance-backed eligible reaction/no-reaction, thermochemistry, kinetics, and quantitative reference benchmarks. Missing or weak data must remain OPEN.
-
-Data/provenance/eligibility defects route to 03.
-
-### 04 — Laboratory Gameplay
-
-No gameplay tuning or gameplay-dependent chemistry path was introduced. Future Game Layer integration must not change validation outcomes for identical Simulation inputs.
-
-### 07 — Integration & GitHub
-
-Run repository-native typecheck and full/targeted Vitest in a dependency-enabled environment before merge, then integrate the adapter/matrix without converting tooling PASS into scientific engine PASS.
+## Integration Decision
+`OPEN` — Stage A is prepared, but 01 integration is **not approved** until the exact Dynamic Species Registry PR HEAD completes Stage B validation without absolute blockers.
 
 ## No Tuning
-
 **No tuning performed.**
