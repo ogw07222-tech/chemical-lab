@@ -7,7 +7,8 @@
 - Source main SHA at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
 - Final synchronized main SHA before implementation commit: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
 - Active branch: `feature/phase2-reaction-candidate-engine`
-- Active PR: pending creation
+- Active PR: #21 — `feat(sim): add Phase 2A generic reaction candidate engine`
+- Implementation code HEAD before this status-only commit: `932f89c6d4032f9f3d9eaa33d8581b829cfdc1eb`
 
 ## Current Objective
 Implement a bounded deterministic generic reaction-candidate engine that consumes the existing molecular core and produces conservation-valid structural candidates without reaction-equation lookup tables or thermodynamic/kinetic evaluation.
@@ -93,7 +94,7 @@ Implement a bounded deterministic generic reaction-candidate engine that consume
 Run repository-native tests plus randomized graph-order/atom-ID permutations, conservation property tests, candidate-cap stress tests, duplicate/no-op checks, invalid/coarse-overvalence cases, and browser-relevant candidate-count/performance measurements.
 
 ## Next Actions
-1. Create/review the Phase 2A PR and run dependency-enabled repository validation.
+1. Run dependency-enabled repository validation for PR #21.
 2. 06 validates determinism, conservation, candidate bounds, and randomized graph transformations.
 3. 02 consumes `REACTION_CANDIDATE_V1.md` and defines/evaluates thermo/kinetics result interfaces without moving physical evaluation into 01.
 4. After validation, refine generic substitution/bond-order transformations and atom mapping only where scientifically justified; do not add reaction lookup tables.
