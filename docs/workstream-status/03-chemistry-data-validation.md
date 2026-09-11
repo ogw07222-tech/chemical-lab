@@ -1,133 +1,235 @@
 # 03 — Chemistry Data & Validation
 
 - Owner: Chemistry Data Researcher / Chemical Property Data Engineer / Scientific Reference Analyst / Chemistry Model Validation Researcher
-- Current phase: Phase 2C — Minimum Chemistry Data Pack
-- Overall state: READY_FOR_REVIEW
-- Last updated: 2026-09-11
-- Source main at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
-- Latest main incorporated before finalization: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
-- Active branch: `feature/phase2-chemistry-data-pack`
-- Active PR: #22 — Phase 2C minimum chemistry data pack
-- Exact data/code/test HEAD validated by Actions: `07d8eaa4f29b99ea21789d45d098dcdceeb69a0d`
-- Post-validation branch refresh commit: `457a9f818a701a4161775c22433c294671e63f5d`
+- Current phase: Generated Species Scientific Reference Matching & Enrichment
+- Overall state: PASS — READY_FOR_REVIEW
+- Last updated: 2026-09-12
+- Starting / latest checked main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
+- Active branch: `feature/generated-species-reference-enrichment`
+- Active PR: pending creation
+- Exact executable/test HEAD validated by Actions: `b58731e7ed17c604d0e1af7907fdd589728b1d14`
+- Validation run: `34636295729` — SUCCESS
 
-## Current Objective
-Provide the smallest sourced H/C/N/O chemistry data pack needed for 01 reaction-candidate work, 02 thermodynamic evaluation, and 06 validation without expanding into a bulk chemistry database or moving reaction logic into 03.
+## Objective
+Provide a 03-owned scientific identity layer for molecular graphs generated and persisted by 01 without conflating structural validity, internal registry identity, real-world reference identity, or player knowledge.
 
-## Implemented Coverage
+Canonical flow:
 
-### Elements
-- H, C, N, O only. Na/Cl remain intentionally out of scope because no current Phase 2 consumer requires them.
-- CIAAW 2024 standard atomic-weight intervals.
-- CIAAW 2024 abridged atomic-weight values projected to deterministic engine molar masses in kg/mol and explicitly marked `APPROXIMATED` rather than isotope-specific atomic masses.
-- Pauling electronegativity, valence-electron count, selected/common oxidation states, restricted common neutral-covalent valences, and convention-tagged covalent radii.
-- NIST ASD v5.12 first ionization energies normalized from eV to J/particle.
-- Electron affinity for H/C/O where the chosen compiled source reports a stable value; N remains explicitly missing/OPEN.
-- Isotope-specific `atomicMass` remains unpopulated because no isotope identity has been selected; no natural-element average is mislabeled as an isotope mass.
+`01 generated/internal species -> structural match input -> 03 scientific reference index -> match confidence/status -> exact-only property enrichment`
 
-### Species / Thermochemistry
-Minimum species: H2, O2, N2, H2O, CO, CO2, CH4, NH3.
-- Standard formation enthalpy and standard molar entropy at reference conditions where selected NIST WebBook values are available.
-- H2/O2/N2 standard formation enthalpy is explicitly zero by reference-state definition, not by missing-value fallback.
-- H2O has separate gas and liquid records.
-- CH4 records a conflict-resolution note selecting the NIST-listed Manion (2002) adopted recommendation rather than averaging multiple listed values.
-- A single CH4 gas Cp value at 298.15 K is included and marked `EMPIRICAL`; it is not licensed for arbitrary-temperature extrapolation.
-- Standard Gibbs formation energies, broad Cp(T) correlations, and detailed equilibrium constants remain OPEN in this minimum pack.
+A generated graph is never treated as a verified real-world chemical merely because the simulation can register it.
 
-### Bond Reference Values
-Selected H-H, O=O, N#N, C-H(CH4), N-H(NH3), O-H(H2O), and C=O(CO2) compiled bond enthalpies are present in J/mol.
-They are deliberately marked `EMPIRICAL` / MEDIUM-confidence fallback values and are not represented as molecule-specific spectroscopic D0 values.
+## Source Architecture Audit
+- Production main `4c12c2b9...` already contains the Phase 2C H/C/N/O chemistry data pack, thermochemistry/reference-phase data, source records, property status/confidence, and SI normalization.
+- Production molecular identity currently represents element, connectivity, bond kind/order, formal charge, optional radical electrons and oxidation state in its canonical structural representation.
+- Current molecular graph has no dedicated stereochemistry field.
+- 01 parallel branch `feature/dynamic-species-registry` / PR #39 was inspected read-only. Its registry keeps `mol-v1` internal canonical identity, generated IDs, provenance, and OPEN scientific state separate from real-world matching.
+- 01 currently has a registry-local placeholder `ReferenceMatchStatus = "KNOWN_SEED" | "OPEN"`. This is intentionally not reused as the 03 scientific matching taxonomy. 03 exposes `ScientificReferenceMatchStatus` as the public handoff name and does not modify 01-owned files.
 
-### Reference Phase
-At 298.15 K and 100000 Pa the pack carries simple reference-phase records for all eight species: H2/O2/N2/CO/CO2/CH4/NH3 gas and H2O liquid.
-These are reference-condition checks only; melting/boiling points and full T-P phase boundaries are not fabricated in this pass.
+## Scientific Reference Matching Contract
+03 defines a separate five-state match axis:
 
-## Provenance Sources
-- CIAAW Standard Atomic Weights 2024.
-- CIAAW Abridged Standard Atomic Weights 2024.
-- NIST Atomic Spectra Database SRD 78, version 5.12.
-- NIST Chemistry WebBook SRD 69.
-- Royal Society of Chemistry periodic-table property compilations for H/C/N/O.
-- An explicit internal derivation source only for the standard thermochemical reference-state zero convention.
+- `EXACT_REFERENCE_MATCH`
+- `POSSIBLE_REFERENCE_MATCH`
+- `NO_REFERENCE_MATCH`
+- `AMBIGUOUS`
+- `INSUFFICIENT_STRUCTURE_INFORMATION`
 
-All populated records preserve source value/unit independently from normalized SI value/unit. Uncertainty is retained where reported; `not_reported` is used instead of invented zero uncertainty.
+This is independent of canonical `ScientificStatus` (`VERIFIED`, `APPROXIMATED`, `EMPIRICAL`, `GAMEPLAY_SIMPLIFICATION`, `OPEN`).
 
-## Engine-Facing API
-`src/data/provider.ts` provides:
-- `minimumElementProvider: ElementProvider` — exact 01-compatible projection to `ElementDefinition`.
-- `minimumChemistryDataProvider.getElementData(symbol)` — provenance-rich element record.
-- `minimumChemistryDataProvider.getElementDefinition(symbol)` — deterministic 01 runtime projection.
-- `minimumChemistryDataProvider.getSpeciesThermodynamics(speciesId, phase?)` — 02 phase-specific thermochemical lookup.
-- `minimumChemistryDataProvider.getPhaseEquilibrium(speciesId)` — current reference-phase/phase-data lookup.
-- `minimumChemistryDataProvider.getBondEnergyById(id)` and `findBondEnergies(...)` — selected bond/reference lookup.
+Matching basis currently includes:
+- molecular formula;
+- net charge;
+- atom connectivity;
+- bond kind/order and aromaticity representation;
+- atom-level formal charge;
+- explicit radical-electron count when represented.
 
-Missing values return `undefined`; no missing value is mapped to zero, NaN, Infinity, or a guessed constant.
+Unsupported/unresolved dimensions such as stereochemistry or general electronic/spin-state identity are carried explicitly rather than silently collapsed.
 
-`src/data/index.ts` exports the stable 03 data surface.
+## Reference Index
+Initial known scientific reference records cover the current eight seed species:
 
-## 06 Reference Cases
-`src/data/minimum-reference-cases.ts` supplies procedure-free reference fixtures for:
-- atom/conservation identity;
-- balanced stoichiometric expectations;
-- thermochemical sign/reference enthalpy for H2 oxidation, CO oxidation, and CH4 complete oxidation using stored formation data;
-- simple 298.15 K / 1 bar reference-phase checks.
+- H2 — PubChem CID 783
+- O2 — PubChem CID 977
+- N2 — PubChem CID 947
+- H2O — PubChem CID 962
+- CO — PubChem CID 281
+- CO2 — PubChem CID 280
+- CH4 — PubChem CID 297
+- NH3 — PubChem CID 222
 
-These fixtures are validation oracles only. They contain no reaction-generation rule and no experimental handling procedure.
+Each reference record carries:
+- 03 `referenceSpeciesId`;
+- existing Phase 2C `dataSpeciesId`;
+- common name;
+- formula/net charge;
+- charge-aware reference graph;
+- PubChem CID/InChIKey/CAS metadata where recorded;
+- identity provenance;
+- data quality, confidence and scientific status;
+- unresolved structural dimensions/notes where relevant.
 
-## Runtime Validation
-`validateChemistryDataBundle` and `validateMinimumChemistryDataPack` check:
-- duplicate source/element/thermo/phase/bond identifiers;
-- registered provenance source IDs;
-- populated-value provenance requirement;
-- explicit source unit;
-- canonical normalized SI unit;
-- finite numeric values only;
-- no NaN/Infinity;
-- interval ordering;
-- positive reference temperature;
-- non-negative reference pressure.
+Performance path is:
 
-## Tests / Validation Evidence
-One temporary branch-only workflow was used and then removed from the final diff.
+`formula bucket -> net-charge filter -> exact reference fingerprint -> ambiguity/collision check`
 
-Validated exact code/data/test HEAD: `07d8eaa4f29b99ea21789d45d098dcdceeb69a0d`.
-GitHub Actions run: `34591104021`.
-- `npm ci --no-audit --no-fund`: PASS.
-- `npm run typecheck`: PASS.
-- targeted `tests/chemistry-data-pack.test.ts`: 16/16 PASS.
-- full `npm test`: 6 files / 89/89 PASS.
-- `npm run lint`: PASS.
+Only after exact matching fails is a charge/radical-insensitive topology fingerprint used to report a possible match. Matching is intended for registration/enrichment time, not every simulation timestep.
 
-The only commits after that validated code HEAD remove the one-shot workflow, incorporate the newer main status-only 07 commit, and update this 03 status document; chemistry/data/test source bytes are unchanged.
+## Important CO Audit
+Production historical molecular fixtures represent CO as neutral-formal-charge `C#O`. The PubChem reference structure is charge-separated `[C-]#[O+]`.
 
-## PASS / FAIL / OPEN
+Therefore:
+- charge-aware `C(-1)#O(+1)` -> exact reference match;
+- historical neutral `C#O` -> `POSSIBLE_REFERENCE_MATCH` only;
+- no CO reference properties are attached to the possible match.
+
+03 does not migrate or mutate 01 canonical registry graphs in this workstream.
+
+## Enrichment Schema
+Only a unique `EXACT_REFERENCE_MATCH` receives `ScientificPropertyEnrichment`.
+
+Supported attachment surfaces:
+- derived molar mass;
+- standard formation enthalpy;
+- standard molar entropy;
+- Gibbs formation energy when present;
+- heat-capacity data when present;
+- phase-equilibrium data;
+- bond references;
+- acid/base, redox and solubility records when present.
+
+Each property keeps its own existing provenance/status/confidence. Exact identity does not promote an `APPROXIMATED` or `EMPIRICAL` property to `VERIFIED`.
+
+Generated-species molar mass is derived from existing CIAAW-anchored Phase 2C element molar-mass projections and remains `APPROXIMATED`, not isotope-specific exact mass.
+
+Missing properties remain `OPEN`; no number is fabricated.
+
+## Unknown / Non-exact Behavior
+- Unknown formula/index miss -> `NO_REFERENCE_MATCH`; no invented name or properties.
+- Same formula but different connectivity/bonding -> no false exact match.
+- Different net charge -> no match to neutral reference.
+- Missing graph -> `INSUFFICIENT_STRUCTURE_INFORMATION`.
+- Internally inconsistent formula/net charge vs graph -> insufficient information.
+- Duplicate exact references -> `AMBIGUOUS`.
+- Unique topology but different atom-level formal charge/radical representation -> `POSSIBLE_REFERENCE_MATCH`; no enrichment.
+- Stereochemistry-required identity while stereo is unavailable -> insufficient information; no enrichment.
+
+`NO_REFERENCE_MATCH` means only “not present in the currently loaded reference index”, not “chemically impossible”.
+
+## Provenance
+Identity provenance:
+- PubChem Compound reference records for external identity metadata.
+
+Property provenance remains the existing Phase 2C hierarchy:
+- CIAAW atomic-weight references;
+- NIST Atomic Spectra Database;
+- NIST Chemistry WebBook;
+- RSC compiled element/bond references;
+- explicit internal derivation record only where a derived quantity is generated.
+
+Identity source provenance and property source provenance remain separate and are both surfaced in enrichment results.
+
+## 01 Handoff
+Required minimum input:
+
+```ts
+ScientificMatchInput = {
+  canonicalKey: string; // opaque 01 trace identity
+  molecularFormula: Readonly<Record<string, number>>;
+  netCharge: number;
+  molecularGraph?: ScientificMatchGraph;
+}
+```
+
+Current 01 `MoleculeRecord` can be adapted to this structurally without importing the unmerged registry implementation into 03.
+
+Output:
+- `matchScientificReference(input): ScientificReferenceMatch`
+- public 03 status alias: `ScientificReferenceMatchStatus`
+- reference ID only on unique exact match;
+- optional enrichment only on unique exact match;
+- matched/unresolved dimensions, confidence/status, candidate IDs and provenance.
+
+Integration assumption:
+1. 01 establishes stable internal identity first.
+2. A boundary adapter sends structural data to 03.
+3. 03 match metadata is stored alongside or outside the registry identity.
+4. Future reference-data rematching may change enrichment without changing the internal species ID.
+
+Do not make 01 IDs depend on PubChem IDs, chemical names, property availability or 03 match status.
+
+Detailed handoff: `docs/handoffs/03-generated-species-reference-enrichment.md`.
+
+## Tests / Validation
+Exact validated executable/test HEAD: `b58731e7ed17c604d0e1af7907fdd589728b1d14`.
+GitHub Actions run `34636295729`: SUCCESS.
+
+- `npm ci --no-audit --no-fund`: PASS
+- `npm run typecheck`: PASS
+- targeted `tests/generated-species-reference-enrichment.test.ts`: **12/12 PASS**
+- full `npm test`: **13 files / 149/149 PASS**
+- `npm run lint`: PASS
+
+The validation workflow was branch-only and removed after the successful run. Later changes are workflow cleanup and documentation/handoff only; validated executable/test source is unchanged.
+
+Targeted tests cover:
+- exact seed reference graphs;
+- formula same / structure different false-match prevention;
+- different charge rejection;
+- missing structural information;
+- historical neutral CO -> possible, not exact;
+- unknown generated graph -> no fabricated identity/properties;
+- provenance retention and OPEN missing properties;
+- ambiguity from duplicate structures;
+- duplicate reference validation;
+- unresolved stereochemistry behavior.
+
+## Scientific Status
+
+### Exact identity matching — PASS within represented dimensions
+Unique charge-aware seed reference structures match deterministically, with exact matching gated on represented connectivity/bonding/formal charge/radicals. Exact identity is not claimed beyond dimensions carried by the current graph model.
+
+### Property enrichment — PASS / incomplete-by-design
+Exact references can safely reuse existing sourced Phase 2C property records and derived molar mass. Missing fields remain OPEN. Possible/ambiguous/unknown matches receive no known-compound property attachment.
+
+### Unsupported structural distinctions — OPEN
+- stereochemistry;
+- general electronic/spin-state resolution;
+- isotope-labelled molecular identity;
+- general tautomer/resonance equivalence;
+- broad external compound coverage beyond the eight seed records.
+
+## PASS / APPROXIMATED / OPEN
 
 ### PASS
-- H/C/N/O minimum element pack.
-- All eight requested species represented in thermo/reference-phase lookup.
-- SI normalization and source-unit separation.
-- Deterministic 01 `ElementProvider` projection.
-- 02 typed thermo/phase/bond lookup surface.
-- 06 safe reference-case surface.
-- Provenance/finiteness/duplicate/missing-behavior validators.
-- Typecheck, targeted tests, full tests, and lint.
+- five-state scientific reference matching contract separated from ScientificStatus;
+- eight-species reference index;
+- formula-first indexed lookup and deterministic structural fingerprinting;
+- exact-only enrichment;
+- no-fabrication unknown behavior;
+- duplicate/provenance/reference validation;
+- 01 loose-coupling handoff;
+- targeted/full regression/typecheck/lint.
 
-### FAIL
-- None blocking in the validated Phase 2C scope.
+### APPROXIMATED
+- molecular molar mass derived from Phase 2C natural-composition element projections;
+- charge-insensitive topology fallback is used only to label `POSSIBLE_REFERENCE_MATCH`, never as exact identity.
 
 ### OPEN
-- isotope-specific atomic masses;
-- N electron affinity in the selected source set;
-- ΔGf° population and broader equilibrium data;
-- most Cp values and Cp(T) correlations;
-- melting/boiling/triple/critical/full phase-boundary data;
-- detailed kinetic/rate/activation datasets;
-- broader molecule-specific BDE/D0 coverage;
-- Na/Cl extension until an actual 01/02/06 consumer requires it;
-- larger real-experiment benchmark corpus.
+- stereo/state/isotope/tautomer-resonance-complete identity;
+- large reference database ingestion/search;
+- automatic 01 registry metadata persistence of 03 results;
+- property expansion beyond currently sourced Phase 2C data;
+- any future canonical representation migration for historical CO or other seed graphs.
 
-## Handoffs
-- **01 Chemistry Simulation Engine:** import `minimumElementProvider` for the current `ElementProvider` contract. Use `minimumChemistryDataProvider.getElementDefinition(symbol)` when direct per-symbol lookup is preferable. Treat absent symbols/properties as unsupported rather than defaulting them.
-- **02 Thermodynamics & Kinetics:** use `getSpeciesThermodynamics(speciesId, phase?)`, `getPhaseEquilibrium(speciesId)`, and bond lookup methods. Respect record `status`, `confidence`, reference conditions, uncertainty, and missing `undefined`; 03 does not decide reaction direction/rate/phase evolution.
-- **06 Simulation Validation Lab:** consume `minimumChemistryReferenceCases` plus `validateMinimumChemistryDataPack()` as the seed reference/eligibility layer. Reference cases are oracles only and must never be imported into production reaction logic.
-- **07 Integration & GitHub:** Phase 2C input is PR #22 from `feature/phase2-chemistry-data-pack`; audit and integrate using the validated code HEAD evidence above and the final PR HEAD after this status-only commit.
+## Files Added/Changed
+- `src/data/reference-enrichment.ts`
+- `src/data/reference-enrichment-interface.ts`
+- `src/data/index.ts`
+- `tests/generated-species-reference-enrichment.test.ts`
+- `docs/contracts/GENERATED_SPECIES_REFERENCE_MATCHING.md`
+- `docs/handoffs/03-generated-species-reference-enrichment.md`
+- this workstream status document
+
+No 01 production implementation file was modified.
