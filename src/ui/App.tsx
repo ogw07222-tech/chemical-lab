@@ -2,45 +2,142 @@ import { useMemo, useState } from 'react';
 import { useLaboratory } from './provider';
 import { selectCurrentUnknown, selectSpecies, selectVisibleInventory } from './selectors';
 import type { PhaseDiagramViewModel, SubstanceSummary } from './types';
-import { celsiusToKelvin, cubicMetersToLiters, formatPressure, formatTemperature, formatVolume, litersToCubicMeters } from './units';
+import { celsiusToKelvin, cubicMetersToLiters, formatPressure, formatTemperature, litersToCubicMeters, pascalsToAtmospheres } from './units';
 import './styles.css';
 
-const TABS = ['Composition', 'Products', 'Graphs', 'Phase', 'Timeline', 'Experiment Log'] as const;
-type AnalysisTab = typeof TABS[number];
-type MobileView = 'Inventory' | 'Lab' | 'Controls' | 'Analysis' | 'Log';
-function Metric({ label, value }: { label: string; value: string }) { return <div className="metric"><span>{label}</span><strong>{value}</strong></div>; }
+const ANALYSIS_TABS = ['구성', '생성물', '그래프', '상', '타임라인', '실험 기록'] as const;
+type AnalysisTab = typeof ANALYSIS_TABS[number];
+type CatalogFilter = 'all' | 'element' | 'compound' | 'favorite';
+type InspectorTab = 'info' | 'notes';
+type MobileView = 'catalog' | 'lab' | 'info' | 'controls' | 'notes';
 
 function TopBar() {
   const { snapshot, dispatch } = useLaboratory();
-  return <header className="top-bar"><div className="experiment-title"><span className="eyebrow">EXPERIMENT</span><strong>{snapshot.experimentName}</strong></div><div className="top-actions"><button disabled title="Persistence adapter pending">Save</button><button disabled title="Persistence adapter pending">Load</button></div><Metric label="Time" value={`${snapshot.simulationTimeS.toFixed(1)} s`} /><div className={`status-pill ${snapshot.simulationStatus}`}>{snapshot.simulationStatus.toUpperCase()}</div><button onClick={() => dispatch({ type: snapshot.simulationStatus === 'running' ? 'PauseSimulation' : 'Run', vesselId: snapshot.vesselId })}>{snapshot.simulationStatus === 'running' ? 'Pause' : 'Run'}</button><div className="speed-row">{[0.5, 1, 2, 4].map((speed) => <button key={speed} className={snapshot.simulationSpeed === speed ? 'active' : ''} onClick={() => dispatch({ type: 'SetSimulationSpeed', vesselId: snapshot.vesselId, speed })}>×{speed}</button>)}</div><label className="dev-toggle"><input type="checkbox" checked={snapshot.developerMode} onChange={(e) => dispatch({ type: 'SetDeveloperMode', enabled: e.target.checked })}/> Dev</label><button title="Settings scaffold">Settings</button></header>;
+  const running = snapshot.simulationStatus === 'running';
+  return <header className="lab-topbar">
+    <div className="brand">CHEM LAB</div>
+    <nav className="top-nav" aria-label="주요 메뉴"><button className="active">실험실</button><button disabled>기록</button><button disabled>설정</button></nav>
+    <div className="top-status"><span>{snapshot.simulationTimeS.toFixed(1)} s</span><span className={`status-dot ${snapshot.simulationStatus}`}/><strong>{snapshot.simulationStatus.toUpperCase()}</strong><button className="run-button" onClick={() => dispatch({ type: running ? 'PauseSimulation' : 'Run', vesselId: snapshot.vesselId })}>{running ? '정지' : '실행'}</button></div>
+  </header>;
 }
 
-function InventoryPanel({ selectedId, onSelect }: { selectedId?: string; onSelect: (id: string) => void }) {
-  const lab = useLaboratory(); const [query, setQuery] = useState(''); const [amount, setAmount] = useState(0.25); const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const visible = selectVisibleInventory(lab); const filtered = visible.filter((s) => `${s.name} ${s.formula}`.toLowerCase().includes(query.toLowerCase()) && (!favoritesOnly || lab.snapshot.favoriteSpeciesIds.includes(s.speciesId))); const selected = selectSpecies(visible, selectedId) ?? visible[0];
-  return <aside className="panel inventory-panel"><div className="panel-heading"><div><span className="eyebrow">UNLOCKED INVENTORY</span><h2>Materials</h2></div><span className="stock">Unlimited stock</span></div><input aria-label="Search substances" className="search" placeholder="Search unlocked materials…" value={query} onChange={(e) => setQuery(e.target.value)} /><div className="inventory-tools"><button className={`chip ${!favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly(false)}>All</button><button className={`chip ${favoritesOnly ? 'active' : ''}`} onClick={() => setFavoritesOnly(true)}>★ Favorites</button><span>{visible.length} available</span></div><div className="substance-list">{filtered.map((s) => <div key={s.speciesId} className={`substance-card ${selected?.speciesId === s.speciesId ? 'selected' : ''}`}><button className="substance-main" onClick={() => onSelect(s.speciesId)}><span className="formula">{s.formula}</span><span><strong>{s.name}</strong><small>Unlocked · unlimited</small></span></button><button aria-label={`Favorite ${s.name}`} className="star" onClick={() => lab.dispatch({ type: 'ToggleFavorite', speciesId: s.speciesId })}>{lab.snapshot.favoriteSpeciesIds.includes(s.speciesId) ? '★' : '☆'}</button></div>)}</div>{selected && <div className="add-box"><div className="amount-header"><span>Amount to add</span><strong>{amount.toFixed(3)} mol</strong></div><input aria-label="Amount" type="number" min="0.001" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))}/><div className="presets">{[0.01,0.1,0.5,1].map((v) => <button key={v} onClick={() => setAmount(v)}>{v} mol</button>)}</div><button className="primary" disabled={!Number.isFinite(amount) || amount <= 0} onClick={() => lab.dispatch({ type: 'AddSubstance', vesselId: lab.snapshot.vesselId, speciesId: selected.speciesId, amountMol: amount })}>Add {selected.formula} to vessel</button></div>}</aside>;
+function MoleculePreview({ substance, compact = false }: { substance?: SubstanceSummary; compact?: boolean }) {
+  return <div className={`molecule-preview ${compact ? 'compact' : ''}`} aria-label={substance ? `${substance.koreanName ?? substance.name} preview` : '선택된 물질 없음'}>
+    <span className="orb orb-a"/><span className="orb orb-b"/><span className="molecule-formula">{substance?.formula ?? '—'}</span>
+  </div>;
 }
 
-function MoleculeGraphView({ substance }: { substance?: SubstanceSummary }) { return <div className="molecule-view"><div className="molecule-placeholder">{substance?.formula ?? '?'}</div><div><strong>{substance?.name ?? 'Unknown observation'}</strong><p>{substance?.graph ? 'MolecularGraph view model connected.' : '2D structure adapter ready; authoritative graph/layout pending 01 integration.'}</p></div></div>; }
-
-function VesselWorkspace({ selected }: { selected?: SubstanceSummary }) {
-  const lab = useLaboratory(); const { snapshot } = lab; const unknown = selectCurrentUnknown(lab); const phases = new Set(snapshot.contents.map((item) => item.phase)); const phaseClass = phases.size > 1 ? 'multiphase' : phases.values().next().value ?? 'empty';
-  return <main className="panel vessel-workspace"><div className="panel-heading"><div><span className="eyebrow">REACTION VESSEL</span><h2>Primary vessel</h2></div><span>{formatVolume(snapshot.volumeM3)} / {formatVolume(snapshot.capacityM3)}</span></div><div className="vessel-stage"><div className={`vessel phase-${phaseClass} ${snapshot.simulationStatus === 'running' ? 'active' : ''}`}><div className="gas-headspace">GAS / HEADSPACE</div><div className="liquid-fill"/><div className="solid-deposit"/><div className="vessel-label">{snapshot.contents.length ? `${snapshot.contents.length} entries` : 'Empty'}</div></div><div className="vessel-summary"><Metric label="Temperature" value={formatTemperature(snapshot.temperatureK)} /><Metric label="Pressure" value={formatPressure(snapshot.pressurePa)} /><Metric label="Volume" value={formatVolume(snapshot.volumeM3)} /><span className="eyebrow">CURRENT CONTENTS</span>{snapshot.contents.length ? snapshot.contents.map((item, index) => <div className="composition-chip" key={`${item.speciesId ?? 'unknown'}-${index}`}><strong>{item.identityConfirmed ? item.displayIdentity : 'Unknown'}</strong><span>{item.amountMol.toFixed(3)} mol · Current phase: {item.phase}</span></div>) : <p className="muted">No material in vessel.</p>}</div></div><div className="inspect-row"><MoleculeGraphView substance={selected}/>{unknown && <div className="unknown-card"><span className="eyebrow">OBSERVATION</span><strong>{unknown.label}</strong><p>Identity remains hidden until a valid analysis result confirms it.</p><button className="primary" onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>Analyze</button></div>}</div></main>;
+function AddSubstanceControl({ selected }: { selected?: SubstanceSummary }) {
+  const { snapshot, dispatch } = useLaboratory();
+  const [amount, setAmount] = useState(1);
+  const finite = Number.isFinite(amount) && amount > 0;
+  if (!selected) return null;
+  return <div className="add-control">
+    <div className="section-label">추가할 양</div>
+    <div className="amount-row"><input aria-label="추가할 양" type="number" min="0.001" step="0.1" value={amount} onChange={(e) => setAmount(Number(e.target.value))}/><select aria-label="추가 단위" value="mol" disabled><option value="mol">mol</option></select></div>
+    <button className="primary-action" disabled={!finite} onClick={() => dispatch({ type: 'AddSubstance', vesselId: snapshot.vesselId, speciesId: selected.speciesId, amountMol: amount })}>＋ 실험실에 추가</button>
+  </div>;
 }
 
-function EnvironmentPanel() {
-  const { snapshot, dispatch } = useLaboratory(); const [targetC, setTargetC] = useState(snapshot.controls.thermostatTargetK - 273.15); const volumeL = cubicMetersToLiters(snapshot.controls.requestedVolumeM3);
-  return <aside className="panel environment-panel"><div className="panel-heading"><div><span className="eyebrow">LAB CONTROLS</span><h2>Environment</h2></div></div><section className="control-group"><h3>Thermal</h3><label>Heater power <span>{snapshot.controls.heaterPowerW.toFixed(0)} W</span></label><input aria-label="Heater power" type="range" min="0" max="1000" step="25" value={snapshot.controls.heaterPowerW} onChange={(e) => dispatch({ type: 'SetHeaterPower', vesselId: snapshot.vesselId, powerW: Number(e.target.value) })}/><label>Cooler power <span>{snapshot.controls.coolerPowerW.toFixed(0)} W</span></label><input aria-label="Cooler power" type="range" min="0" max="1000" step="25" value={snapshot.controls.coolerPowerW} onChange={(e) => dispatch({ type: 'SetCoolerPower', vesselId: snapshot.vesselId, powerW: Number(e.target.value) })}/><div className="thermostat"><label><span>Thermostat</span><input aria-label="Thermostat" type="checkbox" checked={snapshot.controls.thermostatEnabled} onChange={(e) => dispatch({ type: 'SetThermostat', vesselId: snapshot.vesselId, enabled: e.target.checked, targetTemperatureK: celsiusToKelvin(targetC) })}/></label><label>Target °C<input aria-label="Thermostat target" type="number" value={targetC} onChange={(e) => setTargetC(Number(e.target.value))} onBlur={() => Number.isFinite(targetC) && dispatch({ type: 'SetThermostat', vesselId: snapshot.vesselId, enabled: snapshot.controls.thermostatEnabled, targetTemperatureK: celsiusToKelvin(targetC) })}/></label></div><p className="hint">Power/controller requests only. Temperature is never overwritten by React.</p></section><section className="control-group"><h3>Vessel / mechanical</h3><label>Volume <span>{volumeL.toFixed(2)} L</span></label><input aria-label="Volume" type="range" min="0.1" max={cubicMetersToLiters(snapshot.capacityM3)} step="0.1" value={volumeL} onChange={(e) => dispatch({ type: 'ChangeVolume', vesselId: snapshot.vesselId, targetVolumeM3: litersToCubicMeters(Number(e.target.value)) })}/><div className="instrument-readout"><span>Pressure</span><strong>{formatPressure(snapshot.pressurePa)}</strong></div><p className="hint">Pressure control remains capability-gated by Game Layer.</p></section><section className="future-slots"><div>Mixing <span>Future</span></div><div>Electrodes <span>Future</span></div><div>Catalyst <span>Future</span></div></section><button className="ghost reset" onClick={() => dispatch({ type: 'ResetExperiment', vesselId: snapshot.vesselId })}>Reset experiment</button></aside>;
+function SubstanceCatalog({ selectedId, onSelect }: { selectedId?: string; onSelect: (id: string) => void }) {
+  const lab = useLaboratory();
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<CatalogFilter>('all');
+  const visible = selectVisibleInventory(lab);
+  const filtered = visible.filter((item) => {
+    const text = `${item.koreanName ?? ''} ${item.name} ${item.formula}`.toLowerCase();
+    if (!text.includes(query.toLowerCase())) return false;
+    if (filter === 'favorite') return lab.snapshot.favoriteSpeciesIds.includes(item.speciesId);
+    if (filter === 'element' || filter === 'compound') return item.category === filter;
+    return true;
+  });
+  const selected = selectSpecies(visible, selectedId) ?? visible[0];
+  return <aside className="catalog-panel" aria-label="도감">
+    <div className="catalog-head"><h1>도감</h1><label className="dev-switch"><input aria-label="Developer Mode" type="checkbox" checked={lab.snapshot.developerMode} onChange={(e) => lab.dispatch({ type: 'SetDeveloperMode', enabled: e.target.checked })}/><span>DEV</span></label></div>
+    <div className="search-wrap"><span>⌕</span><input aria-label="물질 검색" placeholder="물질 검색..." value={query} onChange={(e) => setQuery(e.target.value)}/></div>
+    <div className="catalog-filters" role="tablist">{([['all','전체'],['element','원소'],['compound','화합물'],['favorite','즐겨찾기']] as const).map(([key,label]) => <button key={key} className={filter===key?'active':''} onClick={() => setFilter(key)}>{label}</button>)}</div>
+    <div className="catalog-list">{filtered.map((item) => <div key={item.speciesId} className={`catalog-item ${selected?.speciesId===item.speciesId?'selected':''}`}>
+      <button className="catalog-select" onClick={() => onSelect(item.speciesId)}><MoleculePreview substance={item} compact/><span><strong>{item.koreanName ?? item.name}</strong><small>{item.formula}</small></span><span className="chevron">›</span></button>
+      <button aria-label={`Favorite ${item.name}`} className="favorite-button" onClick={() => lab.dispatch({ type: 'ToggleFavorite', speciesId: item.speciesId })}>{lab.snapshot.favoriteSpeciesIds.includes(item.speciesId) ? '★' : '☆'}</button>
+    </div>)}</div>
+    <AddSubstanceControl selected={selected}/>
+  </aside>;
 }
+
+function GlassBeaker({ small = false, label }: { small?: boolean; label?: string }) {
+  return <div className={`glass-beaker ${small ? 'small' : ''}`}><div className="beaker-lip"/><div className="beaker-liquid"/><div className="beaker-marks"><i/><i/><i/><i/></div>{label && <span className="tool-label">{label}</span>}</div>;
+}
+function TestTubeRack() { return <div className="tube-rack"><div className="tubes"><i/><i/><i/><i/></div><div className="rack-bar"/><div className="rack-base"/><span className="tool-label">시험관</span></div>; }
+function Hotplate() { return <div className="hotplate"><div className="plate"/><div className="hotplate-body"><i/></div><span className="tool-label">교반기</span></div>; }
+function ClampStand() { return <div className="clamp-stand"><div className="stand-base"/><div className="stand-pole"/><div className="clamp-arm"/><span className="tool-label">스탠드</span></div>; }
+function LabBottle() { return <div className="lab-bottle"><div className="bottle-cap"/><div className="bottle-body"/><span className="tool-label">세척병</span></div>; }
 
 function PhaseDiagram({ data }: { data?: PhaseDiagramViewModel }) {
-  if (!data) return <div className="unavailable"><strong>Phase diagram unavailable</strong><p>No 02/03 phase-boundary dataset is connected for this species.</p></div>;
+  if (!data) return <div className="analysis-empty">상 경계 데이터가 연결되지 않았습니다.</div>;
   const [t0,t1]=data.temperatureRangeK; const [p0,p1]=data.pressureRangePa; const x=(t:number)=>((t-t0)/(t1-t0))*100; const y=(p:number)=>100-((p-p0)/(p1-p0))*100;
-  return <div className="phase-card"><div className="phase-head"><strong>Temperature–Pressure phase diagram</strong><span className={`badge ${data.status.toLowerCase()}`}>{data.status}</span></div>{data.fixtureLabel && <p className="fixture-warning">{data.fixtureLabel}</p>}<svg viewBox="0 0 100 100" role="img" aria-label="Phase diagram"><rect x="0" y="0" width="100" height="100" className="phase-bg"/><text x="6" y="15">Solid</text><text x="48" y="32">Liquid</text><text x="70" y="82">Gas</text>{data.boundaries.map((b) => <polyline key={b.id} points={b.samples.map((s) => `${x(s.temperatureK)},${y(s.pressurePa)}`).join(' ')} className="phase-line"/>)}{data.triplePoint && <circle cx={x(data.triplePoint.temperatureK)} cy={y(data.triplePoint.pressurePa)} r="2" className="triple"/>}{data.criticalPoint && <circle cx={x(data.criticalPoint.temperatureK)} cy={y(data.criticalPoint.pressurePa)} r="2" className="critical"/>}{data.currentState && <circle cx={x(data.currentState.temperatureK)} cy={y(data.currentState.pressurePa)} r="2.5" className="current-point"/>}</svg><div className="axis-labels"><span>Temperature →</span><span>Pressure ↑</span></div></div>;
+  return <div className="phase-sheet">{data.fixtureLabel && <p className="fixture-note">{data.fixtureLabel}</p>}<svg viewBox="0 0 100 100" role="img" aria-label="Phase diagram"><rect x="0" y="0" width="100" height="100" className="phase-bg"/>{data.boundaries.map((b)=><polyline key={b.id} points={b.samples.map((s)=>`${x(s.temperatureK)},${y(s.pressurePa)}`).join(' ')} className="phase-line"/>)}{data.currentState&&<circle cx={x(data.currentState.temperatureK)} cy={y(data.currentState.pressurePa)} r="2.5" className="current-point"/>}</svg></div>;
 }
 
-function EncyclopediaPanel({ selected }: { selected?: SubstanceSummary }) { const { snapshot, phaseDiagrams } = useLaboratory(); if (!selected) return <div className="unavailable">Select an unlocked species.</div>; const entry = snapshot.encyclopedia.find((e) => e.speciesId === selected.speciesId); return <div className="encyclopedia-card"><MoleculeGraphView substance={selected}/><dl><dt>Scientific status</dt><dd>{selected.scientificStatus}</dd><dt>First discovery</dt><dd>{entry?.firstDiscoveryLabel ?? 'Starter / not recorded'}</dd><dt>Phase info</dt><dd>{entry?.phaseInfo ?? 'Awaiting authoritative data'}</dd><dt>Known properties</dt><dd>{entry?.knownProperties.join(', ') || 'None connected yet'}</dd><dt>Phase diagram</dt><dd>{phaseDiagrams[selected.speciesId] ? 'Available fixture/data' : 'Unavailable'}</dd></dl></div>; }
+function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
+  const lab = useLaboratory(); const [tab,setTab] = useState<AnalysisTab>('구성'); const diagram=selected?lab.phaseDiagrams[selected.speciesId]:undefined;
+  return <section className="analysis-drawer"><nav>{ANALYSIS_TABS.map((name)=><button key={name} className={tab===name?'active':''} onClick={()=>setTab(name)}>{name}</button>)}</nav><div className="analysis-body">
+    {tab==='구성' && <table><thead><tr><th>물질</th><th>상태</th><th>양</th></tr></thead><tbody>{lab.snapshot.contents.length?lab.snapshot.contents.map((c,i)=><tr key={i}><td>{c.identityConfirmed?c.displayIdentity:'Unknown'}</td><td>{c.phase}</td><td>{c.amountMol.toFixed(3)} mol</td></tr>):<tr><td colSpan={3}>실험 용기가 비어 있습니다.</td></tr>}</tbody></table>}
+    {tab==='생성물' && <p>권위 있는 관찰/분석 결과가 확인된 물질만 여기에 표시됩니다.</p>}
+    {tab==='그래프' && <p>시계열 데이터 어댑터 대기 중: species / T / P / concentration / activity.</p>}
+    {tab==='상' && <PhaseDiagram data={diagram}/>} 
+    {tab==='타임라인' && <div className="timeline">{lab.events.length?lab.events.map((e)=><div key={e.id}><time>{e.simulationTimeS.toFixed(1)}s</time><span>{e.message}</span></div>):<p>기록된 이벤트가 없습니다.</p>}</div>}
+    {tab==='실험 기록' && <p>{lab.events.length}개의 mock 이벤트가 기록되어 있습니다. 저장/재생 어댑터는 추후 연결됩니다.</p>}
+  </div></section>;
+}
 
-function AnalysisWorkspace({ selected, tab, onTabChange }: { selected?: SubstanceSummary; tab: AnalysisTab; onTabChange: (tab: AnalysisTab) => void }) { const lab = useLaboratory(); const diagram=selected ? lab.phaseDiagrams[selected.speciesId] : undefined; return <section className="analysis panel"><nav className="analysis-tabs">{TABS.map((name)=><button key={name} className={tab===name?'active':''} onClick={()=>onTabChange(name)}>{name}</button>)}</nav><div className="analysis-content">{tab==='Composition' && <table><thead><tr><th>Identity</th><th>Phase</th><th>Amount</th></tr></thead><tbody>{lab.snapshot.contents.length ? lab.snapshot.contents.map((c,i)=><tr key={i}><td>{c.identityConfirmed?c.displayIdentity:'Unknown'}</td><td>{c.phase}</td><td>{c.amountMol.toFixed(3)} mol</td></tr>):<tr><td colSpan={3}>No vessel contents.</td></tr>}</tbody></table>}{tab==='Products' && <div><h3>Products / Analyzer</h3><p>Named products appear only after authoritative observation/analysis confirmation.</p><EncyclopediaPanel selected={selected}/></div>}{tab==='Graphs' && <div className="graph-placeholder">Time-series adapter placeholder: species, T, P, concentration, reaction activity, heater/cooler power.</div>}{tab==='Phase' && <PhaseDiagram data={diagram}/>} {tab==='Timeline' && <div className="timeline">{lab.events.length?lab.events.map((e)=><div className="timeline-row" key={e.id}><span>{e.simulationTimeS.toFixed(1)}s</span><p>{e.message}</p></div>):<p>No events yet.</p>}</div>}{tab==='Experiment Log' && <div className="analysis-card"><strong>{lab.events.length} recorded mock events</strong><p>Save/replay production adapter pending 04/07 integration.</p></div>}</div></section>; }
+function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {
+  const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab); const selectedContent = lab.snapshot.contents.find((c)=>c.speciesId===selected?.speciesId);
+  return <main className="lab-center" aria-label="실험실 작업대">
+    <div className="workspace-title"><span>LAB WORKSPACE</span><strong>{lab.snapshot.experimentName}</strong><div>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</div></div>
+    <div className="lab-wall">
+      <div className="overhead-light"/><div className="bench-note">작은 혼합이<br/>새로운 관찰을 만든다.</div>
+      <div className="bench-tools"><GlassBeaker label={selectedContent ? `${selectedContent.displayIdentity} ${selectedContent.amountMol.toFixed(3)} mol` : '주 용기'}/><GlassBeaker small label="보조 용기"/><TestTubeRack/><Hotplate/><ClampStand/><LabBottle/></div>
+      <div className="counter-edge"/>
+    </div>
+    {unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}
+    <WorkbenchAnalysis selected={selected}/>
+  </main>;
+}
 
-export function LaboratoryWorkspace() { const lab=useLaboratory(); const visible=selectVisibleInventory(lab); const [selectedId,setSelectedId]=useState<string>(); const selected=useMemo(()=>selectSpecies(visible, selectedId) ?? visible[0],[visible,selectedId]); const [mobileView,setMobileView]=useState<MobileView>('Lab'); const [analysisTab,setAnalysisTab]=useState<AnalysisTab>('Composition'); const navigateMobile=(view:MobileView)=>{setMobileView(view); if(view==='Analysis') setAnalysisTab('Composition'); if(view==='Log') setAnalysisTab('Experiment Log');}; return <div className="app-shell"><TopBar/><nav className="mobile-nav">{(['Inventory','Lab','Controls','Analysis','Log'] as MobileView[]).map((v)=><button key={v} className={mobileView===v?'active':''} onClick={()=>navigateMobile(v)}>{v}</button>)}</nav><div className={`workspace-grid mobile-${mobileView.toLowerCase()}`}><InventoryPanel selectedId={selected?.speciesId} onSelect={setSelectedId}/><VesselWorkspace selected={selected}/><EnvironmentPanel/></div><AnalysisWorkspace selected={selected} tab={analysisTab} onTabChange={setAnalysisTab}/></div>; }
+function SubstanceInspector({ selected, forceNotes = false }: { selected?: SubstanceSummary; forceNotes?: boolean }) {
+  const lab=useLaboratory(); const [tab,setTab]=useState<InspectorTab>(forceNotes?'notes':'info'); const [notes,setNotes]=useState<Record<string,string>>({});
+  const currentTab = forceNotes ? 'notes' : tab; const entry=selected?lab.snapshot.encyclopedia.find((e)=>e.speciesId===selected.speciesId):undefined; const content=selected?lab.snapshot.contents.find((c)=>c.speciesId===selected.speciesId):undefined;
+  return <aside className="inspector-panel" aria-label="물질 정보">
+    <div className="inspector-tabs"><button className={currentTab==='info'?'active':''} onClick={()=>setTab('info')}>물질 정보</button><button className={currentTab==='notes'?'active':''} onClick={()=>setTab('notes')}>내 메모</button></div>
+    {!selected ? <div className="inspector-empty">도감에서 물질을 선택하세요.</div> : currentTab==='info' ? <div className="reference-sheet">
+      <div className="substance-heading"><MoleculePreview substance={selected}/><div><h2>{selected.koreanName ?? selected.name}</h2><strong className="formula-large">{selected.formula}</strong></div></div>
+      <dl><dt>종류</dt><dd>{selected.category==='element'?'원소':'화합물'}</dd><dt>현재 상</dt><dd>{content?.phase ?? entry?.phaseInfo ?? '데이터 없음'}</dd><dt>과학 상태</dt><dd>{selected.scientificStatus}</dd><dt>몰 질량</dt><dd>권위 데이터 대기</dd><dt>최초 발견</dt><dd>{entry?.firstDiscoveryLabel ?? '시작 물질 / 미기록'}</dd></dl>
+      <section><h3>알려진 물성</h3>{entry?.knownProperties.length?<ul>{entry.knownProperties.map((p)=><li key={p}>{p}</li>)}</ul>:<p>검증된 물성 데이터가 아직 연결되지 않았습니다.</p>}</section>
+      <section><h3>설명</h3><p>{selected.description ?? '설명 데이터가 아직 연결되지 않았습니다.'}</p></section>
+      <section><h3>구조식</h3><div className="structure-placeholder">{selected.graph ? 'MolecularGraph 연결됨' : selected.formula}</div></section>
+    </div> : <div className="notes-sheet"><label htmlFor={`note-${selected.speciesId}`}>{selected.koreanName ?? selected.name} 메모</label><textarea id={`note-${selected.speciesId}`} aria-label="내 메모" value={notes[selected.speciesId] ?? ''} onChange={(e)=>setNotes((prev)=>({...prev,[selected.speciesId]:e.target.value}))} placeholder="관찰한 점을 자유롭게 기록하세요. 시스템은 이 메모의 정답 여부를 판정하지 않습니다."/><small>UI draft only · 자동 해석/판정 없음</small></div>}
+  </aside>;
+}
+
+function ConditionRow({ icon,label,unit,value,min,max,step,onChange,actual }: { icon:string;label:string;unit:string;value:number;min:number;max:number;step:number;onChange:(v:number)=>void;actual?:string }) {
+  return <div className="condition-row"><span className="condition-icon">{icon}</span><label>{label}</label><div className="numeric-box"><input aria-label={label} type="number" value={Number(value.toFixed(2))} min={min} max={max} step={step} onChange={(e)=>onChange(Number(e.target.value))}/><span>{unit}</span></div><input aria-label={`${label} slider`} type="range" value={value} min={min} max={max} step={step} onChange={(e)=>onChange(Number(e.target.value))}/>{actual&&<small>{actual}</small>}</div>;
+}
+
+function ExperimentConsole({ selected }: { selected?: SubstanceSummary }) {
+  const lab=useLaboratory(); const { snapshot, dispatch }=lab; const [confirmDispose,setConfirmDispose]=useState(false);
+  const tempC=snapshot.controls.thermostatTargetK-273.15; const pressureAtm=pascalsToAtmospheres(snapshot.controls.requestedPressurePa); const volumeL=cubicMetersToLiters(snapshot.controls.requestedVolumeM3); const selectedPresent=selected&&snapshot.contents.some((c)=>c.speciesId===selected.speciesId);
+  const setTemperature=(c:number)=>{if(Number.isFinite(c)) dispatch({type:'SetThermostat',vesselId:snapshot.vesselId,enabled:true,targetTemperatureK:celsiusToKelvin(c)});};
+  const setPressure=(atm:number)=>{if(Number.isFinite(atm)&&atm>0) dispatch({type:'SetPressureTarget',vesselId:snapshot.vesselId,targetPressurePa:atm*101325});};
+  const setVolume=(l:number)=>{if(Number.isFinite(l)&&l>0) dispatch({type:'ChangeVolume',vesselId:snapshot.vesselId,targetVolumeM3:litersToCubicMeters(l)});};
+  const dispose=()=>{if(selected&&selectedPresent){dispatch({type:'RemoveSubstance',vesselId:snapshot.vesselId,speciesId:selected.speciesId});setConfirmDispose(false);}};
+  return <section className="experiment-console" aria-label="실험 콘솔">
+    <div className="conditions"><h2>실험 조건</h2><ConditionRow icon="♨" label="온도" unit="°C" value={tempC} min={-100} max={300} step={1} onChange={setTemperature} actual={`실제 ${formatTemperature(snapshot.temperatureK)}`}/><ConditionRow icon="◴" label="압력" unit="atm" value={pressureAtm} min={0.1} max={5} step={0.1} onChange={setPressure} actual={`실제 ${pascalsToAtmospheres(snapshot.pressurePa).toFixed(2)} atm`}/><ConditionRow icon="△" label="부피" unit="L" value={volumeL} min={0.1} max={cubicMetersToLiters(snapshot.capacityM3)} step={0.1} onChange={setVolume}/><label className="controller-toggle"><input aria-label="온도 제어" type="checkbox" checked={snapshot.controls.thermostatEnabled} onChange={(e)=>dispatch({type:'SetThermostat',vesselId:snapshot.vesselId,enabled:e.target.checked,targetTemperatureK:snapshot.controls.thermostatTargetK})}/><span>온도 제어</span></label></div>
+    <div className="operations"><h2>조작</h2><div className="operation-grid"><button onClick={()=>dispatch({type:'Mix',vesselId:snapshot.vesselId})}>◎ <span>혼합</span></button><button onClick={()=>dispatch({type:'Stir',vesselId:snapshot.vesselId})}>↻ <span>교반</span></button><button onClick={()=>dispatch({type:'PauseSimulation',vesselId:snapshot.vesselId})}>■ <span>반응 정지</span></button><button onClick={()=>dispatch({type:'ResetExperiment',vesselId:snapshot.vesselId})}>↺ <span>초기화</span></button></div></div>
+    <div className="disposal"><h2>폐기</h2><div className="trash-icon">♲</div><strong>{selectedPresent ? `${selected?.koreanName ?? selected?.name} 제거` : '제거할 물질 없음'}</strong><p>현재 선택한 물질을 주 용기에서 제거합니다.</p>{confirmDispose&&selectedPresent?<div className="confirm-row"><button onClick={()=>setConfirmDispose(false)}>취소</button><button className="danger" onClick={dispose}>폐기 확인</button></div>:<button disabled={!selectedPresent} onClick={()=>setConfirmDispose(true)}>선택 물질 폐기</button>}</div>
+  </section>;
+}
+
+export function LaboratoryWorkspace() {
+  const lab=useLaboratory(); const visible=selectVisibleInventory(lab); const [selectedId,setSelectedId]=useState<string>(); const selected=useMemo(()=>selectSpecies(visible,selectedId)??visible[0],[visible,selectedId]); const [mobileView,setMobileView]=useState<MobileView>('lab');
+  return <div className="lab-shell"><TopBar/><nav className="mobile-nav">{([['catalog','도감'],['lab','실험실'],['info','정보'],['controls','조작'],['notes','메모']] as const).map(([key,label])=><button key={key} className={mobileView===key?'active':''} onClick={()=>setMobileView(key)}>{label}</button>)}</nav><div className={`lab-layout mobile-${mobileView}`}><SubstanceCatalog selectedId={selected?.speciesId} onSelect={setSelectedId}/><LabWorkspace selected={selected}/><SubstanceInspector selected={selected} forceNotes={mobileView==='notes'}/><ExperimentConsole selected={selected}/></div></div>;
+}
