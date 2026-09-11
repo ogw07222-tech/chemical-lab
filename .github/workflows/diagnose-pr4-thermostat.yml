@@ -1,0 +1,86 @@
+name: Diagnose PR4 thermostat
+
+on:
+  push:
+    branches:
+      - diagnostic/pr4-thermostat-c8a50dba
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: c8a50dba3d976cb7cbf8d30d14dec4f296f8172a
+      - name: Verify exact HEAD
+        run: test "$(git rev-parse HEAD)" = "c8a50dba3d976cb7cbf8d30d14dec4f296f8172a"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Diagnose thermostat
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          node <<'NODE'
+          const { chromium } = await import('playwright');
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+          const consoleErrors = [];
+          page.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); });
+          page.on('pageerror', e => consoleErrors.push(e.message));
+          await page.goto('http://127.0.0.1:4173', { waitUntil: 'networkidle' });
+
+          const thermostat = page.getByRole('checkbox', { name: 'Thermostat' });
+          const target = page.getByRole('spinbutton', { name: 'Thermostat target' });
+          const temperatureMetric = page.locator('.metric').filter({ hasText: 'Temperature' }).first();
+          const before = {
+            checked: await thermostat.isChecked(),
+            targetC: await target.inputValue(),
+            temperatureText: await temperatureMetric.innerText(),
+            visibleThermostatEvent: (await page.locator('body').innerText()).includes('Thermostat enabled'),
+          };
+
+          await target.fill('37');
+          await target.blur();
+          const afterTarget = {
+            checked: await thermostat.isChecked(),
+            targetC: await target.inputValue(),
+            temperatureText: await temperatureMetric.innerText(),
+          };
+
+          await thermostat.check();
+          const afterEnable = {
+            checked: await thermostat.isChecked(),
+            targetC: await target.inputValue(),
+            temperatureText: await temperatureMetric.innerText(),
+            visibleThermostatEvent: (await page.locator('body').innerText()).includes('Thermostat enabled'),
+          };
+
+          await page.getByRole('button', { name: 'Timeline' }).click();
+          const timelineRowsEnabled = await page.locator('.timeline-row').allInnerTexts();
+          await thermostat.uncheck();
+          await page.getByRole('button', { name: 'Timeline' }).click().catch(() => {});
+          const afterDisable = {
+            checked: await thermostat.isChecked(),
+            targetC: await target.inputValue(),
+            temperatureText: await temperatureMetric.innerText(),
+            timelineRows: await page.locator('.timeline-row').allInnerTexts(),
+          };
+
+          console.log(JSON.stringify({ before, afterTarget, afterEnable, timelineRowsEnabled, afterDisable, consoleErrors }, null, 2));
+          await browser.close();
+          NODE
