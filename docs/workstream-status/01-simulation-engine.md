@@ -8,7 +8,7 @@
 - Final synchronized main SHA before implementation commit: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
 - Active branch: `feature/phase2-reaction-candidate-engine`
 - Active PR: #21 — `feat(sim): add Phase 2A generic reaction candidate engine`
-- Implementation code HEAD before this status-only commit: `932f89c6d4032f9f3d9eaa33d8581b829cfdc1eb`
+- Latest code HEAD before this final status commit: `c928fc1e2d2bcb96738ecd416702068e5ca1711c`
 
 ## Current Objective
 Implement a bounded deterministic generic reaction-candidate engine that consumes the existing molecular core and produces conservation-valid structural candidates without reaction-equation lookup tables or thermodynamic/kinetic evaluation.
@@ -18,6 +18,7 @@ Implement a bounded deterministic generic reaction-candidate engine that consume
 - Added executable `ReactionCandidate` / `ReactionFamily` v1 contract and explicit 02 handoff metadata.
 - Added deterministic reactive-site detection for formal charge, hetero atoms, coarse under-coordination, polarized bonds when electronegativity exists, proton donor/acceptor hints, electron-rich/electron-poor hints, and breakable bonds.
 - Added coarse over-coordination rejection using provider-supplied `typicalValences`; positive-charge valence allowance is deliberately limited to elements with five or more valence electrons so H/C are not silently granted extra valence.
+- Preserved the existing neutral CO triple-bond fixture without molecule-specific hardcoding by allowing a tightly bounded coarse multiple-bond case: a neutral atom with exactly one incident multiple bond may exceed its typical-valence maximum by at most one bond-order unit. This remains a structural approximation, not a complete valence model.
 - Added immutable/copy-based graph transformations: bond add/remove/order change, graph merge/split, proton transfer, electron-transfer charge bookkeeping.
 - Added candidate generators for `BOND_FORMATION`, `BOND_CLEAVAGE`, `PROTON_TRANSFER`, and `ELECTRON_TRANSFER`.
 - Added family vocabulary for `ASSOCIATION`, `DISSOCIATION`, `SUBSTITUTION_GENERIC`, `COMBINATION`, and `DECOMPOSITION` without implementing reaction-specific lookup entries.
@@ -55,6 +56,7 @@ Implement a bounded deterministic generic reaction-candidate engine that consume
 - Exact new TypeScript source + strict repository-compatible compiler settings: PASS using available `tsc 5.8.3`.
 - New Vitest source type/shape audit: PASS with a minimal local Vitest declaration because Vitest is not installed globally.
 - Independent executable runtime harness over the same new reaction-engine source: PASS for water/ammonia generic proton-transfer candidate generation, deterministic ordering, duplicate pruning, and conservation.
+- CO coarse-valence compatibility was explicitly rechecked after the generic multiple-bond refinement: PASS.
 - `npm run lint`: OPEN locally; ESLint is not globally installed and dependencies cannot be installed in this environment.
 - `npm test`: OPEN locally; Vitest is not globally installed and dependencies cannot be installed in this environment.
 - `npm run build`: OPEN locally; Vite is not globally installed and dependencies cannot be installed in this environment.
