@@ -4,15 +4,17 @@
 - Current phase: Phase 2B — Reaction Candidate Evaluation Foundation
 - Overall state: IN_PROGRESS
 - Last updated: 2026-09-11
-- Last checked main SHA: `901f812edad16b67c0382e1a30ce744f2e6cd234`
+- Task-start main SHA: `901f812edad16b67c0382e1a30ce744f2e6cd234`
+- Latest main re-check: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
 - Active branch: `feature/phase2-reaction-evaluation`
-- Active PR: pending at status-write time
+- Active PR: #19 — `feat(02): add Phase 2B reaction candidate evaluation`
 
 ## Current Objective
 Provide a production-facing foundation that evaluates an 01 reaction candidate through thermodynamic evidence, kinetic accessibility, environment modifiers, and deterministic competing-candidate ranking without taking ownership of candidate generation, products, stoichiometry, or reaction extent.
 
 ## Source-of-Truth / Candidate Contract
-- Re-checked production `main` at `901f812edad16b67c0382e1a30ce744f2e6cd234`.
+- Task started from production `main` `901f812edad16b67c0382e1a30ce744f2e6cd234`; main advanced during the task to `a4606143e8f249e5b9a398f72c86c8171ca405b5` due Phase 2 integration-coordination documentation.
+- PR #19 is currently mergeable against the latest `main` re-check.
 - Production runtime currently contains the Phase 1 molecular core but does not yet expose an executable `ReactionCandidate` TypeScript type.
 - The canonical 01 contract in `docs/contracts/MOLECULAR_REACTION_CORE.md` defines `ReactionCandidate`, phase/access mode, `ThermodynamicsQuery`, `KineticsQuery`, and `ReactionProgressEvent` semantics.
 - 02 therefore does not recreate 01 candidate generation semantics. It consumes candidates through a generic `ReactionCandidateAdapter<TCandidate>` producing a narrow read-only `ReactionCandidateEvaluationView`. When 01 publishes the executable type, only an adapter is required.
@@ -63,7 +65,7 @@ Rules:
 - bond/structural fallback cannot silently claim VERIFIED precision.
 
 ## Kinetic Model
-- Uses positive activation energy in J/mol when available.
+- Uses non-negative activation energy in J/mol when available.
 - Relative temperature contribution is Arrhenius-compatible: `exp(-Ea/(R*T))`.
 - Absolute dimensional rate constants are not invented because reaction order/mechanism dimensions are not yet authoritative.
 - `relativeRate` is dimensionless and intended for candidate comparison only.
@@ -120,6 +122,7 @@ These are accessibility/transport placeholders only. They do not calculate phase
 - Catalyst changes kinetics without rewriting thermodynamics.
 - Deterministic ranking/tie interface implemented.
 - Pure evaluator has no hardcoded thermochemical database.
+- PR #19 currently reports mergeable against latest main.
 
 ### FAIL
 - None identified in source-equivalent strict compile/runtime harness.
@@ -146,12 +149,12 @@ Provider adapters should eventually expose, in canonical SI with provenance/stat
 No bulk constants are embedded in the evaluator.
 
 ## Limitations
-- Formation-property calculation currently assumes the adapter supplies correct stoichiometric coefficients and phase-resolved species keys; 02 does not validate 01 stoichiometry semantics.
+- Formation-property calculation assumes the adapter supplies correct stoichiometric coefficients and phase-resolved species keys; 02 does not validate 01 stoichiometry semantics.
 - Standard-state thermochemistry is not yet corrected for full non-ideal concentration/activity effects.
 - Current phase-accessibility factors are coarse APPROXIMATED placeholders, not validated transport models.
 - `relativeRate` is dimensionless and not an absolute reaction rate.
 - Rank score is a deterministic comparison heuristic, not reaction extent or probability.
-- Strongly reverse-favored thermodynamics is classified infeasible in this foundation, but future nonequilibrium/electrochemical/external-driving channels will require explicit coupled-energy semantics rather than hidden exceptions.
+- Strongly reverse-favored thermodynamics is classified infeasible in this foundation, but future nonequilibrium/electrochemical/external-driving channels require explicit coupled-energy semantics rather than hidden exceptions.
 
 ## Future Reaction-Resolution Requirements
 A later reaction-resolution layer must:
