@@ -30,9 +30,14 @@ try {
   assert(!body.includes('Water') && !body.includes('Methane'), 'desktop: undiscovered species identity leaked before analysis/dev mode');
   await noHorizontalOverflow(desktop, 'desktop');
 
-  await desktop.getByRole('button', { name: /Add H₂ to vessel/i }).click();
-  body = await text(desktop);
-  assert(body.includes('Added 0.250 mol H₂'), 'desktop: finite amount add failed');
+  const amountInput = desktop.getByLabel('Amount');
+  const addButton = desktop.getByRole('button', { name: /Add H₂ to vessel/i });
+  assert((await amountInput.inputValue()) === '0.25', 'desktop: finite amount input default is not 0.25 mol');
+  assert(!(await addButton.isDisabled()), 'desktop: finite amount add button unexpectedly disabled');
+  await addButton.click();
+  const compositionRows = await desktop.locator('.analysis-content tbody tr').allInnerTexts();
+  const vesselChips = await desktop.locator('.composition-chip').allInnerTexts();
+  assert(compositionRows.some((row) => row.includes('H₂') && row.includes('unknown') && row.includes('0.250 mol')) && vesselChips.some((chip) => chip.includes('H₂') && chip.includes('0.250 mol')), 'desktop: finite amount add failed');
 
   await desktop.getByLabel('Heater power').fill('250');
   await desktop.getByLabel('Cooler power').fill('150');
