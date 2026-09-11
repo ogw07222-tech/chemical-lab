@@ -38,7 +38,13 @@ export function validateCoarseValenceGraph(graph: SpeciesState["molecule"]["grap
     const max = coarseMaximumValence(atom, elements);
     if (max === undefined) continue;
     const used = coordination(graph, atom.id);
-    if (!Number.isFinite(used) || used > max + 1e-9) {
+    const incidentBonds = graph.bonds.filter((bond) => bond.a === atom.id || bond.b === atom.id);
+    const coarseMultipleBondAllowance =
+      atom.formalCharge === 0 &&
+      incidentBonds.length === 1 &&
+      incidentBonds[0]!.order >= 2 &&
+      used <= max + 1 + 1e-9;
+    if (!Number.isFinite(used) || (used > max + 1e-9 && !coarseMultipleBondAllowance)) {
       issues.push(`OVER_COORDINATED:${atom.id}:${used}>${max}`);
     }
   }
