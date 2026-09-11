@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { minimumChemistryDataProvider, minimumElementProvider, validateMinimumChemistryDataPack } from "../src/data";
-import { runPhase2ReactionFoundation } from "../src/integration/phase2-reaction";
+import { createPhase2ReactionDataBridge, runPhase2ReactionFoundation } from "../src/integration/phase2-reaction";
 import { createMoleculeRecord, type MolecularGraph, type SpeciesState } from "../src/simulation/molecular";
 import {
   validateCandidateSet,
@@ -51,11 +51,17 @@ const ammoniaGraph: MolecularGraph = {
 };
 
 describe("Phase 2 reaction foundation integration", () => {
-  it("connects the minimum data pack to the molecular candidate engine", () => {
+  it("connects the minimum data pack to molecular and evaluation provider boundaries", () => {
     expect(validateMinimumChemistryDataPack().valid).toBe(true);
     expect(minimumElementProvider.getElement("H")?.symbol).toBe("H");
     expect(minimumElementProvider.getElement("O")?.symbol).toBe("O");
-    expect(minimumChemistryDataProvider.getSpeciesThermodynamics("h2o", "gas")).toBeDefined();
+
+    const storedWaterThermo = minimumChemistryDataProvider.getSpeciesThermodynamics("h2o");
+    expect(storedWaterThermo).toBeDefined();
+    const bridge = createPhase2ReactionDataBridge();
+    const projectedWaterThermo = bridge.evaluation.getSpeciesThermo("h2o", storedWaterThermo!.phase);
+    expect(projectedWaterThermo).toBeDefined();
+    expect(projectedWaterThermo?.enthalpyOfFormation_J_per_mol?.source.sourceIds.length ?? 0).toBeGreaterThan(0);
   });
 
   it("runs candidate generation through evaluation and production validation without inventing missing data", () => {
