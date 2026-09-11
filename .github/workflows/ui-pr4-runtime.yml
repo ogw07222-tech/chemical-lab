@@ -31,25 +31,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit and component tests
-        id: tests
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          npm test 2>&1 | tee ui-test-output.txt
+      - name: Targeted UI test
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
 
-      - name: Preserve test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-test-output
-          path: ui-test-output.txt
-          if-no-files-found: error
-
-      - name: Fail on test failure
-        if: steps.tests.outcome == 'failure'
-        run: exit 1
+      - name: Full test suite
+        run: npm test
 
       - name: Production build
         run: npm run build
