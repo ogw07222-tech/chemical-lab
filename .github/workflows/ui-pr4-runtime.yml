@@ -1,20 +1,27 @@
-name: UI PR4 Runtime Verification
+name: Diagnose PR4 Targeted UI Failure
 
 on:
   push:
     branches:
-      - feature/phase0-web-lab-scaffold
+      - diagnostic/pr4-targeted-9a1ba557
 
 permissions:
   contents: read
 
 jobs:
-  verify-ui:
+  diagnose-targeted-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout exact PR head under diagnosis
         uses: actions/checkout@v4
+        with:
+          ref: 9a1ba5571417605df4ea903f31717bc0d70b4044
+
+      - name: Verify exact source HEAD
+        run: |
+          test "$(git rev-parse HEAD)" = "9a1ba5571417605df4ea903f31717bc0d70b4044"
+          git rev-parse HEAD
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -25,38 +32,22 @@ jobs:
       - name: Reproducible install
         run: npm ci --no-audit --no-fund
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Targeted UI test
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
-
-      - name: Full test suite
-        run: npm test
-
-      - name: Production build
-        run: npm run build
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Browser smoke
+      - name: Exact targeted UI test
+        id: targeted
+        continue-on-error: true
         shell: bash
         run: |
-          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          trap 'kill $PREVIEW_PID || true' EXIT
-          for i in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          curl --fail http://127.0.0.1:4173 >/dev/null
-          npm run smoke:ui
+          set -o pipefail
+          npm test -- tests/ui/LaboratoryWorkspace.test.tsx 2>&1 | tee targeted-ui-output.txt
 
-      - name: Tested commit
-        run: git rev-parse HEAD
+      - name: Preserve exact targeted output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: targeted-ui-output-9a1ba557
+          path: targeted-ui-output.txt
+          if-no-files-found: error
+
+      - name: Preserve targeted result
+        if: steps.targeted.outcome == 'failure'
+        run: exit 1
