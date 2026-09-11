@@ -2,171 +2,125 @@
 
 - Owner: Lead Game UI/UX Designer / Chemistry Visualization Developer / Frontend Integration Developer / Web Laboratory Interface Developer
 - Current phase: Phase 0 — Runnable PC-first UI scaffold
-- Overall state: IMPLEMENTED_AWAITING_RUNTIME_VALIDATION
-- Last updated: 2026-09-10
-- Last checked main SHA: `1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1`
+- Overall state: BLOCKED_BROWSER_SMOKE
+- Last updated: 2026-09-11
+- Last checked main SHA: `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`
 - Active branch: `feature/phase0-web-lab-scaffold`
 - Active PR: #4 — `feat(ui): runnable Phase 0 laboratory scaffold`
-- PR #4 implementation HEAD before this status-only update: `8d55b8ccd5ad6938a92e402261a955c428e2fe72`
+- Validated implementation HEAD: `ed877eae58afc583158cca5d6b07d5849fa8087f`
+- Validation workflow run: `34580511787`
 
 ## Current Objective
-Refresh the existing PR #4 scaffold to match the canonical PC-first product/UI direction without redesigning the approved laboratory information architecture or embedding chemistry behavior in React.
+Keep PR #4 aligned with the current production contracts while keeping chemistry, progression authority, thermal physics, and phase determination outside React. PR #4 is not merge-ready until browser smoke passes.
 
-## Canonical References Reviewed
-- `PROJECT.md`
-- `AGENTS.md`
-- `ROADMAP.md`
-- `docs/contracts/UNIT_SYSTEM.md`
-- `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`
-- `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`
-- `docs/product/GAME_UI_SYSTEM_ROADMAP.md`
-- this workstream status
-- PR #5 `THERMODYNAMICS_PHASE_THERMAL` as a non-production reference only
+## Latest main refresh
+PR #4 incorporates production main `27c32f93eb16d1061959bd02f8cf10bfe502b9f3`, including the current chemistry data, molecular core, thermal primitives, progression runtime, and validation harness. The refresh commit was `e199cac6d586280bcfbfccb2187e97294c64056a`.
 
-## Branch Refresh
-PR #4 was originally based on old main `197b83595d2b562fa68c0ce69d25d48d4c9311b7`.
+## Fresh targeted failure diagnosis
+Original exact PR HEAD under diagnosis: `9a1ba5571417605df4ea903f31717bc0d70b4044`.
 
-The feature branch is now merged forward with canonical main `1a4e53ea78234cff02ee94ca6f0b4752a8ab4fa1` while preserving the existing UI scaffold. After refresh, comparison against main reported `behind_by: 0`.
+Because the existing Actions connector did not expose the assertion body from run `34578933379` / job `103197740831`, a separate diagnostic branch checked out that exact SHA and executed the exact CI command:
 
-## Responsive / Platform Status
-### PC web — primary
-- Canonical three-zone desktop workspace retained.
-- Top bar: experiment identity, save/load placeholders, run/pause, speed, settings, explicit developer toggle.
-- Left: unlocked inventory/search/favorites/finite amount input/add-to-vessel.
-- Center: vessel visualization, T/P/V summary, selected molecule/unknown observation.
-- Right: thermal and vessel controls plus future mixing/electrode/catalyst slots.
-- Bottom: tabbed Composition / Products / Graphs / Phase / Timeline / Experiment Log.
-- Layout remains intentionally information-dense around the ~1440x900 target class.
+`npm test -- tests/ui/LaboratoryWorkspace.test.tsx`
 
-### Tablet — secondary
-- Responsive two-column layout keeps Inventory + Vessel usable and moves Environment controls below without deleting functionality.
+Fresh reproduction result:
+- file: `tests/ui/LaboratoryWorkspace.test.tsx`
+- 9 tests total; 4 failed / 5 passed
+- failure class: stale query/assertion
+- no product/provider chemistry bug was demonstrated
 
-### Mobile — best effort
-- Bottom navigation exposes Inventory / Lab / Controls / Analysis / Log.
-- Vessel is the primary Lab view.
-- Analysis and Log navigation drive the shared analysis workspace rather than creating a second simulation path.
-- Core chemistry-facing state/provider interfaces remain shared with desktop/tablet.
-- Save/load remain scaffold placeholders until 04/07 persistence wiring exists.
+Failures:
+1. `normal inventory exposes starters but not all supported species`
+   - `TestingLibraryElementError`
+   - global `getByText('Hydrogen')` expected one element but actual DOM legitimately contained Hydrogen in both Inventory and Molecule Inspector
+   - stack: `LaboratoryWorkspace.test.tsx:11:108`
+2. `adds a finite amount through the provider`
+   - `TestingLibraryElementError`
+   - expected visible `/Added 0.250 mol H₂/`; actual active `Composition` tab does not render event messages
+   - stack: `LaboratoryWorkspace.test.tsx:13:158`
+3. `uses heater power and thermostat commands rather than direct temperature mutation`
+   - `TestingLibraryElementError`
+   - expected visible `/Thermostat enabled/`; actual event is rendered only in `Timeline`
+   - stack: `LaboratoryWorkspace.test.tsx:14:315`
+4. `confirms the mock unknown before discovery unlock feedback`
+   - `TestingLibraryElementError`
+   - expected visible `/Identity confirmed: Water/`; actual discovery event is rendered only in `Timeline`
+   - stack: `LaboratoryWorkspace.test.tsx:15:226`
 
-## Discovery / Inventory Status
-- Normal mock inventory no longer exposes all MVP species.
-- Mock starter set is deliberately limited to H2 / O2 / N2; exact production starter set remains an HQ/content OPEN decision.
-- Undiscovered species names are not rendered as normal selectable inventory entries.
-- Unlocked stock is explicitly shown as `Unlimited stock`.
-- Every AddSubstance command still requires finite positive `amountMol`.
-- Favorites are provider-owned and filterable in the Inventory UI.
-- Developer Mode is explicitly separate and reveals all supported mock species for QA/development only.
-- Mock unknown-observation flow is implemented:
-  `Unknown substance detected -> Analyze -> identity confirmed -> discovery event -> encyclopedia record -> inventory unlock`.
-- The seeded unknown/analyzer outcome is an explicitly deterministic UI fixture and is not a chemistry prediction.
+The previous explicit `afterEach(cleanup)` fix remains in place, but this fresh run showed the remaining failures were not residual cross-test DOM leakage.
 
-## SI Boundary Status
-Added centralized `src/ui/units.ts`.
+## Minimal fix
+Commit `ed877eae58afc583158cca5d6b07d5849fa8087f` changed only `tests/ui/LaboratoryWorkspace.test.tsx`:
+- scoped the Hydrogen starter assertion to the Inventory panel rather than weakening it to a multi-match assertion;
+- opened the existing Timeline tab before asserting provider event messages for AddSubstance, thermostat, and discovery.
 
-Authoritative/provider-side physical state now uses canonical units for the implemented boundary:
-- temperature: K
-- pressure: Pa
-- volume: m^3
-- amount: mol
-- heater/cooler power: W
+No product code, provider semantics, chemistry logic, identity secrecy, or progression rules were changed.
 
-UI display/input conversions are centralized for Celsius, litres, kPa, atm, and related formatting. React components do not scatter ad-hoc physical conversion constants.
+## Fresh validation — implementation HEAD `ed877eae58afc583158cca5d6b07d5849fa8087f`
+Workflow run `34580511787`:
 
-## Thermal Control Status
-Replaced the previous generic Heat/Cool intent UI with:
-- heater requested power in W;
-- cooler requested extraction power in W;
-- thermostat enabled state;
-- thermostat target entered in °C but dispatched as K.
-
-No UI command directly overwrites authoritative temperature. The mock provider records thermal control requests only; it does not calculate temperature evolution, reaction heat, heat capacity, latent heat, or thermodynamic outcomes.
-
-PR #5 is referenced only for loose interface alignment. Production 02 interfaces are not imported before merge.
-
-## Phase / Vessel Visualization Status
-- No manual solid/liquid/gas selector exists.
-- Vessel content phase is read-only snapshot data.
-- Vessel rendering switches semantic visual layers from authoritative phase labels: liquid fill, gas headspace, solid deposit, and multiphase combination.
-- React does not determine phase from T/P.
-
-### Phase Diagram
-Added Phase tab and a renderer contract with:
-- Temperature x-axis;
-- Pressure y-axis;
-- phase-region labels;
-- boundary series;
-- triple point;
-- critical point;
-- current T/P marker;
-- scientific-status badge;
-- unavailable state.
-
-The mock diagram is explicitly labeled `UI-only illustrative fixture — not scientific phase data` in code and UI. The renderer only maps supplied data coordinates to SVG coordinates; it does not calculate thermodynamic boundary curves. Production data must come through a 02/03 adapter.
-
-## Molecule / Encyclopedia Status
-- 2D `MoleculeGraphViewModel` boundary remains isolated from unmerged/unstable lower-layer schema details.
-- Encyclopedia minimum scaffold exposes species name/formula via selected species, 2D structure boundary, scientific status, first-discovery metadata, phase information, known-properties slot, and phase-diagram availability.
-- Authoritative molecular geometry and property values remain integration dependencies.
-
-## Tests Authored
-Component/unit coverage now includes:
-- PC laboratory zones and Phase tab render;
-- starter-only normal inventory;
-- Developer Mode all-species visibility;
-- finite substance addition;
-- heater power / thermostat interaction;
-- unknown -> analysis -> discovery -> inventory unlock;
-- run/pause/reset flow;
-- SI conversion helpers;
-- typed provider command boundary.
-
-## Validation Performed
 ### PASS
-- PR #4 branch refreshed onto latest checked main; `behind_by: 0` after refresh.
-- Source review confirms no manual phase selector.
-- Source review confirms no direct temperature setter/overwrite command.
-- UI physical input boundary uses SI-valued provider commands for volume/temperature target/power.
-- Normal inventory visibility is derived in a selector from provider-owned unlock state, not duplicated as chemistry/progression logic in components.
-- Mock reactions/thermodynamic calculations were not introduced.
-- Phase-diagram curves are supplied fixture data, not calculated by React.
+- `npm ci --no-audit --no-fund`
+- `npm run typecheck`
+- `npm run lint`
+- targeted: `npm test -- tests/ui/LaboratoryWorkspace.test.tsx`
+  - 1 file passed
+  - 9/9 tests passed
+  - duration 1.64 s; test execution 636 ms
+- full: `npm test`
+  - 5 files passed
+  - 73/73 tests passed
+  - duration 2.99 s
+  - includes production progression, thermal, molecular-core, validation-foundation, and UI suites
+- `npm run build`
+  - Vite production build PASS
+  - 32 modules transformed
+- Playwright Chromium installation PASS
 
-### BLOCKED / OPEN
-The current execution environment cannot resolve external GitHub/npm hosts from the local container. A fresh `git clone` failed with `Could not resolve host: github.com`; therefore network-backed package installation is unavailable here.
+### FAIL / merge blocker
+Browser smoke failed at Desktop before Tablet/Mobile could be accepted:
 
-Do NOT treat the following as PASS in this task:
-- `npm install`;
-- real project `npm run typecheck`;
-- `npm run lint`;
-- `npm test`;
-- `npm run build`;
-- Vite dev-server/browser smoke;
-- console-error check;
-- visual checks at desktop/tablet/mobile viewport sizes.
+`Error: desktop: finite amount add failed`
 
-These require CI/Codespaces or another network-enabled environment before merge.
+Stack:
+- `tools/ui-smoke.mjs:15:61` (`assert`)
+- `tools/ui-smoke.mjs:35:3`
 
-## OPEN
-- Exact production starter material set.
-- 04 production persistence/save/load APIs and analyzer/discovery event schemas.
-- 02 merged thermal/phase/phase-diagram contract and actual runtime adapter.
-- 03 authoritative names/properties/phase-boundary datasets and scientific-status metadata.
-- 01 authoritative MolecularGraph mapping/layout.
-- Exact apparatus semantics for pressure control and open/sealed/mixing controls.
-- Browser-verified responsive polish and accessibility audit.
+Therefore browser smoke is the exact remaining merge gate. No browser-smoke fix is claimed in this targeted-failure task.
 
-## Next Actions
-1. Run install -> typecheck -> lint -> component tests -> production build in a network-enabled environment.
-2. Browser smoke PR #4 at approximately 1440x900, tablet ~1024px, and narrow mobile widths; inspect console errors.
-3. After PR #5/02 contract integration, replace the phase fixture with a thin production adapter while preserving unavailable/approximate states.
-4. After 04 runtime APIs exist, replace mock discovery/persistence commands with authoritative Game Layer adapter behavior.
-5. Hand PR #4 to 07 only after runtime validation evidence is available.
+## Contract audit
+### Progression — PASS by source/test audit
+- normal inventory is starter-only in the UI fixture;
+- locked species are hidden from normal selection;
+- unconfirmed observation identity is not stored in the UI-facing snapshot;
+- analysis confirmation precedes discovery/inventory unlock;
+- encyclopedia and inventory unlock are updated together in the mock adapter;
+- unlocked inventory is presented as unlimited stock while each vessel add requires finite positive `amountMol`;
+- Developer Mode is isolated as an explicit access bypass;
+- current production `src/game/progression.ts` explicitly ignores Premium for access and enforces discovery/encyclopedia/inventory invariants.
 
-## Handoffs
-### To 04 — Laboratory Gameplay
-Provide production typed state/events/commands for starter entitlements, discovery confirmation, encyclopedia registration, inventory unlock, analyzer results, save/load, and apparatus capability rules. 05 will render/dispatch them and will not own progression authority.
+### Thermal — PASS by source/test audit
+- heater and cooler controls dispatch power requests in W;
+- thermostat dispatches enabled/target-K controller requests;
+- there is no direct `SetTemperature` command in the UI boundary;
+- displayed temperature comes from provider snapshot state;
+- React contains no heat-capacity, reaction-enthalpy, or temperature-evolution calculation.
 
-### To 02 — Thermodynamics & Kinetics
-After the thermal/phase contract is merged, provide stable SI thermal-control state and `PhaseDiagramData`/phase outputs. 05 needs supplied curves/points/status only; it will not derive phase or thermodynamic boundaries.
+### Phase — PASS by source audit
+- no manual phase selector exists;
+- vessel phase is supplied through provider snapshot content;
+- React does not derive phase from T/P;
+- Phase tab renders supplied phase-diagram data only;
+- mock phase diagram remains explicitly labeled `UI-only illustrative fixture — not scientific phase data`.
 
-### To 07 — Integration & GitHub
-PR #4 is refreshed to latest checked main and is structurally ready for validation. Do not merge until network-enabled typecheck/lint/tests/build and browser/console checks pass.
+### SI — PASS by source/test audit
+Simulation-facing implemented UI boundary preserves K, Pa, m³, mol, and W, with display conversions centralized in `src/ui/units.ts`.
+
+## Current blocker
+`BLOCKED`: browser smoke on the validated implementation HEAD fails at the Desktop finite-add check. Because Desktop smoke did not pass, Tablet/Mobile responsive smoke cannot be marked PASS and PR #4 is not ready for merge.
+
+## Next action
+Diagnose `tools/ui-smoke.mjs` Desktop finite-add assertion against the actual rendered UI/provider behavior, make only the smallest evidence-based fix, then rerun the complete gate on the resulting exact HEAD.
+
+## Handoff to 07
+Do not merge PR #4 yet. Runtime unit/type/lint/build gates are green on implementation HEAD `ed877eae58afc583158cca5d6b07d5849fa8087f`, but browser smoke remains FAIL (`desktop: finite amount add failed`).
