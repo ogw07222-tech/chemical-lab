@@ -1,9 +1,10 @@
-name: UI PR4 Runtime Verification
+name: UI Runtime Verification
 
 on:
   push:
     branches:
       - feature/phase0-web-lab-scaffold
+      - feature/lab-ui-workbench-redesign
 
 permissions:
   contents: read

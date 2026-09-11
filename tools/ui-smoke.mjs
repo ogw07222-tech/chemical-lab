@@ -11,7 +11,6 @@ async function openAt(width, height) {
   await page.goto(baseURL, { waitUntil: 'networkidle' });
   return page;
 }
-
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function text(page) { return page.locator('body').innerText(); }
 async function noHorizontalOverflow(page, label) {
@@ -20,95 +19,92 @@ async function noHorizontalOverflow(page, label) {
 }
 
 try {
-  const desktop = await openAt(1440, 900);
-  let body = await text(desktop);
-  assert(body.includes('Materials'), 'desktop: inventory missing');
-  assert(body.includes('Primary vessel'), 'desktop: vessel missing');
-  assert(body.includes('Environment'), 'desktop: controls missing');
-  assert(body.includes('Unlimited stock'), 'desktop: unlimited stock missing');
-  assert(body.includes('Hydrogen') && body.includes('Oxygen') && body.includes('Nitrogen'), 'desktop: starter inventory missing');
-  assert(!body.includes('Water') && !body.includes('Methane'), 'desktop: undiscovered species identity leaked before analysis/dev mode');
-  await noHorizontalOverflow(desktop, 'desktop');
+  for (const width of [1536, 1440]) {
+    const desktop = await openAt(width, 900);
+    let body = await text(desktop);
+    assert(body.includes('도감'), `${width}: catalog missing`);
+    assert(body.includes('LAB WORKSPACE'), `${width}: workbench missing`);
+    assert(body.includes('물질 정보') && body.includes('내 메모'), `${width}: inspector tabs missing`);
+    assert(body.includes('실험 조건') && body.includes('조작') && body.includes('폐기'), `${width}: experiment console missing`);
+    assert(body.includes('수소') && body.includes('산소') && body.includes('질소'), `${width}: starter catalog missing`);
+    assert(!body.includes('메테인') && !body.includes('물\nH₂O'), `${width}: undiscovered identity leaked`);
+    await noHorizontalOverflow(desktop, `desktop-${width}`);
 
-  const amountInput = desktop.getByLabel('Amount');
-  const addButton = desktop.getByRole('button', { name: /Add H₂ to vessel/i });
-  assert((await amountInput.inputValue()) === '0.25', 'desktop: finite amount input default is not 0.25 mol');
-  assert(!(await addButton.isDisabled()), 'desktop: finite amount add button unexpectedly disabled');
-  await addButton.click();
-  const compositionRows = await desktop.locator('.analysis-content tbody tr').allInnerTexts();
-  const vesselChips = await desktop.locator('.composition-chip').allInnerTexts();
-  assert(compositionRows.some((row) => row.includes('H₂') && row.includes('unknown') && row.includes('0.250 mol')) && vesselChips.some((chip) => chip.includes('H₂') && chip.includes('0.250 mol')), 'desktop: finite amount add failed');
+    if (width === 1536) {
+      const amount = desktop.getByLabel('추가할 양');
+      await amount.fill('0.25');
+      const add = desktop.getByRole('button', { name: /실험실에 추가/ });
+      assert(!(await add.isDisabled()), 'desktop: finite add unexpectedly disabled');
+      await add.click();
+      body = await text(desktop);
+      assert(body.includes('0.250 mol'), 'desktop: finite AddSubstance state not visible');
 
-  await desktop.getByLabel('Heater power').fill('250');
-  await desktop.getByLabel('Cooler power').fill('150');
-  body = await text(desktop);
-  assert(body.includes('250 W') && body.includes('150 W'), 'desktop: heater/cooler control failed');
+      const actualTemperature = desktop.getByText(/실제 298.1 K \/ 25.0 °C/);
+      await actualTemperature.waitFor();
+      await desktop.getByLabel('온도').fill('37');
+      body = await text(desktop);
+      assert(body.includes('실제 298.1 K / 25.0 °C'), 'desktop: temperature target teleported actual temperature');
+      assert(await desktop.getByLabel('온도 제어').isChecked(), 'desktop: temperature controller request not enabled');
 
-  const thermostat = desktop.getByRole('checkbox', { name: 'Thermostat' });
-  const thermostatTarget = desktop.getByRole('spinbutton', { name: 'Thermostat target' });
-  const temperatureMetric = desktop.locator('.metric').filter({ hasText: 'Temperature' }).first();
-  const temperatureBeforeThermostat = await temperatureMetric.innerText();
-  await thermostatTarget.fill('37');
-  await thermostatTarget.blur();
-  assert((await thermostatTarget.inputValue()) === '37', 'desktop: thermostat target input did not retain 37 °C request');
-  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: thermostat target directly overwrote vessel temperature');
-  await thermostat.check();
-  assert(await thermostat.isChecked(), 'desktop: thermostat enabled state not reflected from provider snapshot');
-  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: enabling thermostat directly overwrote vessel temperature');
-  await desktop.getByRole('button', { name: 'Timeline' }).click();
-  body = await text(desktop);
-  assert(body.includes('Thermostat enabled'), 'desktop: thermostat enable request missing from provider timeline');
-  await thermostat.uncheck();
-  assert(!(await thermostat.isChecked()), 'desktop: thermostat disabled state not reflected from provider snapshot');
-  body = await text(desktop);
-  assert(body.includes('Thermostat disabled'), 'desktop: thermostat disable request missing from provider timeline');
-  assert((await temperatureMetric.innerText()) === temperatureBeforeThermostat, 'desktop: disabling thermostat directly overwrote vessel temperature');
+      await desktop.getByLabel('압력').fill('2');
+      body = await text(desktop);
+      assert(body.includes('실제 1.00 atm'), 'desktop: pressure target overwrote actual pressure');
 
-  await desktop.getByRole('button', { name: 'Phase' }).click();
-  await desktop.getByRole('img', { name: 'Phase diagram' }).waitFor();
-  body = await text(desktop);
-  assert(body.includes('UI-only illustrative fixture'), 'desktop: supplied phase-diagram fixture label missing');
+      await desktop.getByRole('button', { name: /혼합/ }).click();
+      await desktop.getByRole('button', { name: /교반/ }).click();
+      await desktop.getByRole('button', { name: '타임라인' }).click();
+      body = await text(desktop);
+      assert(body.includes('Mix request accepted') && body.includes('Stir request accepted'), 'desktop: operation requests missing');
 
-  await desktop.getByRole('button', { name: 'Run' }).click();
-  assert((await text(desktop)).includes('RUNNING'), 'desktop: run failed');
-  await desktop.getByRole('button', { name: 'Pause' }).click();
-  assert((await text(desktop)).includes('PAUSED'), 'desktop: pause failed');
+      await desktop.getByRole('button', { name: '상' }).click();
+      await desktop.getByRole('img', { name: 'Phase diagram' }).waitFor();
+      assert((await text(desktop)).includes('UI-only illustrative fixture'), 'desktop: phase fixture label missing');
 
-  await desktop.getByRole('button', { name: 'Analyze' }).click();
-  body = await text(desktop);
-  assert(body.includes('Water'), 'desktop: encyclopedia/inventory unlock missing after analysis');
-  await desktop.getByRole('button', { name: 'Timeline' }).click();
-  body = await text(desktop);
-  assert(body.includes('Identity confirmed: Water'), 'desktop: discovery confirmation missing from provider timeline');
+      await desktop.getByRole('button', { name: '내 메모' }).click();
+      const note = desktop.getByLabel('내 메모');
+      await note.fill('관찰 메모 테스트');
+      assert((await note.inputValue()) === '관찰 메모 테스트', 'desktop: notes draft failed');
 
-  await desktop.getByLabel(/Dev/i).check();
-  body = await text(desktop);
-  assert(body.includes('Methane'), 'desktop: Developer Mode all-species access failed');
-  await desktop.close();
+      await desktop.getByRole('button', { name: '분석' }).click();
+      body = await text(desktop);
+      assert(body.includes('물'), 'desktop: discovery unlock missing');
+      await desktop.getByRole('button', { name: '타임라인' }).click();
+      assert((await text(desktop)).includes('Identity confirmed: Water'), 'desktop: discovery event missing');
+
+      await desktop.getByLabel('Developer Mode').check();
+      assert((await text(desktop)).includes('메테인'), 'desktop: Developer Mode access failed');
+
+      await desktop.getByRole('button', { name: '선택 물질 폐기' }).click();
+      await desktop.getByRole('button', { name: '폐기 확인' }).click();
+      body = await text(desktop);
+      assert(!body.includes('0.250 mol'), 'desktop: disposal did not mutate provider vessel state');
+    }
+    await desktop.close();
+  }
 
   const tablet = await openAt(1024, 768);
-  body = await text(tablet);
-  assert(body.includes('Materials') && body.includes('Primary vessel') && body.includes('Environment'), 'tablet: core laboratory surfaces missing');
+  let body = await text(tablet);
+  assert(body.includes('도감') && body.includes('LAB WORKSPACE') && body.includes('물질 정보'), 'tablet: core workbench surfaces missing');
   await noHorizontalOverflow(tablet, 'tablet');
   await tablet.close();
 
   const mobile = await openAt(390, 844);
   body = await text(mobile);
-  assert(body.includes('Primary vessel'), 'mobile: Lab should prioritize vessel');
-  for (const nav of ['Inventory', 'Lab', 'Controls', 'Analysis', 'Log']) assert(body.includes(nav), `mobile: ${nav} navigation missing`);
-  await mobile.getByRole('button', { name: 'Inventory', exact: true }).click();
-  assert((await text(mobile)).includes('Materials'), 'mobile: Inventory view failed');
-  await mobile.getByRole('button', { name: 'Controls', exact: true }).click();
-  assert((await text(mobile)).includes('Environment'), 'mobile: Controls view failed');
-  await mobile.getByRole('button', { name: 'Analysis', exact: true }).click();
-  assert((await text(mobile)).includes('No vessel contents.'), 'mobile: Analysis view failed');
-  await mobile.getByRole('button', { name: 'Log', exact: true }).click();
-  assert((await text(mobile)).includes('recorded mock events'), 'mobile: Log view failed');
+  for (const label of ['도감','실험실','정보','조작','메모']) assert(body.includes(label), `mobile: ${label} navigation missing`);
+  assert(body.includes('LAB WORKSPACE'), 'mobile: lab view should be initial');
+  await mobile.getByRole('button',{name:'도감',exact:true}).click();
+  assert((await text(mobile)).includes('물질 검색'), 'mobile: catalog view failed');
+  await mobile.getByRole('button',{name:'정보',exact:true}).click();
+  assert((await text(mobile)).includes('과학 상태'), 'mobile: info view failed');
+  await mobile.getByRole('button',{name:'조작',exact:true}).click();
+  assert((await text(mobile)).includes('실험 조건'), 'mobile: controls view failed');
+  await mobile.getByRole('button',{name:'메모',exact:true}).click();
+  await mobile.getByLabel('내 메모').waitFor();
   await noHorizontalOverflow(mobile, 'mobile');
   await mobile.close();
 
   if (consoleErrors.length) throw new Error(`browser console/page errors:\n${consoleErrors.join('\n')}`);
-  globalThis.console.log('UI browser smoke PASS: desktop 1440x900, tablet 1024x768, mobile 390x844');
+  globalThis.console.log('UI browser smoke PASS: desktop 1536/1440x900, tablet 1024x768, mobile 390x844');
 } finally {
   await browser.close();
 }

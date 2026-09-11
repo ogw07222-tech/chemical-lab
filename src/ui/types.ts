@@ -1,6 +1,7 @@
 export type SimulationStatus = 'stopped' | 'paused' | 'running' | 'stable' | 'error';
 export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'multiphase' | 'unknown';
 export type ScientificStatus = 'VERIFIED' | 'APPROXIMATED' | 'EMPIRICAL' | 'GAMEPLAY_SIMPLIFICATION' | 'OPEN';
+export type SubstanceCategory = 'element' | 'compound';
 
 export interface MoleculeAtomView { id: string; element: string; formalCharge: number; }
 export interface MoleculeBondView { id: string; from: string; to: string; order: 1 | 2 | 3; }
@@ -9,7 +10,10 @@ export interface MoleculeGraphViewModel { atoms: MoleculeAtomView[]; bonds: Mole
 export interface SubstanceSummary {
   speciesId: string;
   name: string;
+  koreanName?: string;
   formula: string;
+  category?: SubstanceCategory;
+  description?: string;
   scientificStatus: ScientificStatus;
   graph?: MoleculeGraphViewModel;
 }
@@ -53,16 +57,21 @@ export interface LaboratorySnapshot {
     coolerPowerW: number;
     thermostatEnabled: boolean;
     thermostatTargetK: number;
+    requestedPressurePa: number;
     requestedVolumeM3: number;
   };
 }
 
 export type LaboratoryCommand =
   | { type: 'AddSubstance'; vesselId: string; speciesId: string; amountMol: number }
+  | { type: 'RemoveSubstance'; vesselId: string; speciesId: string }
   | { type: 'SetHeaterPower'; vesselId: string; powerW: number }
   | { type: 'SetCoolerPower'; vesselId: string; powerW: number }
   | { type: 'SetThermostat'; vesselId: string; enabled: boolean; targetTemperatureK: number }
+  | { type: 'SetPressureTarget'; vesselId: string; targetPressurePa: number }
   | { type: 'ChangeVolume'; vesselId: string; targetVolumeM3: number }
+  | { type: 'Mix'; vesselId: string }
+  | { type: 'Stir'; vesselId: string }
   | { type: 'Run'; vesselId: string }
   | { type: 'PauseSimulation'; vesselId: string }
   | { type: 'ResetExperiment'; vesselId: string }
