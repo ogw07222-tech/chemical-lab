@@ -1,0 +1,33 @@
+name: Phase 2 Bond Reference Bridge Validation
+
+on:
+  push:
+    branches:
+      - integration/phase2-bond-reference-bridge
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Bond reference integration
+        run: npm test -- tests/phase2-bond-reference-integration.test.ts
+      - name: Phase 2 integration regression
+        run: npm test -- tests/phase2-reaction-integration.test.ts tests/reaction-candidate.test.ts tests/reaction-evaluation.test.ts tests/reaction-validation.matrix.test.ts tests/chemistry-data-pack.test.ts tests/molecular-core.test.ts
+      - name: Full suite
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Tested commit
+        run: git rev-parse HEAD
