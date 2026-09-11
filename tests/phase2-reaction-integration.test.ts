@@ -56,16 +56,16 @@ describe("Phase 2 reaction foundation integration", () => {
     expect(minimumElementProvider.getElement("H")?.symbol).toBe("H");
     expect(minimumElementProvider.getElement("O")?.symbol).toBe("O");
 
-    const storedWaterThermo = minimumChemistryDataProvider.getSpeciesThermodynamics("h2o");
+    const storedWaterThermo = minimumChemistryDataProvider.getSpeciesThermodynamics("H2O", "gas");
     expect(storedWaterThermo).toBeDefined();
     const bridge = createPhase2ReactionDataBridge();
-    const projectedWaterThermo = bridge.evaluation.getSpeciesThermo("h2o", storedWaterThermo!.phase);
+    const projectedWaterThermo = bridge.evaluation.getSpeciesThermo("H2O", "gas");
     expect(projectedWaterThermo).toBeDefined();
     expect(projectedWaterThermo?.enthalpyOfFormation_J_per_mol?.source.sourceIds.length ?? 0).toBeGreaterThan(0);
   });
 
   it("runs candidate generation through evaluation and production validation without inventing missing data", () => {
-    const inputSpecies = [species("h2o", waterGraph), species("nh3", ammoniaGraph)];
+    const inputSpecies = [species("H2O", waterGraph), species("NH3", ammoniaGraph)];
     const input = { species: inputSpecies, elements: minimumElementProvider };
     const config = { environment: { temperatureK: 298.15, pressurePa: 100_000 } };
 
@@ -75,13 +75,10 @@ describe("Phase 2 reaction foundation integration", () => {
     expect(first.candidates.length).toBeGreaterThan(0);
     expect(first.candidates.some((candidate) => candidate.family === "PROTON_TRANSFER")).toBe(true);
     expect(first.candidates.every((candidate) => candidate.conservation.valid)).toBe(true);
-    expect(first.candidates.every((candidate) => candidate.bondChanges.length >= 0)).toBe(true);
     expect(first.candidates.every((candidate) => candidate.assumptions.length > 0)).toBe(true);
 
     expect(first.candidates.map((candidate) => candidate.id)).toEqual(second.candidates.map((candidate) => candidate.id));
-    expect(first.ranked.map((evaluation) => evaluation.candidateId)).toEqual(
-      second.ranked.map((evaluation) => evaluation.candidateId),
-    );
+    expect(first.ranked.map((evaluation) => evaluation.candidateId)).toEqual(second.ranked.map((evaluation) => evaluation.candidateId));
     expect(first.ranked.map((evaluation) => evaluation.status)).toEqual(second.ranked.map((evaluation) => evaluation.status));
 
     const matrix = validateCandidateSet({ candidates: first.validationCandidates, performance: first.performance });
