@@ -6,7 +6,7 @@
 - Last updated: 2026-09-12
 - Starting main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
 - Active branch: `feature/generated-species-player-knowledge`
-- Active PR: pending
+- Active PR: #37 — `feat(game): support generated species knowledge progression`
 
 ## Current Objective
 Implement the Game Layer boundary that keeps generated/internal species identity separate from player knowledge while reusing the existing discovery -> encyclopedia -> unlimited inventory progression.
