@@ -56,15 +56,16 @@ function candidate(id: string): ReactionCandidate {
   };
 }
 
-function evaluation(id: string, rank = 1, relativeRate = 1, deltaH: number | undefined = 100): RankedReactionEvaluation {
+function evaluation(id: string, rank = 1, relativeRate = 1, deltaH: number | undefined | null = null): RankedReactionEvaluation {
+  const resolvedDeltaH = deltaH === null ? 100 : deltaH;
   return {
     candidateId: id,
     thermo: {
-      ...(deltaH === undefined ? {} : { deltaH_J_per_mol: deltaH }),
+      ...(resolvedDeltaH === undefined ? {} : { deltaH_J_per_mol: resolvedDeltaH }),
       deltaG_J_per_mol: -100,
       direction: "FORWARD_FAVORED",
       confidence: "MEDIUM",
-      approximationClass: deltaH === undefined ? "OPEN" : "APPROXIMATED",
+      approximationClass: resolvedDeltaH === undefined ? "OPEN" : "APPROXIMATED",
       source: { sourceIds: ["test"] },
     },
     kinetics: {
@@ -83,7 +84,7 @@ function evaluation(id: string, rank = 1, relativeRate = 1, deltaH: number | und
     },
     feasible: "FEASIBLE",
     rankScore: 1,
-    status: deltaH === undefined ? "OPEN" : "APPROXIMATED",
+    status: resolvedDeltaH === undefined ? "OPEN" : "APPROXIMATED",
     reasonCodes: [],
     rank,
     tie: false,
