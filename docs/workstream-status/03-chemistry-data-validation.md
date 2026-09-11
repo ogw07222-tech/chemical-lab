@@ -1,73 +1,133 @@
 # 03 — Chemistry Data & Validation
 
 - Owner: Chemistry Data Researcher / Chemical Property Data Engineer / Scientific Reference Analyst / Chemistry Model Validation Researcher
-- Current phase: Phase 0 — Architecture / Integration
-- Overall state: INTEGRATION_READY
+- Current phase: Phase 2C — Minimum Chemistry Data Pack
+- Overall state: READY_FOR_REVIEW
 - Last updated: 2026-09-11
-- Last checked main SHA: c33f5e0bb6d30db63c4097edce30c4333a14b0c5
-- Active branch: docs/phase0-chemistry-data-contract
-- Active PR: #3 — Phase 0 chemistry data schema and provenance contract
-- Exact TypeScript-tested code HEAD: f7c4db2f0daea2d05c4be6c4e6ea2a8bd4148ae4
+- Source main at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
+- Latest main incorporated before finalization: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
+- Active branch: `feature/phase2-chemistry-data-pack`
+- Active PR: #22 — Phase 2C minimum chemistry data pack
+- Exact data/code/test HEAD validated by Actions: `07d8eaa4f29b99ea21789d45d098dcdceeb69a0d`
+- Post-validation branch refresh commit: `457a9f818a701a4161775c22433c294671e63f5d`
 
 ## Current Objective
-Finalize PR #3 against the merged Phase 0 contracts and provide an evidence-based immediate-integration handoff without adding a bulk numerical dataset.
+Provide the smallest sourced H/C/N/O chemistry data pack needed for 01 reaction-candidate work, 02 thermodynamic evaluation, and 06 validation without expanding into a bulk chemistry database or moving reaction logic into 03.
 
-## Completed
-- Re-read latest `PROJECT.md`, `AGENTS.md`, `ROADMAP.md`, `docs/contracts/UNIT_SYSTEM.md`, `docs/contracts/MOLECULAR_REACTION_CORE.md`, `docs/contracts/THERMODYNAMICS_PHASE_THERMAL.md`, `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`, `docs/validation/PHASE0_VALIDATION_ARCHITECTURE.md`, this workstream status, and `docs/workstream-status/07-integration-github.md` from production main `c33f5e0bb6d30db63c4097edce30c4333a14b0c5`.
-- Re-audited PR #3 HEAD/diff and reused the existing PR/branch; no new PR was created.
-- Refreshed PR #3 directly onto latest main, replacing the prior stale-base branch history. The refresh commit/code HEAD is `f7c4db2f0daea2d05c4be6c4e6ea2a8bd4148ae4`.
-- Confirmed normalized machine-consumed property values use SI units required by `UNIT_SYSTEM.md` while original source value/unit are preserved separately through `SourceMeasurement`.
-- Confirmed `ScientificStatus` exactly matches the canonical five values: `VERIFIED`, `APPROXIMATED`, `EMPIRICAL`, `GAMEPLAY_SIMPLIFICATION`, `OPEN`.
-- Audited `ElementData` against 01 `ElementDefinition`: identities and SI semantics are compatible, but provenance-rich data records must be projected through an explicit adapter to 01 runtime scalars such as `atomicMolarMassKgPerMol`; direct structural assignment is neither intended nor required.
-- Audited phase representation against 01/02: 03 retains the richer lower-case data vocabulary while 02 Phase 0 uses narrower upper-case `BulkPhase`. An explicit adapter is required at the 03->02/01 runtime boundary; do not force a shared enum during Phase 0.
-- Audited `ChemistryDataQuery`/records against 02 thermodynamic, phase, heat-capacity, latent-heat and phase-boundary requirements. Required SI quantities, source metadata, status/confidence and validity ranges are representable.
-- Audited `ReferenceExperimentBenchmark` and manifest schema against 06 Phase 0 loader architecture. Directory/manifest/tier/provenance/SI/eligibility requirements are compatible; the corpus/loader remain future implementation work, not a blocker to the schema contract.
-- Confirmed missing values are explicit and contractually forbidden from being encoded as zero, NaN, Infinity or guessed defaults. Runtime validators remain responsible for enforcing finiteness/ranges on populated data.
-- Confirmed no executable tests currently exist on production main (`tests/` contains only `README.md`).
+## Implemented Coverage
 
-## Validation Evidence
-- Latest-main freshness: PASS. PR #3 was rebuilt directly on `c33f5e0bb6d30db63c4097edce30c4333a14b0c5` before validation.
-- Textual conflict audit: PASS. PR changes remain isolated to 03 contract/source/status and `src/data` schema files.
-- SI normalization audit: PASS.
-- Source-unit vs normalized-unit separation: PASS.
-- 01 Species/Element naming/identity compatibility: PASS with explicit data->runtime projection adapter requirement.
-- 02 thermodynamic/phase/thermal query compatibility: PASS with explicit phase adapter requirement.
-- 06 benchmark-loader architecture compatibility: PASS at contract/schema level.
-- ScientificStatus enum consistency: PASS.
-- Missing-as-zero / NaN / Infinity semantics: PASS at contract level; populated runtime validation implementation remains future work.
-- TypeScript compile/typecheck: PASS for exact code HEAD `f7c4db2f0daea2d05c4be6c4e6ea2a8bd4148ae4` using repository `tsconfig.json` semantics (`strict`, ES2022, Bundler resolution) and `npm run typecheck` with available `tsc 5.8.3`; zero diagnostics.
-- `npm install --ignore-scripts`: ATTEMPTED but environment network/DNS access prevented completion and the command timed out. Dependency installation success is not claimed.
-- `npm ci`: NOT APPLICABLE because production main has no committed package lockfile.
-- Lint: NOT APPLICABLE; no lint script is defined in production `package.json`.
-- Unit tests: NOT RUN / NOT APPLICABLE for this PR checkpoint because production `tests/` currently contains no executable tests and package installation was unavailable.
-- GitHub Actions rerun: NOT REQUESTED; current main has no configured workflow evidence needed for this isolated checkpoint.
+### Elements
+- H, C, N, O only. Na/Cl remain intentionally out of scope because no current Phase 2 consumer requires them.
+- CIAAW 2024 standard atomic-weight intervals.
+- CIAAW 2024 abridged atomic-weight values projected to deterministic engine molar masses in kg/mol and explicitly marked `APPROXIMATED` rather than isotope-specific atomic masses.
+- Pauling electronegativity, valence-electron count, selected/common oxidation states, restricted common neutral-covalent valences, and convention-tagged covalent radii.
+- NIST ASD v5.12 first ionization energies normalized from eV to J/particle.
+- Electron affinity for H/C/O where the chosen compiled source reports a stable value; N remains explicitly missing/OPEN.
+- Isotope-specific `atomicMass` remains unpopulated because no isotope identity has been selected; no natural-element average is mislabeled as an isotope mass.
 
-## Integration Audit
-### 01 compatibility
-`ElementData` is a provenance-bearing storage/normalization schema, whereas 01 `ElementDefinition` is a runtime projection. The adapter must extract compatible normalized scalar values and map names such as 03 molar-mass data to 01 `atomicMolarMassKgPerMol`. Species identifiers remain stable strings and phase remains outside molecular canonical identity. No blocking semantic conflict found.
+### Species / Thermochemistry
+Minimum species: H2, O2, N2, H2O, CO, CO2, CH4, NH3.
+- Standard formation enthalpy and standard molar entropy at reference conditions where selected NIST WebBook values are available.
+- H2/O2/N2 standard formation enthalpy is explicitly zero by reference-state definition, not by missing-value fallback.
+- H2O has separate gas and liquid records.
+- CH4 records a conflict-resolution note selecting the NIST-listed Manion (2002) adopted recommendation rather than averaging multiple listed values.
+- A single CH4 gas Cp value at 298.15 K is included and marked `EMPIRICAL`; it is not licensed for arbitrary-temperature extrapolation.
+- Standard Gibbs formation energies, broad Cp(T) correlations, and detailed equilibrium constants remain OPEN in this minimum pack.
 
-### 02 compatibility
-03 supplies phase-specific formation thermochemistry, heat-capacity values/correlations, latent heats, phase points/boundaries, vapor-pressure representations and validity metadata in SI. 02 remains authoritative for evaluation and may adapt 03 lower-case `Phase` values to its current `BulkPhase` vocabulary. No blocking semantic conflict found.
+### Bond Reference Values
+Selected H-H, O=O, N#N, C-H(CH4), N-H(NH3), O-H(H2O), and C=O(CO2) compiled bond enthalpies are present in J/mol.
+They are deliberately marked `EMPIRICAL` / MEDIUM-confidence fallback values and are not represented as molecule-specific spectroscopic D0 values.
 
-### 06 compatibility
-`ReferenceExperimentBenchmark` + manifest can support the Phase 0 loader sequence: manifest discovery -> schema validation -> SI validation -> provenance validation -> eligibility -> execution -> verdict/aggregation. Real benchmark data and the executable loader remain OPEN by design.
+### Reference Phase
+At 298.15 K and 100000 Pa the pack carries simple reference-phase records for all eight species: H2/O2/N2/CO/CO2/CH4/NH3 gas and H2O liquid.
+These are reference-condition checks only; melting/boiling points and full T-P phase boundaries are not fabricated in this pass.
 
-## OPEN / Non-blocking Follow-up
-- Concrete production adapters from 03 `ElementData` to 01 runtime `ElementDefinition` are not implemented yet because 01 runtime code does not yet exist.
-- Concrete lower-case `Phase` -> 02 `BulkPhase` adapter is not implemented yet; 07 explicitly records this as an implementation-wiring OPEN item, not a Phase 0 schema merge blocker.
-- Runtime schema/provenance/finiteness validators are not implemented yet.
-- Actual H/C/N/O numerical property population remains OPEN by design.
-- Real benchmark corpus and 06 executable loader/runner remain OPEN by design.
-- Exact initial supported T/P domains, Cp extrapolation policy, EOS ownership and detailed latent-heat fidelity remain owned by 02/00 and do not block merging the data contract.
+## Provenance Sources
+- CIAAW Standard Atomic Weights 2024.
+- CIAAW Abridged Standard Atomic Weights 2024.
+- NIST Atomic Spectra Database SRD 78, version 5.12.
+- NIST Chemistry WebBook SRD 69.
+- Royal Society of Chemistry periodic-table property compilations for H/C/N/O.
+- An explicit internal derivation source only for the standard thermochemical reference-state zero convention.
 
-## Next Actions
-1. 07 may integrate PR #3 after confirming the current final PR HEAD only adds this status update after the exact tested code HEAD.
-2. 01 should implement a typed projection/adapter when runtime `ElementDefinition` code is introduced rather than importing provenance records directly.
-3. 02 should implement a data-provider/phase adapter that preserves status, confidence and validity-domain semantics.
-4. 06 should implement schema/SI/provenance validators and manifest loading before real benchmark acquisition scales up.
-5. 03 should collect only the smallest trustworthy H/C/N/O property/benchmark set required by active 01/02/06 consumers.
+All populated records preserve source value/unit independently from normalized SI value/unit. Uncertainty is retained where reported; `not_reported` is used instead of invented zero uncertainty.
+
+## Engine-Facing API
+`src/data/provider.ts` provides:
+- `minimumElementProvider: ElementProvider` — exact 01-compatible projection to `ElementDefinition`.
+- `minimumChemistryDataProvider.getElementData(symbol)` — provenance-rich element record.
+- `minimumChemistryDataProvider.getElementDefinition(symbol)` — deterministic 01 runtime projection.
+- `minimumChemistryDataProvider.getSpeciesThermodynamics(speciesId, phase?)` — 02 phase-specific thermochemical lookup.
+- `minimumChemistryDataProvider.getPhaseEquilibrium(speciesId)` — current reference-phase/phase-data lookup.
+- `minimumChemistryDataProvider.getBondEnergyById(id)` and `findBondEnergies(...)` — selected bond/reference lookup.
+
+Missing values return `undefined`; no missing value is mapped to zero, NaN, Infinity, or a guessed constant.
+
+`src/data/index.ts` exports the stable 03 data surface.
+
+## 06 Reference Cases
+`src/data/minimum-reference-cases.ts` supplies procedure-free reference fixtures for:
+- atom/conservation identity;
+- balanced stoichiometric expectations;
+- thermochemical sign/reference enthalpy for H2 oxidation, CO oxidation, and CH4 complete oxidation using stored formation data;
+- simple 298.15 K / 1 bar reference-phase checks.
+
+These fixtures are validation oracles only. They contain no reaction-generation rule and no experimental handling procedure.
+
+## Runtime Validation
+`validateChemistryDataBundle` and `validateMinimumChemistryDataPack` check:
+- duplicate source/element/thermo/phase/bond identifiers;
+- registered provenance source IDs;
+- populated-value provenance requirement;
+- explicit source unit;
+- canonical normalized SI unit;
+- finite numeric values only;
+- no NaN/Infinity;
+- interval ordering;
+- positive reference temperature;
+- non-negative reference pressure.
+
+## Tests / Validation Evidence
+One temporary branch-only workflow was used and then removed from the final diff.
+
+Validated exact code/data/test HEAD: `07d8eaa4f29b99ea21789d45d098dcdceeb69a0d`.
+GitHub Actions run: `34591104021`.
+- `npm ci --no-audit --no-fund`: PASS.
+- `npm run typecheck`: PASS.
+- targeted `tests/chemistry-data-pack.test.ts`: 16/16 PASS.
+- full `npm test`: 6 files / 89/89 PASS.
+- `npm run lint`: PASS.
+
+The only commits after that validated code HEAD remove the one-shot workflow, incorporate the newer main status-only 07 commit, and update this 03 status document; chemistry/data/test source bytes are unchanged.
+
+## PASS / FAIL / OPEN
+
+### PASS
+- H/C/N/O minimum element pack.
+- All eight requested species represented in thermo/reference-phase lookup.
+- SI normalization and source-unit separation.
+- Deterministic 01 `ElementProvider` projection.
+- 02 typed thermo/phase/bond lookup surface.
+- 06 safe reference-case surface.
+- Provenance/finiteness/duplicate/missing-behavior validators.
+- Typecheck, targeted tests, full tests, and lint.
+
+### FAIL
+- None blocking in the validated Phase 2C scope.
+
+### OPEN
+- isotope-specific atomic masses;
+- N electron affinity in the selected source set;
+- ΔGf° population and broader equilibrium data;
+- most Cp values and Cp(T) correlations;
+- melting/boiling/triple/critical/full phase-boundary data;
+- detailed kinetic/rate/activation datasets;
+- broader molecule-specific BDE/D0 coverage;
+- Na/Cl extension until an actual 01/02/06 consumer requires it;
+- larger real-experiment benchmark corpus.
 
 ## Handoffs
-- 02 Thermodynamics & Kinetics: schema contract is integration-ready; consume it through a provider/phase adapter and keep extrapolation/status handling explicit.
-- 06 Simulation Validation Lab: benchmark schema is integration-ready; implement manifest/schema/SI/provenance validation before adding a large corpus.
-- 07 Integration & GitHub: **MERGE RECOMMENDATION — YES. The exact TypeScript-tested code HEAD `f7c4db2f0daea2d05c4be6c4e6ea2a8bd4148ae4` is safe to integrate; if the PR HEAD differs only by this 03 status-document commit, it remains merge-ready after a final mergeability check.**
+- **01 Chemistry Simulation Engine:** import `minimumElementProvider` for the current `ElementProvider` contract. Use `minimumChemistryDataProvider.getElementDefinition(symbol)` when direct per-symbol lookup is preferable. Treat absent symbols/properties as unsupported rather than defaulting them.
+- **02 Thermodynamics & Kinetics:** use `getSpeciesThermodynamics(speciesId, phase?)`, `getPhaseEquilibrium(speciesId)`, and bond lookup methods. Respect record `status`, `confidence`, reference conditions, uncertainty, and missing `undefined`; 03 does not decide reaction direction/rate/phase evolution.
+- **06 Simulation Validation Lab:** consume `minimumChemistryReferenceCases` plus `validateMinimumChemistryDataPack()` as the seed reference/eligibility layer. Reference cases are oracles only and must never be imported into production reaction logic.
+- **07 Integration & GitHub:** Phase 2C input is PR #22 from `feature/phase2-chemistry-data-pack`; audit and integrate using the validated code HEAD evidence above and the final PR HEAD after this status-only commit.
