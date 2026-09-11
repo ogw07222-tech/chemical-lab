@@ -1,12 +1,12 @@
 import type { ElementDefinition, ElementProvider } from "../simulation/molecular/types";
 import type {
   BondEnergyRecord,
+  CanonicalSIUnit,
   ChemistryDataBundle,
   ElementData,
   MolecularThermodynamicData,
   Phase,
   PhaseEquilibriumData,
-  PropertyRecord,
   PropertyValue,
   SourceMeasurement,
 } from "./schema";
@@ -15,7 +15,6 @@ import {
   minimumChemistryDataBundle,
   minimumElementRecords,
   minimumPhaseEquilibrium,
-  minimumSources,
   minimumThermodynamics,
   type MinimumElementRecord,
 } from "./minimum-pack";
@@ -26,7 +25,11 @@ export interface ChemistryDataProvider {
   getSpeciesThermodynamics(speciesId: string, phase?: Phase): MolecularThermodynamicData | undefined;
   getPhaseEquilibrium(speciesId: string): PhaseEquilibriumData | undefined;
   getBondEnergyById(id: string): (BondEnergyRecord & { id: string }) | undefined;
-  findBondEnergies(query: { speciesId?: string; bondType?: string; bondOrder?: string | number }): readonly (BondEnergyRecord & { id: string })[];
+  findBondEnergies(query: {
+    speciesId?: string;
+    bondType?: string;
+    bondOrder?: string | number;
+  }): readonly (BondEnergyRecord & { id: string })[];
 }
 
 export interface DataValidationIssue {
@@ -38,8 +41,10 @@ export interface DataValidationIssue {
     | "DUPLICATE_BOND_ID"
     | "UNKNOWN_SOURCE_ID"
     | "NON_FINITE_NUMBER"
+    | "NON_CANONICAL_UNIT"
     | "MISSING_NORMALIZED_UNIT"
     | "MISSING_SOURCE_MEASUREMENT"
+    | "MISSING_SOURCE_UNIT"
     | "INVALID_INTERVAL"
     | "INVALID_TEMPERATURE"
     | "INVALID_PRESSURE";
@@ -52,17 +57,39 @@ export interface DataValidationResult {
   issues: readonly DataValidationIssue[];
 }
 
-function scalar<T>(record: PropertyRecord<T & PropertyValue, string & never>): never {
-  return record as never;
-}
+type NormalizedRecordView = {
+  normalizedValue: PropertyValue | null;
+  normalizedUnit: CanonicalSIUnit | null;
+};
 
-function getScalarNumber(record: PropertyRecord<PropertyValue> | undefined): number | undefined {
+const CANONICAL_SI_UNITS: ReadonlySet<string> = new Set<CanonicalSIUnit>([
+  "1",
+  "kg",
+  "kg/mol",
+  "m",
+  "s",
+  "K",
+  "Pa",
+  "m^3",
+  "mol",
+  "mol/m^3",
+  "J",
+  "J/mol",
+  "J/K",
+  "J/(mol*K)",
+  "W",
+  "V",
+  "A",
+  "C",
+]);
+
+function getScalarNumber(record: NormalizedRecordView | undefined): number | undefined {
   return typeof record?.normalizedValue === "number" && Number.isFinite(record.normalizedValue)
     ? record.normalizedValue
     : undefined;
 }
 
-function getNumberArray(record: PropertyRecord<PropertyValue> | undefined): readonly number[] | undefined {
+function getNumberArray(record: NormalizedRecordView | undefined): readonly number[] | undefined {
   const value = record?.normalizedValue;
   return Array.isArray(value) && value.every((entry) => typeof entry === "number" && Number.isFinite(entry))
     ? value
@@ -114,15 +141,19 @@ const elementDefinitionMap = new Map(
 const phaseMap = new Map(minimumPhaseEquilibrium.map((record) => [record.speciesId, record] as const));
 const bondMap = new Map(minimumBondEnergies.map((record) => [record.id, record] as const));
 
+/** Exact 01 ElementProvider projection. Provenance-rich records stay in the 03 data layer. */
 export const minimumElementProvider: ElementProvider = {
   getElement: (symbol) => elementDefinitionMap.get(symbol),
 };
 
+/** Read-only deterministic lookup surface for 01/02 consumers. Missing values return undefined. */
 export const minimumChemistryDataProvider: ChemistryDataProvider = {
   getElementData: (symbol) => elementDataMap.get(symbol),
   getElementDefinition: (symbol) => elementDefinitionMap.get(symbol),
   getSpeciesThermodynamics: (speciesId, phase) =>
-    minimumThermodynamics.find((record) => record.speciesId === speciesId && (phase === undefined || record.phase === phase)),
+    minimumThermodynamics.find(
+      (record) => record.speciesId === speciesId && (phase === undefined || record.phase === phase),
+    ),
   getPhaseEquilibrium: (speciesId) => phaseMap.get(speciesId),
   getBondEnergyById: (id) => bondMap.get(id),
   findBondEnergies: ({ speciesId, bondType, bondOrder }) =>
@@ -183,6 +214,9 @@ function validateSourceMeasurement(
   if (!sourceIds.has(measurement.sourceId)) {
     issues.push({ code: "UNKNOWN_SOURCE_ID", path, message: `Unknown sourceId: ${measurement.sourceId}` });
   }
+  if (measurement.sourceUnit.trim().length === 0) {
+    issues.push({ code: "MISSING_SOURCE_UNIT", path, message: "Source measurements require the source-reported unit/convention." });
+  }
   validateFiniteValue(measurement.sourceValue, `${path}.sourceValue`, issues);
   if (measurement.sourceConditions?.temperatureK !== undefined && measurement.sourceConditions.temperatureK <= 0) {
     issues.push({ code: "INVALID_TEMPERATURE", path, message: "Reference temperature must be > 0 K." });
@@ -193,7 +227,12 @@ function validateSourceMeasurement(
 }
 
 function validatePropertyRecord(
-  record: PropertyRecord<PropertyValue>,
+  record: {
+    normalizedValue: PropertyValue | null;
+    normalizedUnit: CanonicalSIUnit | null;
+    sourceMeasurements: readonly SourceMeasurement[];
+    referenceConditions?: { temperatureK?: number; pressurePa?: number };
+  },
   path: string,
   sourceIds: ReadonlySet<string>,
   issues: DataValidationIssue[],
@@ -201,8 +240,17 @@ function validatePropertyRecord(
   if (record.normalizedValue !== null && record.normalizedUnit === null) {
     issues.push({ code: "MISSING_NORMALIZED_UNIT", path, message: "Populated normalized values require a normalized SI unit." });
   }
+  if (record.normalizedUnit !== null && !CANONICAL_SI_UNITS.has(record.normalizedUnit)) {
+    issues.push({ code: "NON_CANONICAL_UNIT", path, message: `Unsupported normalized unit: ${record.normalizedUnit}` });
+  }
   if (record.normalizedValue !== null && record.sourceMeasurements.length === 0) {
     issues.push({ code: "MISSING_SOURCE_MEASUREMENT", path, message: "Populated values require at least one provenance measurement or derivation source." });
+  }
+  if (record.referenceConditions?.temperatureK !== undefined && record.referenceConditions.temperatureK <= 0) {
+    issues.push({ code: "INVALID_TEMPERATURE", path, message: "Reference temperature must be > 0 K." });
+  }
+  if (record.referenceConditions?.pressurePa !== undefined && record.referenceConditions.pressurePa < 0) {
+    issues.push({ code: "INVALID_PRESSURE", path, message: "Reference pressure must be >= 0 Pa." });
   }
   validateFiniteValue(record.normalizedValue, `${path}.normalizedValue`, issues);
   record.sourceMeasurements.forEach((measurement, index) =>
@@ -216,12 +264,16 @@ function walkPropertyRecords(value: unknown, path: string, sourceIds: ReadonlySe
     value.forEach((entry, index) => walkPropertyRecords(entry, `${path}[${index}]`, sourceIds, issues));
     return;
   }
-  const candidate = value as Partial<PropertyRecord<PropertyValue>>;
-  if ("normalizedValue" in candidate && "normalizedUnit" in candidate && Array.isArray(candidate.sourceMeasurements)) {
-    validatePropertyRecord(candidate as PropertyRecord<PropertyValue>, path, sourceIds, issues);
+  const candidate = value as Record<string, unknown>;
+  if (
+    "normalizedValue" in candidate &&
+    "normalizedUnit" in candidate &&
+    Array.isArray(candidate.sourceMeasurements)
+  ) {
+    validatePropertyRecord(candidate as Parameters<typeof validatePropertyRecord>[0], path, sourceIds, issues);
     return;
   }
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+  for (const [key, child] of Object.entries(candidate)) {
     walkPropertyRecords(child, `${path}.${key}`, sourceIds, issues);
   }
 }
@@ -238,7 +290,13 @@ export function validateChemistryDataBundle(bundle: ChemistryDataBundle): DataVa
     issues,
   );
   addDuplicateIssues(bundle.phaseEquilibrium, (record) => record.speciesId, "DUPLICATE_PHASE_ID", "phaseEquilibrium", issues);
-  addDuplicateIssues(bundle.bonds as readonly (BondEnergyRecord & { id?: string })[], (record) => record.id ?? `${record.speciesId ?? "*"}:${record.bondType}:${String(record.bondOrder)}`, "DUPLICATE_BOND_ID", "bonds", issues);
+  addDuplicateIssues(
+    bundle.bonds as readonly (BondEnergyRecord & { id?: string })[],
+    (record) => record.id ?? `${record.speciesId ?? "*"}:${record.bondType}:${String(record.bondOrder)}`,
+    "DUPLICATE_BOND_ID",
+    "bonds",
+    issues,
+  );
 
   const sourceIds = new Set(bundle.sources.map((source) => source.id));
   walkPropertyRecords(bundle, "bundle", sourceIds, issues);
