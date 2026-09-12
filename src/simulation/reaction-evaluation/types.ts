@@ -11,6 +11,23 @@ export type Feasibility = "FEASIBLE" | "INFEASIBLE" | "UNCERTAIN";
 export type RateClass = "NEGLIGIBLE" | "SLOW" | "MODERATE" | "FAST" | "VERY_FAST" | "UNKNOWN";
 export type PressureRelevance = "NONE" | "POSSIBLE" | "RELEVANT" | "UNKNOWN";
 export type PhaseAccessibilityClass = "GAS_GAS" | "SOLUTION" | "HETEROGENEOUS" | "SOLID_SOLID_LOW" | "UNKNOWN";
+export type KineticSupportClass = "DIMENSIONED_RATE" | "RELATIVE_RATE" | "QUALITATIVE_ONLY" | "OPEN";
+export type ReversibleChannelDirection = "FORWARD" | "REVERSE" | "UNSPECIFIED";
+
+export interface KineticEnvironmentDependencies {
+  temperature: boolean;
+  activityOrConcentration: boolean;
+  pressure: boolean;
+  catalyst: boolean;
+  phase: boolean;
+}
+
+export interface ReversibleChannelMetadata {
+  pairKey?: string;
+  direction: ReversibleChannelDirection;
+  /** True only when provider/model evidence actually supports detailed balance. */
+  detailedBalanceSupported: boolean;
+}
 
 export type ReasonCode =
   | "DIRECT_THERMO_DATA"
@@ -24,6 +41,8 @@ export type ReasonCode =
   | "THERMODYNAMIC_DIRECTION_UNKNOWN"
   | "ACTIVATION_BARRIER_KNOWN"
   | "ACTIVATION_BARRIER_UNKNOWN"
+  | "DIMENSIONED_RATE_DATA"
+  | "QUALITATIVE_RATE_DATA"
   | "CATALYST_APPLIED"
   | "PHASE_ACCESSIBILITY_LIMITED"
   | "PHASE_ACCESSIBILITY_UNKNOWN"
@@ -45,7 +64,6 @@ export interface EvaluatedQuantity {
 /**
  * Read-only projection of the 01 ReactionCandidate contract.
  * 02 does not own candidate generation, product semantics, or stoichiometry.
- * A future executable 01 ReactionCandidate should be adapted into this view.
  */
 export interface CandidateSpeciesTerm {
   speciesKey: string;
@@ -61,6 +79,11 @@ export interface ReactionCandidateEvaluationView {
   accessMode: string;
   scientificStatus: ScientificStatus;
   bondChangeKey?: string;
+  /** Optional 01-provided channel identity. 02 never invents a reverse channel. */
+  reversible?: {
+    pairKey?: string;
+    direction: Exclude<ReversibleChannelDirection, "UNSPECIFIED">;
+  };
 }
 
 export interface ReactionCandidateAdapter<TCandidate> {
@@ -97,10 +120,23 @@ export interface KineticBarrierData {
   preExponentialFactor?: EvaluatedQuantity;
 }
 
+export interface DimensionedExtentRateData {
+  /** Authoritative extent rate for this candidate/channel in mol/s at the queried environment. */
+  extentRateMolPerS: EvaluatedQuantity;
+  dependencies: KineticEnvironmentDependencies;
+}
+
+export interface QualitativeRateData {
+  rateClass: RateClass;
+  status: ScientificStatus;
+  confidence: Confidence;
+  source: SourceMetadata;
+  dependencies?: Partial<KineticEnvironmentDependencies>;
+}
+
 /**
- * 03-facing provider boundary. Values are already normalized to canonical SI.
- * Production data adapters may wrap src/data/schema.ts without coupling the
- * evaluator to storage/provenance implementation details.
+ * 03-facing provider boundary. Values are normalized to canonical SI.
+ * Missing data remains missing; no fallback may fabricate an activation energy or physical rate.
  */
 export interface ReactionEvaluationDataProvider {
   getDirectReactionThermo?(
@@ -111,6 +147,15 @@ export interface ReactionEvaluationDataProvider {
   getBondEnergyApproximation?(view: ReactionCandidateEvaluationView): EvaluatedQuantity | undefined;
   getStructuralEnthalpyApproximation?(view: ReactionCandidateEvaluationView): EvaluatedQuantity | undefined;
   getActivationBarrier?(view: ReactionCandidateEvaluationView): KineticBarrierData | undefined;
+  getDimensionedExtentRate?(
+    view: ReactionCandidateEvaluationView,
+    environment: ReactionEnvironment,
+  ): DimensionedExtentRateData | undefined;
+  getQualitativeRate?(
+    view: ReactionCandidateEvaluationView,
+    environment: ReactionEnvironment,
+  ): QualitativeRateData | undefined;
+  supportsDetailedBalance?(pairKey: string, environment: ReactionEnvironment): boolean;
 }
 
 export interface ThermodynamicEvaluationResult {
@@ -124,11 +169,16 @@ export interface ThermodynamicEvaluationResult {
 }
 
 export interface KineticEvaluationResult {
+  supportClass: KineticSupportClass;
   activationEnergy_J_per_mol?: number;
-  rateClass: RateClass;
+  /** Physical extent rate only when supportClass === DIMENSIONED_RATE. */
+  extentRateMolPerS?: number;
+  /** Dimensionless progression/ranking signal only; never display as mol/s. */
   relativeRate?: number;
+  rateClass: RateClass;
   confidence: Confidence;
   approximationClass: ScientificStatus;
+  dependencies: KineticEnvironmentDependencies;
 }
 
 export interface EnvironmentEvaluationResult {
@@ -150,6 +200,7 @@ export interface ReactionEvaluation {
   thermo: ThermodynamicEvaluationResult;
   kinetics: KineticEvaluationResult;
   environment: EnvironmentEvaluationResult;
+  reversibility: ReversibleChannelMetadata;
   feasible: Feasibility;
   /** Stable dimensionless ranking score. null means unavailable/OPEN. */
   rankScore: number | null;
