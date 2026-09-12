@@ -6,7 +6,7 @@
 - Last updated: 2026-09-12
 - Starting / latest checked main SHA: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
 - Active branch: `feature/phase3b-equilibrium-foundation`
-- Active PR: pending creation at status-update time
+- Active PR: #51 — `feat(02): add Phase 3B equilibrium thermodynamics foundation`
 - Exact validated executable/test HEAD: `c2f65f11d43e3498ed2b78133b551a0c48f0ba5f`
 - Validation workflow run: `34674889820` — SUCCESS
 
