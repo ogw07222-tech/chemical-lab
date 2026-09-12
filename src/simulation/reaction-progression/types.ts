@@ -127,13 +127,13 @@ export interface ReactionThermalCouplingResult {
   state: ThermalState;
   events: readonly ReactionProgressEvent[];
   scientificStatus: ScientificStatus;
-  /** Backward-compatible alias for openHeatCandidateIds. */
   missingHeatCandidateIds: readonly string[];
-  openHeatCandidateIds: readonly string[];
   knownReactionHeat_J: number;
-  knownContributionCount: number;
-  committedContributionCount: number;
-  thermalCoverage: ReactionThermalCoverage;
+  /** Phase 3A additive metadata; real coupling populates all fields. */
+  openHeatCandidateIds?: readonly string[];
+  knownContributionCount?: number;
+  committedContributionCount?: number;
+  thermalCoverage?: ReactionThermalCoverage;
 }
 
 export type ExternalThermalStepInput = Omit<
