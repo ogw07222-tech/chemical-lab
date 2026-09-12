@@ -1,0 +1,82 @@
+name: UI targeted diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/ui-targeted-d287239
+  workflow_dispatch:
+
+jobs:
+  isolate-laboratory-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact source commit
+        uses: actions/checkout@v4
+        with:
+          ref: d28723987b43c257092a6591c510ef26f8b24fd4
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 1. renders the catalog, clean workbench, inspector and experiment console
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "renders the catalog, clean workbench, inspector and experiment console"
+
+      - name: 2. normal catalog exposes starters without leaking undiscovered species
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "normal catalog exposes starters without leaking undiscovered species"
+
+      - name: 3. uses compact structural notation in the catalog
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "uses compact structural notation in the catalog"
+
+      - name: 4. collapses and restores the catalog without losing access state
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "collapses and restores the catalog without losing access state"
+
+      - name: 5. collapses conditions into a readable summary and restores controls
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "collapses conditions into a readable summary and restores controls"
+
+      - name: 6. developer mode exposes all supported species
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "developer mode exposes all supported species"
+
+      - name: 7. adds a finite mol amount through the provider
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "adds a finite mol amount through the provider"
+
+      - name: 8. uses controller targets without directly mutating actual temperature or pressure
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "uses controller targets without directly mutating actual temperature or pressure"
+
+      - name: 9. supports mix, stir, pause and reset provider commands
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "supports mix, stir, pause and reset provider commands"
+
+      - name: 10. disposes selected vessel material only through provider command
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "disposes selected vessel material only through provider command"
+
+      - name: 11. confirms the mock unknown before catalog unlock feedback
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "confirms the mock unknown before catalog unlock feedback"
+
+      - name: 12. provides free-form notes without interpreting note truth
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "provides free-form notes without interpreting note truth"
+
+      - name: 13. centralizes representative SI conversions and keeps dispatch typed
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "centralizes representative SI conversions and keeps dispatch typed"
+
+      - name: FULL TARGETED FILE
+        if: ${{ always() }}
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
