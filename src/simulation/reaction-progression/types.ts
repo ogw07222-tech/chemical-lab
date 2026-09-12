@@ -18,6 +18,7 @@ export type ReactionResolutionReasonCode =
   | "SHARED_REACTANT_SCALED"
   | "MAX_FRACTION_BOUNDED"
   | "COARSE_RELATIVE_RATE_EXTENT"
+  | "DIMENSIONED_RATE_EXTENT"
   | "MISSING_REACTION_ENTHALPY"
   | "REACTION_HEAT_APPLIED";
 
@@ -35,15 +36,10 @@ export interface ReactionProductStateResolver {
 }
 
 export interface ReactionResolutionOptions {
-  /** Hard safety bound on any reactant fraction consumed by one candidate in one step. */
   maxFractionalConsumptionPerStep?: number;
-  /** Characteristic time used only to turn dimensionless relativeRate into an APPROXIMATED step fraction. */
   coarseRateTimescaleS?: number;
-  /** Floating point tolerance used only for tiny negative-roundoff handling and zero-extent detection. */
   amountToleranceMol?: number;
-  /** Absolute conservation tolerance for mole-weighted element/atom/charge totals. */
   conservationTolerance?: number;
-  /** Default false: UNCERTAIN/OPEN candidates do not mutate authoritative species amounts. */
   allowUncertainEvaluations?: boolean;
 }
 
@@ -125,19 +121,21 @@ export interface ReactionResolutionResult {
   diagnostics: ReactionResolutionDiagnostics;
 }
 
+export type ReactionThermalCoverage = "COMPLETE" | "PARTIAL" | "OPEN";
+
 export interface ReactionThermalCouplingResult {
   state: ThermalState;
   events: readonly ReactionProgressEvent[];
   scientificStatus: ScientificStatus;
   missingHeatCandidateIds: readonly string[];
   knownReactionHeat_J: number;
+  /** Phase 3A additive metadata; real coupling populates all fields. */
+  openHeatCandidateIds?: readonly string[];
+  knownContributionCount?: number;
+  committedContributionCount?: number;
+  thermalCoverage?: ReactionThermalCoverage;
 }
 
-/**
- * External thermal controls may add/remove heater/cooler/thermostat/environment
- * energy, but may not inject reaction heat. Reaction heat is exclusively derived
- * from applied extent plus 02 thermochemical evidence in this Phase 2E path.
- */
 export type ExternalThermalStepInput = Omit<
   ThermalStepInput,
   "dtS" | "reactionHeat" | "reactionHeat_J"

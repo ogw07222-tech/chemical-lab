@@ -8,7 +8,7 @@ import {
   type SpeciesState,
 } from "../molecular";
 import type { ReactionCandidate } from "../reaction";
-import type { RankedReactionEvaluation } from "../reaction-evaluation";
+import { kineticExtentInputOverDt, type RankedReactionEvaluation } from "../reaction-evaluation";
 import type {
   DeferredReaction,
   ReactionProgressEvent,
@@ -198,15 +198,7 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["ZERO_INITIAL_REACTANT"] });
         continue;
       }
-      const relativeRate = evaluation.kinetics.relativeRate;
-      if (relativeRate === undefined || !Number.isFinite(relativeRate) || relativeRate < 0) {
-        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["MISSING_KINETIC_SIGNAL"] });
-        continue;
-      }
-      if (evaluation.kinetics.rateClass === "NEGLIGIBLE" || relativeRate === 0) {
-        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["NEGLIGIBLE_KINETICS", "ZERO_EXTENT"] });
-        continue;
-      }
+
       const products = resolveProducts(candidate, input);
       if (!products) {
         unresolvedProducts += 1;
@@ -218,15 +210,31 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["ZERO_EXTENT"] });
         continue;
       }
-      const kineticFraction = 1 - Math.exp(-(relativeRate * input.dtS) / timescaleS);
-      const boundedFraction = Math.min(maxFraction, Math.max(0, kineticFraction));
-      const requestedExtentMol = extentBound.maxExtentMol * boundedFraction;
-      if (requestedExtentMol <= amountTolerance) {
-        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["ZERO_EXTENT"] });
+
+      const kineticInput = kineticExtentInputOverDt(evaluation.kinetics, input.dtS, {
+        coarseRateTimescaleS: timescaleS,
+        maxRelativeProgressFraction: maxFraction,
+      });
+      let requestedExtentMol: number | undefined;
+      const reasons: ReactionResolutionReasonCode[] = [];
+
+      if (kineticInput.requestedExtentMol !== undefined) {
+        const perStepCap = extentBound.maxExtentMol * maxFraction;
+        requestedExtentMol = Math.min(kineticInput.requestedExtentMol, perStepCap);
+        reasons.push("DIMENSIONED_RATE_EXTENT");
+        if (requestedExtentMol + Number.EPSILON < kineticInput.requestedExtentMol) reasons.push("MAX_FRACTION_BOUNDED");
+      } else if (kineticInput.relativeProgressFraction !== undefined) {
+        requestedExtentMol = extentBound.maxExtentMol * kineticInput.relativeProgressFraction;
+        reasons.push("COARSE_RELATIVE_RATE_EXTENT");
+      } else {
+        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["MISSING_KINETIC_SIGNAL"] });
         continue;
       }
-      const reasons: ReactionResolutionReasonCode[] = ["COARSE_RELATIVE_RATE_EXTENT"];
-      if (boundedFraction + Number.EPSILON < kineticFraction) reasons.push("MAX_FRACTION_BOUNDED");
+
+      if (!Number.isFinite(requestedExtentMol) || requestedExtentMol <= amountTolerance || evaluation.kinetics.rateClass === "NEGLIGIBLE") {
+        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["NEGLIGIBLE_KINETICS", "ZERO_EXTENT"] });
+        continue;
+      }
       proposals.push({ candidate, evaluation, requestedExtentMol, maxAvailableExtentMol: extentBound.maxExtentMol, limitingReactantIds: extentBound.limitingReactantIds, products, reasons });
     }
 

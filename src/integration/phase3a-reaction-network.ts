@@ -239,6 +239,7 @@ export function runPhase3AReactionNetworkStep(
 
   const reactantSnapshot = snapshotSpecies(state.species);
   const { amountToleranceMol: _amountToleranceMol, ...phase2eConfig } = config;
+  void _amountToleranceMol;
   const step = executor(
     {
       species: reactantSnapshot,
