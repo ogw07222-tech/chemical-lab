@@ -1,0 +1,47 @@
+name: 05D Apparatus Provider Accessibility Validation
+
+on:
+  push:
+    branches:
+      - feature/05d-apparatus-provider-accessibility
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Targeted apparatus/workbench UI
+        run: npm test -- tests/ui/apparatus-provider.test.tsx tests/ui/apparatus-accessibility.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/LaboratoryWorkspace.test.tsx
+      - name: Full tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Responsive browser smoke
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - name: Exact tested commit
+        run: git rev-parse HEAD
