@@ -9,7 +9,7 @@ import {
 } from "../src/simulation/reaction-evaluation";
 import { applyReactionThermalCoupling, type ReactionProgressEvent } from "../src/simulation/reaction-progression";
 import { createThermalState } from "../src/simulation/thermal";
-import type { Phase3AProviderProjection } from "../src/integration/phase3a-reaction-network";
+import type { Phase3AProviderProjection, ReactionFactProjection } from "../src/integration/phase3a-reaction-network";
 import { projectPhase3AReactionUi } from "../src/ui/reactionProjection";
 
 const quantity = (value: number): EvaluatedQuantity => ({
@@ -171,16 +171,16 @@ describe("06 independent Phase3A stack gates", () => {
   });
 
   it("keeps normal UI opaque, de-duplicates event delivery, and preserves provider order", () => {
-    const first = {
+    const first: ReactionFactProjection = {
       eventId: "e1", timestepId: "N", sequence: 0, candidateId: "internal-c1", startTimeS: 0, endTimeS: 1,
       extentMol: 0.1, consumed: [{ speciesRef: "known:A", amountMol: 0.1 }],
-      produced: [{ speciesRef: "generated:hidden-X", amountMol: 0.1 }], scientificStatus: "OPEN" as const,
+      produced: [{ speciesRef: "generated:hidden-X", amountMol: 0.1 }], scientificStatus: "OPEN",
       reasonCodes: ["MISSING_REACTION_ENTHALPY"],
     };
-    const second = {
+    const second: ReactionFactProjection = {
       eventId: "e2", timestepId: "N+1", sequence: 0, candidateId: "internal-c2", startTimeS: 1, endTimeS: 2,
       extentMol: 0.1, consumed: [{ speciesRef: "generated:hidden-X", amountMol: 0.1 }],
-      produced: [{ speciesRef: "known:Y", amountMol: 0.1 }], reactionHeat_J: 42, scientificStatus: "APPROXIMATED" as const,
+      produced: [{ speciesRef: "known:Y", amountMol: 0.1 }], reactionHeat_J: 42, scientificStatus: "APPROXIMATED",
       reasonCodes: [],
     };
     const p: Phase3AProviderProjection = {
