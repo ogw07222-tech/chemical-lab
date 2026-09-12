@@ -25,7 +25,6 @@ export interface KineticEnvironmentDependencies {
 export interface ReversibleChannelMetadata {
   pairKey?: string;
   direction: ReversibleChannelDirection;
-  /** True only when provider/model evidence actually supports detailed balance. */
   detailedBalanceSupported: boolean;
 }
 
@@ -61,10 +60,6 @@ export interface EvaluatedQuantity {
   source: SourceMetadata;
 }
 
-/**
- * Read-only projection of the 01 ReactionCandidate contract.
- * 02 does not own candidate generation, product semantics, or stoichiometry.
- */
 export interface CandidateSpeciesTerm {
   speciesKey: string;
   coefficient: number;
@@ -79,7 +74,6 @@ export interface ReactionCandidateEvaluationView {
   accessMode: string;
   scientificStatus: ScientificStatus;
   bondChangeKey?: string;
-  /** Optional 01-provided channel identity. 02 never invents a reverse channel. */
   reversible?: {
     pairKey?: string;
     direction: Exclude<ReversibleChannelDirection, "UNSPECIFIED">;
@@ -121,7 +115,6 @@ export interface KineticBarrierData {
 }
 
 export interface DimensionedExtentRateData {
-  /** Authoritative extent rate for this candidate/channel in mol/s at the queried environment. */
   extentRateMolPerS: EvaluatedQuantity;
   dependencies: KineticEnvironmentDependencies;
 }
@@ -134,10 +127,6 @@ export interface QualitativeRateData {
   dependencies?: Partial<KineticEnvironmentDependencies>;
 }
 
-/**
- * 03-facing provider boundary. Values are normalized to canonical SI.
- * Missing data remains missing; no fallback may fabricate an activation energy or physical rate.
- */
 export interface ReactionEvaluationDataProvider {
   getDirectReactionThermo?(
     candidateId: string,
@@ -169,23 +158,20 @@ export interface ThermodynamicEvaluationResult {
 }
 
 export interface KineticEvaluationResult {
-  supportClass: KineticSupportClass;
+  /** New Phase 3A metadata. Optional for backward-compatible manually-built fixtures. */
+  supportClass?: KineticSupportClass;
   activationEnergy_J_per_mol?: number;
-  /** Physical extent rate only when supportClass === DIMENSIONED_RATE. */
   extentRateMolPerS?: number;
-  /** Dimensionless progression/ranking signal only; never display as mol/s. */
   relativeRate?: number;
   rateClass: RateClass;
   confidence: Confidence;
   approximationClass: ScientificStatus;
-  dependencies: KineticEnvironmentDependencies;
+  dependencies?: KineticEnvironmentDependencies;
 }
 
 export interface EnvironmentEvaluationResult {
-  /** Dimensionless Arrhenius contribution exp(-Ea/RT), not an absolute rate. */
   temperatureContribution: number;
   pressureRelevance: PressureRelevance;
-  /** Placeholder dimensionless activity/concentration contribution. */
   activityContribution: number;
   catalystModifier: number;
   phaseAccessibility: {
@@ -200,9 +186,9 @@ export interface ReactionEvaluation {
   thermo: ThermodynamicEvaluationResult;
   kinetics: KineticEvaluationResult;
   environment: EnvironmentEvaluationResult;
-  reversibility: ReversibleChannelMetadata;
+  /** New Phase 3A metadata; omitted by legacy/manual fixtures. */
+  reversibility?: ReversibleChannelMetadata;
   feasible: Feasibility;
-  /** Stable dimensionless ranking score. null means unavailable/OPEN. */
   rankScore: number | null;
   status: ScientificStatus;
   reasonCodes: readonly ReasonCode[];
