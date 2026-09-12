@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useLaboratory } from './provider';
 import { selectCurrentUnknown, selectSpecies, selectVisibleInventory } from './selectors';
-import type { PhaseDiagramViewModel, SubstanceSummary } from './types';
+import type { PhaseDiagramViewModel, ReactionPrecision, ReactionProgressEvent, ReactionSpeciesProjection, SubstanceSummary, VesselContentView } from './types';
 import { celsiusToKelvin, cubicMetersToLiters, formatPressure, formatTemperature, litersToCubicMeters, pascalsToAtmospheres } from './units';
 import './styles.css';
 
@@ -28,6 +28,26 @@ const STRUCTURE_NOTATION: Record<string, string> = {
 function structureNotation(substance?: SubstanceSummary) {
   if (!substance) return '—';
   return STRUCTURE_NOTATION[substance.formula] ?? substance.formula;
+}
+
+function precisionLabel(precision: ReactionPrecision) {
+  if (precision === 'HIGH') return '정량';
+  if (precision === 'APPROXIMATED') return '≈ 근사';
+  return '정밀도 미확정';
+}
+
+function contentIdentity(content: VesselContentView) {
+  return content.identityConfirmed ? content.displayIdentity : content.opaqueLabel ?? 'Unknown substance';
+}
+
+function reactionIdentity(projection: ReactionSpeciesProjection) {
+  return projection.identityConfirmed ? projection.displayIdentity : projection.opaqueLabel ?? 'Unknown substance';
+}
+
+function reactionParticipantText(projection: ReactionSpeciesProjection, precision: ReactionPrecision) {
+  const identity = reactionIdentity(projection);
+  if (precision === 'OPEN' || projection.amountMol === undefined) return identity;
+  return `${identity} · ${precision === 'APPROXIMATED' ? '≈ ' : ''}${projection.amountMol.toFixed(3)} mol`;
 }
 
 function TopBar() {
@@ -92,26 +112,49 @@ function PhaseDiagram({ data }: { data?: PhaseDiagramViewModel }) {
   return <div className="phase-sheet">{data.fixtureLabel && <p className="fixture-note">{data.fixtureLabel}</p>}<svg viewBox="0 0 100 100" role="img" aria-label="Phase diagram"><rect x="0" y="0" width="100" height="100" className="phase-bg"/>{data.boundaries.map((b)=><polyline key={b.id} points={b.samples.map((s)=>`${x(s.temperatureK)},${y(s.pressurePa)}`).join(' ')} className="phase-line"/>)}{data.currentState&&<circle cx={x(data.currentState.temperatureK)} cy={y(data.currentState.pressurePa)} r="2.5" className="current-point"/>}</svg></div>;
 }
 
+function ReactionTimelineEvent({ event }: { event: ReactionProgressEvent }) {
+  const consumed = event.consumed.length ? event.consumed.map((item) => reactionParticipantText(item, event.precision)).join(' + ') : '—';
+  const produced = event.produced.length ? event.produced.map((item) => reactionParticipantText(item, event.precision)).join(' + ') : '—';
+  const heat = event.reactionHeat;
+  const heatText = heat?.status === 'reported' && heat.deltaJ !== undefined && heat.precision !== 'OPEN'
+    ? `${heat.precision === 'APPROXIMATED' ? '≈ ' : ''}${heat.deltaJ.toFixed(1)} J`
+    : heat?.label;
+  return <div aria-label={`반응 단계 ${event.stepIndex}`}>
+    <time>{event.simulationTimeS.toFixed(1)}s</time>
+    <span><strong>Step {event.stepIndex}</strong> · {consumed} → {produced} · {precisionLabel(event.precision)}{heatText ? ` · ${heatText}` : ''}{event.observables?.length ? ` · ${event.observables.map((effect)=>effect.label).join(' · ')}` : ''}</span>
+  </div>;
+}
+
 function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
   const lab = useLaboratory(); const [tab,setTab] = useState<AnalysisTab>('구성'); const diagram=selected?lab.phaseDiagrams[selected.speciesId]:undefined;
+  const timeline = useMemo(() => [...lab.events, ...lab.reactionEvents].sort((a,b)=>a.sequence-b.sequence), [lab.events, lab.reactionEvents]);
   return <section className="analysis-drawer"><nav>{ANALYSIS_TABS.map((name)=><button key={name} className={tab===name?'active':''} onClick={()=>setTab(name)}>{name}</button>)}</nav><div className="analysis-body">
-    {tab==='구성' && <table><thead><tr><th>물질</th><th>상태</th><th>양</th></tr></thead><tbody>{lab.snapshot.contents.length?lab.snapshot.contents.map((c,i)=><tr key={i}><td>{c.identityConfirmed?c.displayIdentity:'Unknown'}</td><td>{c.phase}</td><td>{c.amountMol.toFixed(3)} mol</td></tr>):<tr><td colSpan={3}>실험 용기가 비어 있습니다.</td></tr>}</tbody></table>}
+    {tab==='구성' && <table><thead><tr><th>물질</th><th>상태</th><th>양</th></tr></thead><tbody>{lab.snapshot.contents.length?lab.snapshot.contents.map((c,i)=><tr key={c.speciesId ?? c.opaqueLabel ?? i}><td>{contentIdentity(c)}</td><td>{c.phase}</td><td>{c.amountMol.toFixed(3)} mol</td></tr>):<tr><td colSpan={3}>실험 용기가 비어 있습니다.</td></tr>}</tbody></table>}
     {tab==='생성물' && <p>권위 있는 관찰/분석 결과가 확인된 물질만 여기에 표시됩니다.</p>}
     {tab==='그래프' && <p>시계열 데이터 어댑터 대기 중: species / T / P / concentration / activity.</p>}
     {tab==='상' && <PhaseDiagram data={diagram}/>} 
-    {tab==='타임라인' && <div className="timeline">{lab.events.length?lab.events.map((e)=><div key={e.id}><time>{e.simulationTimeS.toFixed(1)}s</time><span>{e.message}</span></div>):<p>기록된 이벤트가 없습니다.</p>}</div>}
-    {tab==='실험 기록' && <p>{lab.events.length}개의 mock 이벤트가 기록되어 있습니다. 저장/재생 어댑터는 추후 연결됩니다.</p>}
+    {tab==='타임라인' && <div className="timeline">{timeline.length?timeline.map((event)=>event.kind==='reaction-progress'?<ReactionTimelineEvent key={event.id} event={event}/>:<div key={event.id}><time>{event.simulationTimeS.toFixed(1)}s</time><span>{event.message}</span></div>):<p>기록된 이벤트가 없습니다.</p>}</div>}
+    {tab==='실험 기록' && <p>{timeline.length}개의 provider 이벤트가 기록되어 있습니다. 저장/재생 어댑터는 추후 연결됩니다.</p>}
   </div></section>;
 }
 
+function ReactionActivityStrip() {
+  const { reactionActivity } = useLaboratory();
+  return <section className="observation-strip reaction-activity-strip" aria-label="반응 활동">
+    <span><strong>반응</strong> {reactionActivity?.label ?? '감지된 반응 없음'}</span>
+    <span>{reactionActivity ? `${reactionActivity.simulationTimeS.toFixed(1)}s · ${precisionLabel(reactionActivity.precision)}` : 'provider 상태 대기'}</span>
+  </section>;
+}
+
 function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {
-  const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab); const selectedContent = lab.snapshot.contents.find((c)=>c.speciesId===selected?.speciesId);
+  const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab);
   return <main className="lab-center" aria-label="실험실 작업대">
     <div className="workspace-title"><strong>{lab.snapshot.experimentName}</strong><div>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</div></div>
     <div className="lab-wall">
-      <div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong><span>{selectedContent ? `${selectedContent.displayIdentity} · ${selectedContent.amountMol.toFixed(3)} mol` : '비어 있음'}</span></div>
+      <div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong>{lab.snapshot.contents.length?lab.snapshot.contents.map((content,index)=><span key={content.speciesId ?? content.opaqueLabel ?? index}>{contentIdentity(content)} · {content.amountMol.toFixed(3)} mol</span>):<span>비어 있음</span>}</div>
       <div className="counter-edge"/>
     </div>
+    <ReactionActivityStrip/>
     {unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}
     <WorkbenchAnalysis selected={selected}/>
   </main>;
