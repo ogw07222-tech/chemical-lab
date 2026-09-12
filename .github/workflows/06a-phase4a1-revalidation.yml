@@ -1,0 +1,72 @@
+name: 06A Phase 4A-1 Independent Revalidation
+
+on:
+  push:
+    branches:
+      - validation/06a-phase4a1-revalidation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint
+      - name: Phase 4A-1 targeted
+        id: targeted
+        continue-on-error: true
+        run: npm test -- tests/phase4a1-compartment-foundation.test.ts
+      - name: Independent 06A revalidation
+        id: independent
+        continue-on-error: true
+        run: npm test -- tests/validation/phase4a1-06a-independent.test.ts tests/validation/phase4a1-06a-extended.test.ts
+      - name: Cross-phase regression
+        id: regression
+        continue-on-error: true
+        run: >-
+          npm test --
+          tests/phase3a-reaction-network.test.ts
+          tests/phase3b-reversible-arbitration.test.ts
+          tests/dynamic-species-registry.test.ts
+          tests/reaction-progression.test.ts
+          tests/phase3a-kinetics-thermal.test.ts
+          tests/thermal.test.ts
+      - name: Full test suite
+        id: full
+        continue-on-error: true
+        run: npm test
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Exact HEAD
+        if: always()
+        run: git rev-parse HEAD
+      - name: Enforce independent gate
+        if: always()
+        run: |
+          test "${{ steps.typecheck.outcome }}" = "success"
+          test "${{ steps.lint.outcome }}" = "success"
+          test "${{ steps.targeted.outcome }}" = "success"
+          test "${{ steps.independent.outcome }}" = "success"
+          test "${{ steps.regression.outcome }}" = "success"
+          test "${{ steps.full.outcome }}" = "success"
+          test "${{ steps.build.outcome }}" = "success"
