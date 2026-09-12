@@ -1,19 +1,12 @@
 import type { ApparatusId, ApparatusInstance, ApparatusType } from '../../workbench';
+import type {
+  ApparatusIntentSupportMap,
+  ApparatusProviderFact,
+} from '../../shared/apparatus';
+
+export type { ApparatusFactStatus, ApparatusIntentSupport, ApparatusIntentSupportMap, ApparatusProviderFact } from '../../shared/apparatus';
 
 export type ApparatusTier = 1 | 2 | 3;
-
-export type ApparatusFactStatus =
-  | 'AVAILABLE'
-  | 'UNAVAILABLE'
-  | 'NOT_CONNECTED'
-  | 'UNSUPPORTED'
-  | 'OPEN';
-
-export interface ApparatusProviderFact<T = number> {
-  status: ApparatusFactStatus;
-  value?: T;
-  unit?: string;
-}
 
 export interface ApparatusProviderFacts {
   currentTemperature?: ApparatusProviderFact;
@@ -68,4 +61,5 @@ export interface ApparatusCatalogEntry {
 export interface ApparatusUiInstance extends ApparatusInstance {
   controlState?: ApparatusControlState;
   providerFacts?: ApparatusProviderFacts;
+  intentSupport?: ApparatusIntentSupportMap;
 }

@@ -51,9 +51,10 @@ describe('Workbench placement boundary', () => {
         )}
       />,
     );
-    const beaker = screen.getByRole('group', { name: 'BEAKER 기구' });
+    const beaker = screen.getByRole('button', { name: 'BEAKER 기구 beaker-1' });
     fireEvent.click(beaker);
     expect(beaker).toHaveClass('selected');
+    expect(beaker).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('beaker-1:selected:blurred')).toBeInTheDocument();
     fireEvent.focus(beaker);
     expect(beaker).toHaveClass('focused');
@@ -75,12 +76,12 @@ describe('Workbench placement boundary', () => {
         renderApparatus={({ instance }) => <span>{instance.id}</span>}
       />,
     );
-    const beaker = screen.getByRole('group', { name: 'BEAKER 기구' });
+    const beaker = screen.getByRole('button', { name: 'BEAKER 기구 beaker-1' });
     fireEvent.click(beaker);
     fireEvent.focus(beaker);
     expect(onSelected).toHaveBeenCalledWith('beaker-1');
     expect(onFocused).toHaveBeenCalledWith('beaker-1');
-    expect(screen.getByRole('group', { name: 'HOT_PLATE 기구' })).toHaveClass('selected', 'focused');
+    expect(screen.getByRole('button', { name: 'HOT_PLATE 기구 plate-1' })).toHaveClass('selected', 'focused');
   });
 
   it('preserves the Workbench semantic main region around the surface', () => {
