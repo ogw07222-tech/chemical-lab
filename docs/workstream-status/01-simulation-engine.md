@@ -1,185 +1,218 @@
 # 01 — Chemistry Simulation Engine
 
 - Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
-- Current phase: Phase 3A — Multi-step Reaction Network Execution
-- Overall state: PASS — implementation prepared / full-repository validation OPEN
+- Current phase: Phase 3B — Reversible Pair Arbitration Wiring
+- Overall state: PASS — executable wiring validated / independent 06 validation pending
 - Last updated: 2026-09-12
-- Latest re-checked main SHA: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
-- Active branch: `feature/phase3a-reaction-network`
-- Active PR: #46 — `feat(sim): add Phase 3A multi-step reaction network execution`
-- PR HEAD before this status commit: `aaab4b0fd4dc665ee1a0f4c5692438bc4ad652ed`
+- Latest production main checked at task start: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
+- Active branch: `feature/phase3b-reversible-pair-arbitration`
+- Upstream dependency: PR #51 — `feat(02): add Phase 3B equilibrium thermodynamics foundation`
+- PR #51 source HEAD used as branch ancestry: `116cfa30192556b3236f4f2814000ad971361bac`
+- PR #51 validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`
+- Exact 01 executable/test HEAD validated: `888eb99b0a2e11988db63866505eabf9f9eb6026`
+- Validation workflow run: `34683568587` — SUCCESS
 
 ## Objective
-Extend the existing Phase 2E reaction progression and Dynamic Species Registry into an explicit multi-step execution contract where products committed at timestep N can become reactants at timestep N+1, but never inside the same timestep.
+Wire PR #51's authoritative Phase 3B equilibrium progression recommendation into the existing Phase 3A timestep/network execution so an explicitly paired forward/reverse process has one deterministic coarse net direction per determinate timestep, approaches equilibrium with 02-owned damping/crossing limits, and never receives invented Q/K/deltaG/rate physics from 01.
 
-The authoritative network remains emergent from changing vessel state rather than a persistent reaction-graph solver.
+## Source of Truth / Dependency
+This branch is intentionally stacked directly on exact PR #51 HEAD `116cfa30192556b3236f4f2814000ad971361bac` because the 01 implementation consumes new 02 runtime types/functions that are not yet on production main.
 
-## Source of Truth
-- Base/main checked at task start and again before PR creation: `3055ce6d2229806f4560a220ca835fb4b7f7c303`.
-- Existing production Phase 2E progression remains authoritative for candidate generation, thermodynamic/kinetic evaluation, deterministic competition, finite extent, registry-backed product identity, conservation, and reaction-heat handoff.
-- Existing Dynamic Species Registry remains authoritative for generated internal identity, deterministic generated ids, known-species reuse, provenance, and registration atomicity.
+The consumed 02 authorities are:
+- `evaluateReactionEquilibrium()`;
+- `recommendEquilibriumProgression()`;
+- `EquilibriumProgressionRecommendation` including mode, drivingStrength, maxNetProgressFraction, preventEquilibriumCrossing, optional maxExtentTowardEquilibriumMol, scientific status, and reason codes.
+
+01 does not copy or recompute PR #51's Q/K, ln(Q/K), equilibrium direction, near-equilibrium policy, driving-strength mapping, or crossing-search logic.
 
 ## Architecture
-Added `src/integration/phase3a-reaction-network.ts` as a thin orchestration layer above the existing Phase 2E path.
+Phase 3B preserves the existing Phase 3A authoritative timestep pipeline:
 
-Canonical per-timestep execution:
-1. create immutable reactant snapshot from authoritative vessel state;
-2. generate candidates from that snapshot only;
-3. evaluate thermo/kinetics through the existing Phase 2 pipeline;
-4. deterministic competition/ranking;
-5. finite shared-reactant allocation;
-6. selected extent resolution;
-7. Dynamic Species Registry product resolution/registration;
-8. atomic vessel mutation;
-9. reaction heat aggregation;
-10. `ReactionProgressEvent` emission;
-11. close timestep;
-12. use the committed returned state as the only source for the next timestep.
+1. immutable `snapshot(N)`;
+2. candidate generation;
+3. 02 thermo/kinetic evaluation;
+4. explicit reversible-pair arbitration;
+5. existing deterministic competing-reaction/shared-reactant resolution;
+6. bounded extent commit;
+7. Dynamic Species Registry/product commit;
+8. vessel mutation;
+9. existing aggregate-once thermal coupling;
+10. factual event/provider projection;
+11. committed `state(N+1)` becomes the next timestep source.
 
-No giant persistent reaction graph is introduced. Event-derived graphs may be used for diagnostics or visualization only.
+No second equilibrium solver and no persistent reaction-network authority are introduced.
 
-## Same-step Cascade Rule
-`runPhase3AReactionNetworkStep()` exposes exactly one immutable species snapshot to the Phase 2E executor.
+## Explicit Pair Identity
+`ReactionCandidate` now supports optional execution metadata:
+- `reversible.pairId`;
+- `reversible.direction: FORWARD | REVERSE`.
 
-A product created during the step is present only in `nextState.species`. It cannot enter candidate generation again until a later call.
+Only this explicit metadata creates an arbitration pair. Pair membership is never inferred from formula, candidate name/id, graph similarity, reaction family, or reactant/product resemblance.
 
-Phase 3A additionally validates emitted events: any reactant consumed by an event must have had positive amount in the timestep-start snapshot. A hidden A→B then B→C same-step cascade therefore fails even if a downstream executor were to accidentally emit it.
+Once explicitly paired, 01 validates represented forward-product/opposite-reactant structural identity before constructing the 02 equilibrium view. This is pair validation, not pair discovery.
 
-## Competing Reactions / Finite Matter
-Phase 3A preserves the existing Phase 2E equal-rank shared-reactant proportional scaling and does not use candidate-id lexical ordering as an allocation policy.
+## Pair Arbitration
+`src/integration/phase3b-reversible-arbitration.ts` directly consumes PR #51.
 
-The Phase 3A guard independently checks the aggregate consumed amount per reactant across all events and rejects any step where total consumption exceeds snapshot availability.
+### FORWARD
+- forward remains the only net pair channel eligible for ordinary competition;
+- reverse is suppressed as a separate net channel;
+- only an already-numeric 02 kinetic request is multiplied by PR #51 `drivingStrength`;
+- request is bounded by `maxNetProgressFraction` and optional `maxExtentTowardEquilibriumMol`;
+- existing 01 stoichiometric, per-step, finite-matter and shared-reactant bounds remain authoritative afterward.
 
-All committed species amounts must remain finite and non-negative, and species ids must remain unique.
+### REVERSE
+Symmetric to FORWARD.
 
-## Dynamic Species Registry / Atomicity
-Phase 3A requires a persistent `DynamicSpeciesRegistryLike` and passes it directly to Phase 2E.
+### NEAR_EQUILIBRIUM
+Both pair channels are suppressed from coarse net mutation. There is no composition snap and no claim that microscopic directional rates are zero.
 
-The existing registry bridge remains unchanged:
-- stage product graph identity resolution in an immutable working registry;
-- stage zero-amount product state where needed;
-- perform Phase 2E resolution/conservation;
-- commit only selected reaction products;
-- return the new registry and vessel state together.
+### INDETERMINATE
+Phase 3B arbitration deliberately installs **no controls**:
+- no channel suppression;
+- no equilibrium multiplier/cap;
+- no Phase 3B bias or boost.
 
-Registration failure therefore propagates without mutating the caller's authoritative input state. No fake product ids are introduced.
+Independently supported Phase 3A kinetics therefore continue through the pre-existing resolver. This is an explicit scientific abstention and makes no equilibrium-direction claim.
 
-Internal simulation identity, scientific reference identity, and player knowledge remain separate.
+## Kinetic Request Boundary
+`ReactionCandidateExtentControl` was added as an execution-only resolver boundary.
+
+Order is:
+1. existing 02 kinetics must first produce a numeric request (`DIMENSIONED_RATE` or supported relative-rate bridge);
+2. OPEN/qualitative-only kinetics remain non-numeric and are deferred by existing rules;
+3. only then does 01 apply PR #51 `drivingStrength`;
+4. apply PR #51 net-fraction/crossing caps;
+5. apply existing per-step safety and stoichiometric bounds;
+6. enter unchanged shared-reactant allocation.
+
+Equilibrium driving can therefore never fabricate a numeric extent from missing kinetics.
+
+## Anti-Overshoot / No Ping-Pong
+01 supplies PR #51 only a stoichiometric maximum and a pure projected-composition callback. PR #51 computes the authoritative anti-crossing recommendation.
+
+When `maxExtentTowardEquilibriumMol` is present, 01 enforces it as a hard request ceiling. No extra 01 hysteresis, deadband, damping curve, or equilibrium tolerance is added.
+
+Repeated high-driving tests show deterministic approach without persistent forward/reverse ping-pong.
+
+## No Double Counting / Shared Reactants
+For a determinate explicit pair, at most one net direction can enter normal competition in a timestep. The suppressed opposite channel cannot consume matter, emit a committed progress event, or contribute reaction heat.
+
+The surviving request then enters the existing equal-rank/shared-pool allocator together with unrelated reactions. Existing candidate-id-first capture prevention and finite shared-reactant scaling are unchanged.
+
+## Dynamic Species / Same-Step Semantics
+Dynamic Species Registry authority and transactionality remain unchanged.
+
+If one pair reactant SpeciesId is absent from the start-of-step snapshot, Phase 3B does not prematurely interpret that future species. Existing resolution then enforces `ZERO_INITIAL_REACTANT`, preserving the no-same-step-cascade rule.
+
+A generated product committed at timestep N can participate from N+1.
+
+Generated registry species initially have unknown/OPEN phase. Until phase/equilibrium data are resolved, 02 may return INDETERMINATE; Phase 3B correctly follows its abstention path rather than fabricating direction.
+
+## Thermal
+The arbitration layer does not calculate reaction heat.
+
+The selected candidate/evaluation identity is preserved so 02 forward/reverse deltaH sign semantics remain intact. Existing aggregate thermal coupling applies known committed heat exactly once per timestep.
 
 ## Event / Provider Contract
-Added a provider projection that lets 05 display simulation facts without recalculating chemistry.
+`ReactionProgressEvent` remains backward compatible and may add:
+- `reversiblePairId`;
+- `channelDirection`;
+- `equilibriumDirection`;
+- `equilibriumScientificStatus`;
+- optional `equilibriumDrivingStrength`;
+- optional `lnQOverK`;
+- optional `reactionQuotientQ`;
+- optional `equilibriumConstantK`.
 
-### Authoritative vessel composition source
-`Phase3AReactionNetworkStepResult.nextState.species`
+Phase 3B provider projection additionally exposes pair-level recommendation facts including net-fraction/crossing bounds and 02 reason codes.
 
-`provider.authoritativeVesselComposition` projects only:
-- opaque internal `speciesRef`;
-- `amountMol`;
-- phase;
-- phase-state id.
+05 must consume these supplied facts rather than deriving equilibrium direction itself. Existing `speciesRef` remains opaque; player-facing name/formula/graph knowledge still follows 04/05 boundaries.
 
-It deliberately omits molecule graph, formula, name, and discovery state.
-
-### Active/latest reaction source
-`provider.activeReactionEvents`
-
-Contains only the just-completed timestep's projected reaction facts:
-- event/timestep/sequence;
-- candidate stable id;
-- simulation start/end time;
-- applied extent mol;
-- consumed species refs + mol;
-- produced species refs + mol;
-- reaction heat J when known;
-- scientific status;
-- reason codes.
-
-### Timeline source
-`provider.timelineEvents`
-
-Ordering is append-only: prior authoritative timeline followed by current timestep events in deterministic sequence order.
-
-### Unknown species boundary
-`speciesRef` is an internal opaque reference and must not be rendered directly as a player-facing name or formula.
-
-04/05 player-knowledge projection remains authoritative. Unknown generated species must stay unknown in normal UI until the Game Layer knowledge contract permits disclosure. 05 must not inspect molecular graphs or recompute chemistry to infer identity.
-
-## Thermal Consistency
-Phase 3A does not calculate thermodynamic properties or fabricate reaction enthalpies.
-
-Existing Phase 2E / 02 coupling remains authoritative for reaction heat. The network layer only checks that all defined per-event `heatJ` values sum to `thermal.knownReactionHeat_J` within deterministic tolerance.
-
-## Files Changed
-- `src/integration/phase3a-reaction-network.ts` — Phase 3A snapshot orchestrator, network invariants, provider projections.
-- `src/integration/index.ts` — exports the Phase 3A integration API.
-- `tests/phase3a-reaction-network.test.ts` — multi-step/network/provider contract tests.
-- `docs/contracts/MULTI_STEP_REACTION_NETWORK.md` — authoritative Phase 3A execution and UI/provider contract.
-- `docs/workstream-status/01-simulation-engine.md` — this status update.
-
-## Tests Added
-`tests/phase3a-reaction-network.test.ts` covers:
-1. A→B / B→C next-step visibility;
-2. three-step chain;
-3. shared-reactant fair allocation acceptance + aggregate overconsumption rejection;
-4. branching network without persistent authority graph;
-5. generated unknown next-step participation;
-6. registration failure caller atomicity;
-7. deterministic replay;
-8. negative/non-finite amount rejection;
-9. same-step hidden cascade rejection;
-10. multi-reaction heat consistency and provider fact projection;
-11. provider timeline ordering.
-
-Existing Phase 2E tests remain responsible for actual resolver equal-rank proportional allocation, conservation, bounded extent, and deterministic event ordering.
+## Files Changed in 01 Stack
+- `src/simulation/reaction/types.ts` — explicit reversible pair execution metadata.
+- `src/simulation/reaction-progression/types.ts` — extent-control/event metadata contracts.
+- `src/simulation/reaction-progression/resolver.ts` — apply 02 pair controls after numeric kinetics and before normal competition.
+- `src/integration/phase3b-reversible-arbitration.ts` — PR #51 consumer, pair arbitration and Phase 3A network wiring.
+- `src/integration/index.ts` — public Phase 3B integration export.
+- `tests/phase3b-reversible-arbitration.test.ts` — Phase 3B execution matrix.
+- `docs/contracts/PHASE3B_REVERSIBLE_PAIR_ARBITRATION.md` — execution/provider contract.
+- `docs/workstream-status/01-simulation-engine.md` — this status.
 
 ## Validation Evidence
-### Local behavioral harness — PASS
-A standalone deterministic harness was compiled/executed locally before creating the feature branch. It exercised:
-- three-step next-timestep visibility;
-- same-step cascade rejection;
-- shared-reactant overconsumption rejection;
-- reaction heat event/aggregate consistency.
+Exact executable/test HEAD: `888eb99b0a2e11988db63866505eabf9f9eb6026`
 
-### Production source typecheck harness — PASS
-The actual `phase3a-reaction-network.ts` source was compiled under strict ES2022 / Bundler TypeScript semantics against locally reconstructed current contract stubs matching the repository interfaces.
+GitHub Actions run `34683568587`: **SUCCESS**.
 
-### Full repository regression — OPEN
-This environment could not clone GitHub over DNS, so no claim is made for full local `npm ci`, full repository `npm run typecheck`, `npm test`, lint, or build on the branch. Those remain required before merge.
+- `npm ci --no-audit --no-fund`: PASS
+- `npm run typecheck`: PASS
+- `npm run lint`: PASS — 0 errors; one inherited `src/ui/provider.tsx` hook-dependency warning only
+- targeted stack: **8 files / 99 tests PASS**
+  - Phase 3B reversible arbitration: 16/16
+  - Phase 3B equilibrium progression: 13/13
+  - Phase 3B equilibrium: 15/15
+  - reaction progression: 10/10
+  - Phase 3A network: 11/11
+  - Phase 3A kinetics/thermal: 10/10
+  - thermal: 13/13
+  - Dynamic Species Registry: 11/11
+- full `npm test`: **22 files / 261 tests PASS**
+- `npm run build`: PASS
+
+The exact validated HEAD printed by the workflow was `888eb99b0a2e11988db63866505eabf9f9eb6026`.
+
+## Test Matrix Result
+PASS:
+- mostly-reactant forward selection;
+- mostly-product reverse selection;
+- near-equilibrium zero coarse net mutation/no snap;
+- repeated approach with shrinking extent;
+- PR #51 anti-crossing extent enforcement;
+- no persistent ping-pong;
+- candidate/evaluation permutation determinism;
+- determinate forward/reverse no double commit or duplicate heat;
+- shared reactant with unrelated reaction;
+- INDETERMINATE/OPEN exact abstention;
+- OPEN kinetics no fabricated numeric extent;
+- forward exothermic/reverse endothermic heat-sign path;
+- generated species participation on later timestep;
+- same-step generated-species cascade remains prohibited;
+- deterministic replay;
+- dt vs dt/2 finite/non-negative timestep-sensitivity guard.
 
 ## PASS / FAIL / OPEN
 ### PASS
-- Explicit immutable timestep reactant snapshot.
-- Generated product becomes eligible only on later timesteps.
-- Defensive no-same-step-cascade guard.
-- Existing Phase 2E finite shared-reactant competition preserved.
-- Aggregate overconsumption guard.
-- Dynamic Species Registry authority and stable generated-id path preserved.
-- Known species reuse path preserved.
-- Registration failure does not partially mutate caller state.
-- Finite/non-negative amount guard.
-- Deterministic event/timeline ordering contract.
-- Reaction heat event consistency interface.
-- UI-consumable simulation fact projection without molecule/name/formula leakage.
-- Scientific identity and player knowledge remain separate.
+- Explicit reversible pair grouping only.
+- Direct use of PR #51 equilibrium/progression authority.
+- No duplicated Q/K/deltaG or damping logic in 01.
+- Determinate single-net-channel arbitration before ordinary competition.
+- PR #51 driving/crossing bounds composed with existing kinetic requests.
+- No numeric extent fabrication from OPEN/qualitative kinetics.
+- Near-equilibrium zero coarse net mutation without state snap.
+- INDETERMINATE scientific abstention.
+- Existing shared-reactant fairness/finite matter/conservation path preserved.
+- No forward/reverse double-consumption or duplicate heat in determinate modes.
+- Same-step generated-product cascade prevention preserved.
+- Dynamic Species Registry atomicity/stable identity path preserved.
+- Deterministic replay/candidate-permutation behavior.
+- Full repository regression/build at exact executable HEAD.
 
 ### FAIL
-- None identified in the implemented Phase 3A orchestration scope.
+- None identified in the implemented/validated 01 scope.
 
 ### OPEN
-- Full repository branch typecheck/test/lint/build.
-- Independent 06 validation of chain, branch, shared-reactant fairness, replay, atomicity, and heat consistency.
-- Advanced phase re-resolution ordering after committed reaction state.
-- Long-horizon equilibrium/network acceleration; intentionally not part of Phase 3A.
-- Full save-game orchestration for reaction timeline history.
-- Player-facing unknown-species naming/disclosure remains 04/05 ownership.
-- Generated-species scientific enrichment remains 03/02 ownership.
+- Independent 06 validation is mandatory before integration/merge.
+- PR #51 remains a stacked upstream dependency until its exact contract lands on main.
+- General non-ideal activities, mixture equilibrium and broader phase fidelity remain 02/03 responsibilities.
+- Generated unknown-phase species may remain equilibrium-INDETERMINATE until phase re-resolution supplies adequate evidence.
+- INDETERMINATE permits independently supported Phase 3A channels and therefore carries no pair-level net-equilibrium guarantee.
+- Multi-pair coupled equilibrium, stiff integration, transport limitation, electrochemistry and a general equilibrium solver remain out of scope.
 
 ## Handoffs
-- 02: keep thermodynamic/kinetic formulas and reaction heat derivation authoritative; Phase 3A consumes only existing evaluated outputs.
-- 03: enrich generated species with sourced scientific reference/property matches without changing internal registry identity.
-- 04/05: consume provider composition/events, but resolve player-facing identity only through the player-knowledge boundary.
-- 06: independently validate multi-step chains/branches, no same-step cascades, shared-reactant fairness, deterministic replay, registration failure atomicity, conservation, and heat-event consistency.
-- 07: run normal repository regression/CI and integrate PR #46 only after validation.
+- 02: PR #51 remains authoritative for equilibrium thermodynamics/progression recommendation and future activity/phase fidelity.
+- 05: consume Phase 3B provider direction/status/diagnostics; do not calculate Q/K/direction or expose opaque internal species identity as player knowledge.
+- 06: independently validate exact 01 Phase 3B HEAD/PR for direction, anti-crossing, no-ping-pong, no-double-counting, candidate permutation, shared reactants, OPEN abstention, generated-species semantics, conservation and thermal consistency.
+- 07: do not integrate this stack until 06 approves it. After PR #51 lands, refresh/retarget the 01 PR onto current main without changing validated semantics.
 
 ## Next
-**06 independent Phase 3A network validation, then 07 integration review.**
+**06 independent Phase 3B reversible arbitration validation, then 07 integration after PR #51 dependency is integrated.**

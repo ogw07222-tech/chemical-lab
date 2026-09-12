@@ -1,175 +1,124 @@
 # 07 — Integration & GitHub
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
-- Current phase: Phase 3A — Multi-step Reaction Network + Kinetics/Thermal + Workbench UI
-- Overall state: PASS — PHASE3A_PRODUCTION_INTEGRATED
+- Current phase: Phase 3B — Equilibrium Thermodynamics + Reversible Pair Arbitration
+- Overall state: PASS — PHASE3B_PRODUCTION_INTEGRATION_PASS
 - Last updated: 2026-09-12
 
 ## Source of Truth
 - Repository: `ogw07222-tech/chemical-lab`
-- Starting production main: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
-- Production merge order: `#46 -> #45 -> #47`
-- 06 validated stack HEAD: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
-- 06 authoritative exact-stack run: `34673454682` — SUCCESS
-- 06 authoritative determinism repeat: `34673454706` — SUCCESS
+- Starting production main: `36b82d9b9101819768970c39694c9139b2ee47bc`
+- Production merge order: `#51 -> #52`
+- 06 validation branch: `validation/06-phase3b-reversible`
+- 06 exact tested validation HEAD: `7a576ba74e72ab969ca7df4c837efb09aab2a771`
+- 06 independent validation run: `34687958351` — SUCCESS / `PHASE3B_REVERSIBLE_VALIDATION_PASS`
 
-## PR #46 — 01 Phase 3A Multi-step Reaction Network
-- original 06-validated source HEAD: `6d04b9aa96bfce02717cb9a233ded33d29960132`
-- changed scope: Phase 3A network contract/status, integration export/orchestrator, network tests
-- lint audit found the known inherited unused destructure in `src/integration/phase3a-reaction-network.ts`:
-  - original: `const { amountToleranceMol: _amountToleranceMol, ...phase2eConfig } = config;`
-  - 06 validation stack resolution: immediately consume it with `void _amountToleranceMol;`
-- classification: **integration-only mechanical fix**, not a #45 overlay and not an ESLint suppression; no chemistry/runtime semantics changed
-- same one-line fix applied to production source branch
-- refreshed validated HEAD with temporary workflow: `a93030dc95b52198ec79b9001d879e7e6f3bef9d`
-- integration validation run: `34673848563` — SUCCESS
-  - npm ci: PASS
+## Current-main Advance Audit
+The production main advance relevant to this integration was PR #53. Its only changed file was `docs/workstream-status/05-web-ui.md`; no `src`, tests, thermodynamics, progression, thermal coupling, registry, or Phase 3B runtime source changed. The Phase 3B source stack therefore remained executable/test compatible with the 06 validated stack.
+
+## PR #51 — 02 Phase 3B Equilibrium Thermodynamics Foundation
+- original 06-validated source HEAD: `116cfa30192556b3236f4f2814000ad971361bac`
+- previously validated executable/test reference: `5fcc62a05189ad7759596892ae30ab2a5b829998`
+- latest-main ancestry refresh PR: #55
+- refresh merge commit on feature branch: `5676a3e2cf8167668d30d39c7681c2c2f0cc0c93`
+- integration validation tested HEAD: `5140da3031e8aedeec60900334e708d0a6a7e282`
+- integration validation run: `34688610031` — SUCCESS
+  - install: PASS
   - typecheck: PASS
   - lint: PASS
-  - targeted Phase 3A network/reaction-progression/registry: PASS
-  - full suite: PASS
+  - equilibrium/progression + Phase 3A + thermal targeted regression: PASS
+  - full test suite: PASS
   - build: PASS
-- final PR HEAD after temporary workflow removal: `eb909fb85ceffe8e9790b0ca7ff77bf1f3292353`
-- validated-head -> final-head delta: temporary workflow deletion only
-- production merge SHA: `e79bcd72880c9d1809ca10c8608a5923b97d44ef`
+- temporary integration workflow removed
+- final refreshed PR HEAD: `fc67e5f419ddaea803dba7fff639389a9d7fc19c`
+- executable/test equivalence: PASS — compare from `116cfa...` to `fc67e5...` contains only `docs/workstream-status/05-web-ui.md`; temporary workflow net removed
+- production merge SHA: `e36303e962409ce26db1eba623025a357c67ec9e`
+- post-#51 production main: `e36303e962409ce26db1eba623025a357c67ec9e`
 
-## PR #45 — 02 Phase 3A Kinetics + Aggregate Thermal Coupling
-- source HEAD at integration start: `92ca3ff39a1fc2616f8ab88df286575c15b298ea`
-- previously validated executable/test HEAD: `74f60604bd3a5822140914b6dffaa9e3c72d6d65`
-- `74f606... -> 92ca3f...` audit: executable/test source unchanged; only validation-workflow removal and documentation/status changes
-- refreshed onto post-#46 production main via temporary integration PR #49
-- ancestry refresh commit on feature branch: `a5e53101acc879eeddbadaca7e03001aa693dcb5`
-- refreshed validated HEAD: `c24fcf93368523aca8d71bc6a2648b1d6f5e0015`
-- integration validation run: `34673927888` — SUCCESS
-  - npm ci/typecheck/lint: PASS
-  - targeted kinetics + dimensioned resolver + evaluation + progression + thermal + network: PASS
-  - full suite: PASS
+Preserved #51 authority:
+- Q/K, ln(Q/K), ΔG direction and equilibrium scientific status remain 02-owned
+- `NEAR_EQUILIBRIUM` and `INDETERMINATE` behavior unchanged
+- `drivingStrength` policy unchanged
+- anti-crossing / anti-overshoot bound unchanged
+- no fabricated dimensional rate or activation energy
+- Phase 3A aggregate thermal semantics unchanged
+
+## PR #52 — 01 Phase 3B Reversible Pair Arbitration
+- original 06-validated source HEAD: `aadd8d28312f85e99903bc1b731faffd4ac7de94`
+- previously validated executable/test reference: `888eb99b0a2e11988db63866505eabf9f9eb6026`
+- old PR base: `feature/phase3b-equilibrium-foundation`
+- new PR base after #51 integration: `main`
+- post-#51 ancestry refresh PR: #56
+- refresh merge commit on feature branch: `c70f94d738695ef0cf5ab8770059f1c7a77f0b70`
+- PR delta after retarget/refresh remained the same eight arbitration-owned files; #51 implementation was not duplicated in the review delta
+- integration validation tested HEAD: `741be1989e936955b454f179a700d0fdd0db1336`
+- integration validation run: `34688751801` — SUCCESS
+  - install/typecheck/lint: PASS
+  - targeted Phase 3B stack: PASS
+  - determinism repeat: PASS
+  - full test suite: PASS
   - build: PASS
-- final PR HEAD after temporary workflow removal: `0d7af638dd39f7f9792c6a205b5bf016c385c982`
-- production merge SHA: `eb87dd78f6870269210f7a38011e0ae1c2a47fe6`
+- temporary integration workflow removed
+- final refreshed PR HEAD: `9e2f5ca8a75fd8daf5a06a920505d2cd84aadf3c`
+- executable/test equivalence: PASS — compare from `aadd8d...` to `9e2f5ca8...` contains only `docs/workstream-status/05-web-ui.md`; temporary workflow net removed
+- production merge SHA: `d18359e12430f4e6a89903d87ad30a8ef64aeeda`
 
-Preserved 02 contracts:
-- `DIMENSIONED_RATE | RELATIVE_RATE | QUALITATIVE_ONLY | OPEN`
-- `kineticExtentInputOverDt()` boundary
-- no fabricated activation energy or dimensional rate
-- forward/reverse metadata remains explicit
-- aggregate reaction heat is applied exactly once
-- thermal coverage remains `COMPLETE | PARTIAL | OPEN`
-- per-event heat facts remain available
-- missing/non-finite ΔH remains OPEN rather than fabricated
-
-## PR #47 — 05 Workbench Phase 3A Reaction Activity
-- source HEAD at integration start: `70d0d68523c0a60ff65377833459eb2547bf82b5`
-- prior UI validated code HEAD: `b149bf67b8f26a9e5440c0cb7fed68761039ca30`
-- original source was stacked on exact PR #46
-- retargeted to `main` after #46/#45 production integration
-- refreshed onto production main via temporary integration PR #50
-- ancestry refresh commit on UI branch: `eb8357d9a9fe2487304aee9a9439dd8c6d139f29`
-- after retarget/refresh, PR #47 delta returned to exactly six UI/projection files:
-  - `docs/workstream-status/05-web-ui.md`
-  - `src/ui/App.tsx`
-  - `src/ui/provider.tsx`
-  - `src/ui/reactionProjection.ts`
-  - `src/ui/types.ts`
-  - `tests/ui/LaboratoryWorkspace.test.tsx`
-- refreshed validated HEAD: `b510304be6e389703564ec735c2d1b0609e145b8`
-- integration/UI validation run: `34674066039` — SUCCESS
-  - npm ci/typecheck/full lint: PASS
-  - targeted UI + Phase 3A stack: PASS
-  - full suite: PASS
-  - build: PASS
-  - Chromium install: PASS
-  - browser smoke: PASS at 1536x900, 1440x900, 1024x768, 390x844
-  - no horizontal overflow / blocking console/page errors: PASS
-- final PR HEAD after temporary workflow removal: `966f50c82edab41bbdd5374ba9b5a19807fa37de`
-- production merge SHA: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
-
-## Workbench Regression Gate
-PR #44 Workbench direction remains intact:
-- clean mostly-empty center and prominent main vessel: PASS
-- catalog collapse: PASS
-- conditions collapse and authoritative T/P/V summary: PASS
-- structural notation: PASS
-- inspector / free-form notes: PASS
-- responsive desktop/tablet/mobile layout: PASS
-- reaction activity remains compact/secondary to the Workbench: PASS
-- no chemistry calculation moved into React: PASS
-- unknown generated-species identity remains player-safe; internal refs stay Developer-Mode-only: PASS
-- `APPROXIMATED`/`OPEN` heat and amount honesty preserved: PASS
-- `eventId` deduplication and provider timestep/event ordering preserved: PASS
-
-## 06 Validated-stack Equivalence
-Validated stack: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
-Production functional main after #47: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
-
-The two histories diverge because 06 used a validation-only assembly, but effective production source equality is stronger than semantic inference:
-- **entire `src` tree SHA is identical on both:** `dfcde14f9234f695c37e3cee095481e49ed9d2eb`
-- key production/test blobs are byte-identical, including:
-  - Phase 3A orchestrator
-  - reaction evaluation / extent / ranking / shared types
-  - reaction progression resolver / thermal coupling / types
-  - Workbench `App.tsx`, provider, reaction projection, UI types
-  - Phase 3A network, kinetics/thermal, dimensioned resolver, progression, evaluation, thermal, registry, knowledge/reference and Workbench tests
-- production intentionally excludes validation-only artifacts:
-  - `.github/workflows/validate-phase3a-stack.yml`
-  - `.github/workflows/validate-phase3a-determinism-repeat.yml`
-  - `tests/validation.phase3a-stack.test.ts`
-- validation-only documentation/history differences do not alter production semantics
-
-**Semantic/tree equivalence: PASS.**
+Preserved #52 arbitration semantics:
+- order remains thermo/kinetic evaluation -> reversible pair arbitration -> normal shared-reactant competition
+- pair identity remains explicit `pairId` + explicit channel direction only
+- no equation/formula/graph/name-based implicit reverse inference
+- FORWARD keeps forward channel; REVERSE keeps reverse channel
+- NEAR_EQUILIBRIUM produces zero coarse net pair progression
+- INDETERMINATE abstains from equilibrium arbitration
+- 01 does not duplicate Q/K, ΔG direction, tolerance, hysteresis, damping, driving curve, or crossing solver
+- only a supported numeric kinetic request can be modulated; OPEN/qualitative kinetics are not converted to a numeric extent
+- opposite pair channel cannot consume matter, emit a committed net event, or contribute heat in the same timestep
+- generated products remain next-timestep participants; same-step hidden cascade remains prohibited
 
 ## Final Production Regression
-A temporary main-only workflow was added solely for final validation and removed immediately afterwards.
+Functional production main after #52: `d18359e12430f4e6a89903d87ad30a8ef64aeeda`.
+A temporary main-only workflow was added solely to validate the exact integrated source and then removed.
 
-- exact tested main: `3b05ace9a691664dc1f4c9f62f849c3e267be8f3`
-- functional production source parent: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
-- run: `34674190373` — SUCCESS
+- exact tested main: `95471fd285c12e5f6e60c21c309c391ee153ae18`
+- run: `34688815895` — SUCCESS
 
 Results:
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
-- `npm run lint`: PASS with 0 errors; one non-blocking existing React Hook dependency warning in `src/ui/provider.tsx`
-- targeted final Phase 3A regression: **10 files / 107 tests PASS**
-- determinism repeat subset: **4 files / 52 tests PASS**, then **4 files / 52 tests PASS** again
-- full `npm test`: **19 files / 217 tests PASS**
+- `npm run lint`: PASS, 0 errors; one inherited non-blocking React Hook dependency warning in `src/ui/provider.tsx`
+- targeted final Phase 3B regression: **11 files / 128 tests PASS**
+- determinism repeat: **3 files / 37 tests PASS**
+- full `npm test`: **22 files / 261 tests PASS**
 - `npm run build`: PASS
-- Chromium install: PASS
-- `npm run smoke:ui`: PASS
-  - desktop 1536x900
-  - desktop 1440x900
-  - tablet 1024x768
-  - mobile 390x844
-- tested SHA recorded by workflow: `3b05ace9a691664dc1f4c9f62f849c3e267be8f3`
+- tested SHA recorded by workflow: `95471fd285c12e5f6e60c21c309c391ee153ae18`
 
-The temporary final validation workflow was removed in commit `aaf048e95e33268f396b4cfb71bf75cc2bf92e84`; compare proves the sole delta from the green tested SHA was deletion of that workflow. Production executable/test source therefore remains byte-equivalent to the successful run.
+The temporary final workflow was removed in commit `9f9a840979274094ef68a5cb6951edbcbfec0d00`. Compare proves the sole delta from the green tested SHA was deletion of `.github/workflows/phase3b-final-main-validation.yml`; executable/test source remained byte-equivalent to the successful run.
 
-## Absolute Contract Gates
-- no same-step hidden cascade: PASS
-- generated products participate beginning next timestep: PASS
-- finite/non-negative material state: PASS
-- atom/element/applicable-charge conservation: PASS
-- deterministic ordering / IDs / events: PASS
-- product registration failure atomicity: PASS
+## Scientific / Runtime Invariants
+- equilibrium authority remains 02-owned: PASS
+- anti-ping-pong / near-equilibrium zero coarse net behavior: PASS
+- anti-overshoot / equilibrium crossing cap: PASS
+- no forward/reverse double counting: PASS
+- aggregate reaction heat applied exactly once: PASS
+- atom/element/applicable-charge conservation and finite non-negative matter: PASS
+- deterministic ordering / replay / candidate permutation handling: PASS
+- generated species next-timestep semantics and registration atomicity: PASS
 - no shared-reactant overconsumption: PASS
-- aggregate reaction heat applied once: PASS
-- no fabricated activation energy / kinetic dimensionality / equilibrium facts: PASS
-- provider remains authoritative; UI does not compute chemistry: PASS
-- unknown identity privacy: PASS
-- PR #44 Workbench layout/interaction direction preserved: PASS
+- no same-step hidden cascade: PASS
+- no fabricated kinetics/equilibrium evidence: PASS
+- no chemistry calculation migrated into UI: PASS
+
+## Validation Artifact Cleanup
+The following 07 temporary validation workflows were used only to obtain evidence and were removed after successful runs:
+- `phase3b-pr51-integration.yml`
+- `phase3b-pr52-integration.yml`
+- `phase3b-final-main-validation.yml`
+
+The 06 validation branch/workflow was not merged into production main. Cleanup commits were verified to be workflow-deletion-only, while ancestry refresh net deltas relative to the exact validated #51/#52 source heads were docs-only.
 
 ## Vercel Policy
-Root `vercel.json` remains authoritative with:
-
-```json
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "git": {
-    "deploymentEnabled": false
-  }
-}
-```
-
-No manual Vercel deployment is part of this integration. Production deployment remains prohibited until explicitly requested by the user.
+Root `vercel.json` remains authoritative with `git.deploymentEnabled = false`.
+No manual Vercel deployment is part of Phase 3B integration. Deployment remains prohibited until explicitly requested by the user.
 
 ## Final Status
-**PASS — Phase 3A reaction network, kinetics/thermal, and Workbench UI integrated into production main.**
+**PASS — Phase 3B equilibrium thermodynamics foundation and reversible pair arbitration integrated into production main.**
