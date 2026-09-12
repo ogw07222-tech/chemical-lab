@@ -1,7 +1,8 @@
 export type SimulationStatus = 'stopped' | 'paused' | 'running' | 'stable' | 'error';
 export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'multiphase' | 'unknown';
 export type ScientificStatus = 'VERIFIED' | 'APPROXIMATED' | 'EMPIRICAL' | 'GAMEPLAY_SIMPLIFICATION' | 'OPEN';
-export type ReactionPrecision = 'HIGH' | 'APPROXIMATED' | 'OPEN';
+export type ReactionDisplayPrecision = 'KNOWN' | 'APPROXIMATED' | 'OPEN';
+export type ReactionConfidence = 'HIGH' | 'MEDIUM' | 'LOW' | 'UNASSESSED';
 export type SubstanceCategory = 'element' | 'compound';
 
 export interface MoleculeAtomView { id: string; element: string; formalCharge: number; }
@@ -54,26 +55,38 @@ export interface ReactionSpeciesProjection {
 }
 
 export interface ReactionHeatProjection {
-  precision: ReactionPrecision;
+  displayPrecision: ReactionDisplayPrecision;
   status: 'reported' | 'unavailable';
+  coverage?: 'COMPLETE' | 'PARTIAL' | 'NONE';
   deltaJ?: number;
   label?: string;
+  scientificStatus?: ScientificStatus;
+  confidence?: ReactionConfidence;
 }
 
 export interface ReactionObservableProjection {
   kind: 'gas-evolution' | 'phase-change' | 'temperature-change' | 'other';
-  precision: ReactionPrecision;
+  displayPrecision: ReactionDisplayPrecision;
   label: string;
 }
 
-export interface ReactionProgressEvent {
+/**
+ * Player-facing projection of one authoritative simulation reaction fact.
+ * It is deliberately distinct from the engine's internal ReactionProgressEvent.
+ */
+export interface ReactionProgressProjection {
   id: string;
-  sequence: number;
-  simulationTimeS: number;
+  timelineOrder: number;
+  timestepId: string;
+  sourceSequence: number;
+  startTimeS: number;
+  endTimeS: number;
   kind: 'reaction-progress';
   stepIndex: number;
   state: 'detected' | 'progressing' | 'completed' | 'equilibrium' | 'stalled';
-  precision: ReactionPrecision;
+  displayPrecision: ReactionDisplayPrecision;
+  scientificStatus: ScientificStatus;
+  confidence: ReactionConfidence;
   activityLabel: string;
   consumed: ReactionSpeciesProjection[];
   produced: ReactionSpeciesProjection[];
@@ -84,8 +97,10 @@ export interface ReactionProgressEvent {
 export interface ReactionActivityProjection {
   eventId: string;
   simulationTimeS: number;
-  state: ReactionProgressEvent['state'];
-  precision: ReactionPrecision;
+  state: ReactionProgressProjection['state'];
+  displayPrecision: ReactionDisplayPrecision;
+  scientificStatus: ScientificStatus;
+  confidence: ReactionConfidence;
   label: string;
 }
 
@@ -135,7 +150,7 @@ export type LaboratoryCommand =
 
 export interface LaboratoryEvent {
   id: string;
-  sequence: number;
+  timelineOrder: number;
   simulationTimeS: number;
   kind: 'command-accepted' | 'command-rejected' | 'observation' | 'discovery';
   message: string;
@@ -146,7 +161,7 @@ export interface LaboratoryProviderValue {
   catalog: SubstanceSummary[];
   events: LaboratoryEvent[];
   reactionActivity?: ReactionActivityProjection;
-  reactionEvents: ReactionProgressEvent[];
+  reactionEvents: ReactionProgressProjection[];
   phaseDiagrams: Record<string, PhaseDiagramViewModel | undefined>;
   dispatch(command: LaboratoryCommand): void;
 }
