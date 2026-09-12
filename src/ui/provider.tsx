@@ -1,4 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo, useReducer } from 'react';
+import type { Phase3AProviderProjection } from '../integration/phase3a-reaction-network';
+import { projectPhase3AReactionUi, type PlayerSpeciesKnowledgeResolver } from './reactionProjection';
 import type { LaboratoryCommand, LaboratoryEvent, LaboratoryProviderValue, LaboratorySnapshot, PhaseDiagramViewModel, SubstanceSummary } from './types';
 
 const CATALOG: SubstanceSummary[] = [
@@ -23,8 +25,58 @@ const PHASE_FIXTURE: PhaseDiagramViewModel = {
   triplePoint: { temperatureK: 200, pressurePa: 35_000 }, criticalPoint: { temperatureK: 400, pressurePa: 235_000 },
 };
 
-// Mock-only resolver data. Undiscovered species identity must not cross the UI-facing snapshot boundary.
 const UNKNOWN_SPECIES_BY_OBSERVATION: Readonly<Record<string, string>> = { 'fixture-unknown-1': 'h2o' };
+const GENERATED_FIXTURE_REF = 'generated:fixture-water';
+
+// This fixture uses the exact PR #46 provider-facing contract. It is a rendering fixture only,
+// not a chemically validated reaction path.
+const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3AProviderProjection = {
+  authoritativeVesselComposition: [
+    { speciesRef: 'h2', amountMol: 0.35, phase: 'gas', phaseStateId: 'fixture-h2-gas' },
+    { speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1, phase: 'unknown', phaseStateId: 'fixture-unknown-phase' },
+  ],
+  activeReactionEvents: [
+    {
+      eventId: 'reaction-step-2', timestepId: 'fixture-step-2', sequence: 0, candidateId: 'fixture-candidate-2',
+      startTimeS: 1, endTimeS: 2, extentMol: 0.1,
+      consumed: [{ speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1 }],
+      produced: [{ speciesRef: 'o2', amountMol: 0.05 }],
+      reactionHeat_J: 42,
+      scientificStatus: 'APPROXIMATED',
+      reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+    },
+  ],
+  timelineEvents: [
+    {
+      eventId: 'reaction-step-1', timestepId: 'fixture-step-1', sequence: 0, candidateId: 'fixture-candidate-1',
+      startTimeS: 0, endTimeS: 1, extentMol: 0.2,
+      consumed: [{ speciesRef: 'h2', amountMol: 0.2 }],
+      produced: [{ speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1 }],
+      reactionHeat_J: 123.4,
+      scientificStatus: 'OPEN',
+      reasonCodes: ['SELECTED', 'MISSING_REACTION_ENTHALPY'],
+    },
+    {
+      eventId: 'reaction-step-2', timestepId: 'fixture-step-2', sequence: 0, candidateId: 'fixture-candidate-2',
+      startTimeS: 1, endTimeS: 2, extentMol: 0.1,
+      consumed: [{ speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1 }],
+      produced: [{ speciesRef: 'o2', amountMol: 0.05 }],
+      reactionHeat_J: 42,
+      scientificStatus: 'APPROXIMATED',
+      reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+    },
+    // Duplicate provider delivery is intentional: UI projection must de-duplicate by eventId.
+    {
+      eventId: 'reaction-step-2', timestepId: 'fixture-step-2', sequence: 0, candidateId: 'fixture-candidate-2',
+      startTimeS: 1, endTimeS: 2, extentMol: 0.1,
+      consumed: [{ speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1 }],
+      produced: [{ speciesRef: 'o2', amountMol: 0.05 }],
+      reactionHeat_J: 42,
+      scientificStatus: 'APPROXIMATED',
+      reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+    },
+  ],
+};
 
 const initialSnapshot: LaboratorySnapshot = {
   experimentName: 'Untitled experiment', vesselId: 'vessel-1', capacityM3: 0.002, volumeM3: 0.001,
@@ -35,14 +87,33 @@ const initialSnapshot: LaboratorySnapshot = {
   controls: { heaterPowerW: 0, coolerPowerW: 0, thermostatEnabled: false, thermostatTargetK: 298.15, requestedPressurePa: 101325, requestedVolumeM3: 0.001 },
 };
 
-interface MockState { snapshot: LaboratorySnapshot; events: LaboratoryEvent[]; eventCounter: number; }
-const initialState: MockState = { snapshot: initialSnapshot, events: [], eventCounter: 0 };
+export type MockLaboratoryScenario = 'default' | 'reaction-network';
+interface MockState { snapshot: LaboratorySnapshot; events: LaboratoryEvent[]; eventCounter: number; scenario: MockLaboratoryScenario; generatedIdentityConfirmed: boolean; }
+function createInitialState(scenario: MockLaboratoryScenario): MockState {
+  return {
+    snapshot: scenario === 'reaction-network' ? { ...initialSnapshot, simulationTimeS: 2, simulationStatus: 'running' } : initialSnapshot,
+    events: [], eventCounter: 0, scenario, generatedIdentityConfirmed: false,
+  };
+}
 function appendEvent(state: MockState, message: string, kind: LaboratoryEvent['kind'] = 'command-accepted'): MockState {
   const eventCounter = state.eventCounter + 1;
   const event: LaboratoryEvent = { id: `mock-${eventCounter}`, simulationTimeS: state.snapshot.simulationTimeS, kind, message };
   return { ...state, eventCounter, events: [event, ...state.events].slice(0, 30) };
 }
 function finiteNonNegative(value: number) { return Number.isFinite(value) && value >= 0; }
+
+function mockSpeciesResolver(confirmed: boolean): PlayerSpeciesKnowledgeResolver {
+  return (speciesRef) => {
+    if (speciesRef === 'h2') return { unknownRef: 'known-h2', displayLabel: 'H₂', identityConfirmed: true, knownSpeciesId: 'h2' };
+    if (speciesRef === 'o2') return { unknownRef: 'known-o2', displayLabel: 'O₂', identityConfirmed: true, knownSpeciesId: 'o2' };
+    if (speciesRef === GENERATED_FIXTURE_REF) {
+      return confirmed
+        ? { unknownRef: 'unknown-fixture-a', displayLabel: 'H₂O', identityConfirmed: true, knownSpeciesId: 'h2o' }
+        : { unknownRef: 'unknown-fixture-a', displayLabel: 'Unknown α', identityConfirmed: false };
+    }
+    return { unknownRef: 'unknown-fixture-other', displayLabel: 'Unknown substance', identityConfirmed: false };
+  };
+}
 
 function reducer(state: MockState, command: LaboratoryCommand): MockState {
   const s = state.snapshot;
@@ -81,17 +152,30 @@ function reducer(state: MockState, command: LaboratoryCommand): MockState {
       const unlocked = s.unlockedSpeciesIds.includes(species.speciesId) ? s.unlockedSpeciesIds : [...s.unlockedSpeciesIds, species.speciesId];
       const encyclopedia = s.encyclopedia.some((e) => e.speciesId === species.speciesId) ? s.encyclopedia : [...s.encyclopedia, { speciesId: species.speciesId, firstDiscoveryLabel: 'Mock analyzer fixture', knownProperties: [], phaseInfo: 'Authoritative phase data not connected' }];
       const unknownObservations = s.unknownObservations.map((item) => item.observationId === command.observationId ? { ...item, analysisState: 'confirmed' as const } : item);
-      return appendEvent({ ...state, snapshot: { ...s, unlockedSpeciesIds: unlocked, encyclopedia, unknownObservations } }, `Identity confirmed: ${species.name}. Encyclopedia registered; catalog unlocked.`, 'discovery');
+      return appendEvent({ ...state, generatedIdentityConfirmed: state.scenario === 'reaction-network' || state.generatedIdentityConfirmed, snapshot: { ...s, unlockedSpeciesIds: unlocked, encyclopedia, unknownObservations } }, `Identity confirmed: ${species.name}. Encyclopedia registered; catalog unlocked.`, 'discovery');
     }
-    case 'ResetExperiment': return { snapshot: { ...initialSnapshot, developerMode: s.developerMode }, eventCounter: state.eventCounter + 1, events: [{ id: `mock-${state.eventCounter + 1}`, simulationTimeS: 0, kind: 'command-accepted', message: 'Experiment reset' }] };
+    case 'ResetExperiment': return { ...createInitialState(state.scenario), snapshot: { ...createInitialState(state.scenario).snapshot, developerMode: s.developerMode }, eventCounter: state.eventCounter + 1, events: [{ id: `mock-${state.eventCounter + 1}`, simulationTimeS: 0, kind: 'command-accepted', message: 'Experiment reset' }] };
   }
 }
 
 const LaboratoryContext = createContext<LaboratoryProviderValue | null>(null);
-export function MockLaboratoryProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const phaseDiagrams = useMemo<Record<string, PhaseDiagramViewModel | undefined>>(() => ({ h2: { ...PHASE_FIXTURE, currentState: { temperatureK: state.snapshot.temperatureK, pressurePa: state.snapshot.pressurePa, phase: 'unknown' } } }), [state.snapshot.temperatureK, state.snapshot.pressurePa]);
-  const value = useMemo<LaboratoryProviderValue>(() => ({ snapshot: state.snapshot, catalog: CATALOG, events: state.events, phaseDiagrams, dispatch }), [state, phaseDiagrams]);
+export function MockLaboratoryProvider({ children, scenario = 'default' }: { children: ReactNode; scenario?: MockLaboratoryScenario }) {
+  const [state, dispatch] = useReducer(reducer, scenario, createInitialState);
+  const reactionUi = useMemo(() => state.scenario === 'reaction-network'
+    ? projectPhase3AReactionUi(REACTION_NETWORK_PROVIDER_FIXTURE, mockSpeciesResolver(state.generatedIdentityConfirmed), state.snapshot.developerMode)
+    : undefined, [state.scenario, state.generatedIdentityConfirmed, state.snapshot.developerMode]);
+  const projectedSnapshot = reactionUi ? { ...state.snapshot, contents: reactionUi.contents } : state.snapshot;
+  const phaseDiagrams = useMemo<Record<string, PhaseDiagramViewModel | undefined>>(() => ({ h2: { ...PHASE_FIXTURE, currentState: { temperatureK: projectedSnapshot.temperatureK, pressurePa: projectedSnapshot.pressurePa, phase: 'unknown' } } }), [projectedSnapshot.temperatureK, projectedSnapshot.pressurePa]);
+  const value = useMemo<LaboratoryProviderValue>(() => ({
+    snapshot: projectedSnapshot,
+    catalog: CATALOG,
+    events: state.events,
+    reactionActivity: reactionUi?.reactionActivity,
+    reactionEvents: reactionUi?.reactionEvents ?? [],
+    reactionDeveloperDiagnostics: reactionUi?.developerDiagnostics,
+    phaseDiagrams,
+    dispatch,
+  }), [projectedSnapshot, state.events, reactionUi, phaseDiagrams]);
   return <LaboratoryContext.Provider value={value}>{children}</LaboratoryContext.Provider>;
 }
 export function useLaboratory() { const value = useContext(LaboratoryContext); if (!value) throw new Error('useLaboratory must be used inside a LaboratoryProvider'); return value; }
