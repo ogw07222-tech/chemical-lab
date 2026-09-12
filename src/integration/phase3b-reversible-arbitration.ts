@@ -352,12 +352,16 @@ export function arbitrateReversiblePairs(input: {
   }
 
   const evaluationIds = new Set(input.rankedEvaluations.map((evaluation) => evaluation.candidateId));
+  const snapshotSpeciesIds = new Set(input.species.map((state) => state.id));
   const controls: Record<string, ReactionCandidateExtentControl> = {};
   const facts: ReversiblePairArbitrationFact[] = [];
 
   for (const pair of [...pairs.values()].sort((a, b) => a.pairId.localeCompare(b.pairId))) {
     if (!pair.forward || !pair.reverse) continue;
     if (!evaluationIds.has(pair.forward.id) || !evaluationIds.has(pair.reverse.id)) continue;
+    const allPairReactantsExist = [...pair.forward.stoichiometry.reactants, ...pair.reverse.stoichiometry.reactants]
+      .every((term) => snapshotSpeciesIds.has(term.speciesId));
+    if (!allPairReactantsExist) continue;
 
     const forwardView = buildForwardEvaluationView(pair.forward, pair.reverse, input.species);
     const currentComposition = input.authority.compositionAdapter.toEquilibriumComposition({
