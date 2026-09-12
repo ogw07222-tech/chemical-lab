@@ -238,6 +238,7 @@ export function runPhase3AReactionNetworkStep(
   assertFiniteSpeciesState(state.species);
 
   const reactantSnapshot = snapshotSpecies(state.species);
+  const { amountToleranceMol: _amountToleranceMol, ...phase2eConfig } = config;
   const step = executor(
     {
       species: reactantSnapshot,
@@ -246,7 +247,7 @@ export function runPhase3AReactionNetworkStep(
       ...(input.candidateOptions ? { options: input.candidateOptions } : {}),
     },
     {
-      ...config,
+      ...phase2eConfig,
       startTimeS: state.simTimeS,
       thermalState: state.thermalState,
       speciesRegistry: state.speciesRegistry,
