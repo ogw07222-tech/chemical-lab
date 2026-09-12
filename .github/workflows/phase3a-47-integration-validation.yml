@@ -1,0 +1,46 @@
+name: Phase3A PR47 Integration Validation
+
+on:
+  push:
+    branches:
+      - feature/phase3a-reaction-activity-ui
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Targeted UI and Phase3A stack
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx tests/phase3a-reaction-network.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3a-dimensioned-resolver.test.ts tests/reaction-progression.test.ts
+      - name: Full test suite
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 &
+          preview_pid=$!
+          trap 'kill $preview_pid || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - name: Record tested commit
+        run: echo "TESTED_SHA=$GITHUB_SHA"
