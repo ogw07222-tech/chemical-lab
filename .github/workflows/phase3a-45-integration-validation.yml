@@ -1,0 +1,33 @@
+name: Phase3A PR45 Integration Validation
+
+on:
+  push:
+    branches:
+      - feature/phase3a-kinetics-thermal-contract
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Targeted kinetics thermal network
+        run: npm test -- tests/phase3a-kinetics-thermal.test.ts tests/phase3a-dimensioned-resolver.test.ts tests/reaction-evaluation.test.ts tests/reaction-progression.test.ts tests/thermal.test.ts tests/phase3a-reaction-network.test.ts
+      - name: Full test suite
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Record tested commit
+        run: echo "TESTED_SHA=$GITHUB_SHA"
