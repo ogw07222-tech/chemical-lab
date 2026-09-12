@@ -1,0 +1,34 @@
+name: 07 05B Integration Validation
+on:
+  push:
+    branches:
+      - feature/05b-apparatus-ui-shell
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: 05A + 05B + workspace regression
+        run: npm test -- tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/LaboratoryWorkspace.test.tsx
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Responsive smoke
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/07-05b-vite.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - run: echo "TESTED_SHA=$GITHUB_SHA"
