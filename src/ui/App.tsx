@@ -3,6 +3,7 @@ import { useLaboratory } from './provider';
 import { selectCurrentUnknown, selectSpecies, selectVisibleInventory } from './selectors';
 import type { PhaseDiagramViewModel, ReactionProgressView, ReactionSpeciesView, ScientificStatus, SubstanceSummary, VesselContentView } from './types';
 import { celsiusToKelvin, cubicMetersToLiters, formatPressure, formatTemperature, litersToCubicMeters, pascalsToAtmospheres } from './units';
+import { WorkbenchPlacementSurface, WorkbenchShell } from './workbench';
 import './styles.css';
 
 const ANALYSIS_TABS = ['구성', '생성물', '그래프', '상', '타임라인', '실험 기록'] as const;
@@ -86,7 +87,8 @@ function ReactionActivityStrip() {
 
 function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {
   const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab);
-  return <main className="lab-center" aria-label="실험실 작업대"><div className="workspace-title"><strong>{lab.snapshot.experimentName}</strong><div>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</div></div><div className="lab-wall"><div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong>{lab.snapshot.contents.length ? lab.snapshot.contents.map((content,index)=><span key={content.speciesId ?? content.opaqueLabel ?? index}>{contentIdentity(content)} · {content.amountMol.toFixed(3)} mol</span>) : <span>비어 있음</span>}</div><div className="counter-edge"/></div><ReactionActivityStrip/>{unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}<WorkbenchAnalysis selected={selected}/></main>;
+  const baseLayer = <><div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong>{lab.snapshot.contents.length ? lab.snapshot.contents.map((content,index)=><span key={content.speciesId ?? content.opaqueLabel ?? index}>{contentIdentity(content)} · {content.amountMol.toFixed(3)} mol</span>) : <span>비어 있음</span>}</div><div className="counter-edge"/></>;
+  return <WorkbenchShell title={lab.snapshot.experimentName} status={<>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</>} placementSurface={<WorkbenchPlacementSurface baseLayer={baseLayer}/>}><ReactionActivityStrip/>{unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}<WorkbenchAnalysis selected={selected}/></WorkbenchShell>;
 }
 
 function SubstanceInspector({ selected, forceNotes = false }: { selected?: SubstanceSummary; forceNotes?: boolean }) {
