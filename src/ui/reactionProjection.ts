@@ -30,15 +30,16 @@ export interface Phase3AReactionUiProjection {
 }
 
 function heatView(event: ReactionFactProjection): ReactionHeatView {
-  const missingHeat = event.reactionHeat_J === undefined || event.reasonCodes.includes('MISSING_REACTION_ENTHALPY');
+  const heatJ = event.reactionHeat_J;
+  const missingHeat = heatJ === undefined || event.reasonCodes.includes('MISSING_REACTION_ENTHALPY');
   if (missingHeat || event.scientificStatus === 'OPEN') {
     return { status: 'unavailable', label: '열 데이터 미확정' };
   }
   const approximate = event.scientificStatus === 'APPROXIMATED';
   return {
     status: 'reported',
-    valueJ: event.reactionHeat_J,
-    label: `${approximate ? '≈ ' : ''}${event.reactionHeat_J.toFixed(1)} J`,
+    valueJ: heatJ,
+    label: `${approximate ? '≈ ' : ''}${heatJ.toFixed(1)} J`,
   };
 }
 
