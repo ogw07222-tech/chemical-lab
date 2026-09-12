@@ -44,6 +44,10 @@ function assertFiniteNonNegative(value: number, name: string): void {
   if (!Number.isFinite(value) || value < 0) throw new RangeError(`${name} must be finite and >= 0.`);
 }
 
+function uniqueReasons(reasons: readonly ReactionResolutionReasonCode[]): ReactionResolutionReasonCode[] {
+  return [...new Set(reasons)];
+}
+
 function combineVectors(vectors: readonly ConservationVector[]): ConservationVector {
   const elements: Record<string, number> = {};
   let atomCount = 0;
@@ -186,6 +190,22 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         deferred.push({ candidateId: evaluation.candidateId, evaluation, reasonCodes: ["UNRANKED_DEFERRED"] });
         continue;
       }
+      const control = input.candidateExtentControls?.[candidate.id];
+      if (control?.suppress) {
+        deferred.push({
+          candidateId: candidate.id,
+          evaluation,
+          reasonCodes: uniqueReasons(control.reasonCodes?.length ? control.reasonCodes : ["REVERSIBLE_PAIR_SUPPRESSED"]),
+        });
+        continue;
+      }
+      if (control?.requestMultiplier !== undefined &&
+          (!Number.isFinite(control.requestMultiplier) || control.requestMultiplier < 0 || control.requestMultiplier > 1)) {
+        throw new RangeError(`candidateExtentControls(${candidate.id}).requestMultiplier must be within [0, 1].`);
+      }
+      if (control?.maxRequestedExtentMol !== undefined) {
+        assertFiniteNonNegative(control.maxRequestedExtentMol, `candidateExtentControls(${candidate.id}).maxRequestedExtentMol`);
+      }
       if (evaluation.feasible === "INFEASIBLE") {
         deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["INFEASIBLE"] });
         continue;
@@ -213,16 +233,14 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
 
       const kineticInput = kineticExtentInputOverDt(evaluation.kinetics, input.dtS, {
         coarseRateTimescaleS: timescaleS,
-        maxRelativeProgressFraction: maxFraction,
+        maxRelativeProgressFraction: 1,
       });
       let requestedExtentMol: number | undefined;
       const reasons: ReactionResolutionReasonCode[] = [];
 
       if (kineticInput.requestedExtentMol !== undefined) {
-        const perStepCap = extentBound.maxExtentMol * maxFraction;
-        requestedExtentMol = Math.min(kineticInput.requestedExtentMol, perStepCap);
+        requestedExtentMol = kineticInput.requestedExtentMol;
         reasons.push("DIMENSIONED_RATE_EXTENT");
-        if (requestedExtentMol + Number.EPSILON < kineticInput.requestedExtentMol) reasons.push("MAX_FRACTION_BOUNDED");
       } else if (kineticInput.relativeProgressFraction !== undefined) {
         requestedExtentMol = extentBound.maxExtentMol * kineticInput.relativeProgressFraction;
         reasons.push("COARSE_RELATIVE_RATE_EXTENT");
@@ -231,11 +249,42 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         continue;
       }
 
-      if (!Number.isFinite(requestedExtentMol) || requestedExtentMol <= amountTolerance || evaluation.kinetics.rateClass === "NEGLIGIBLE") {
-        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: ["NEGLIGIBLE_KINETICS", "ZERO_EXTENT"] });
+      if (!Number.isFinite(requestedExtentMol)) {
+        throw new Error(`NONFINITE_REQUESTED_EXTENT:${candidate.id}`);
+      }
+
+      if (control?.requestMultiplier !== undefined) {
+        requestedExtentMol *= control.requestMultiplier;
+      }
+      if (control?.maxRequestedExtentMol !== undefined && requestedExtentMol > control.maxRequestedExtentMol) {
+        requestedExtentMol = control.maxRequestedExtentMol;
+      }
+      if (control?.reasonCodes) reasons.push(...control.reasonCodes);
+
+      const perStepCap = extentBound.maxExtentMol * maxFraction;
+      if (requestedExtentMol > perStepCap) {
+        requestedExtentMol = perStepCap;
+        reasons.push("MAX_FRACTION_BOUNDED");
+      }
+
+      if (evaluation.kinetics.rateClass === "NEGLIGIBLE") {
+        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: uniqueReasons([...reasons, "NEGLIGIBLE_KINETICS", "ZERO_EXTENT"]) });
         continue;
       }
-      proposals.push({ candidate, evaluation, requestedExtentMol, maxAvailableExtentMol: extentBound.maxExtentMol, limitingReactantIds: extentBound.limitingReactantIds, products, reasons });
+      if (requestedExtentMol <= amountTolerance) {
+        deferred.push({ candidateId: candidate.id, evaluation, reasonCodes: uniqueReasons([...reasons, "ZERO_EXTENT"]) });
+        continue;
+      }
+
+      proposals.push({
+        candidate,
+        evaluation,
+        requestedExtentMol,
+        maxAvailableExtentMol: extentBound.maxExtentMol,
+        limitingReactantIds: extentBound.limitingReactantIds,
+        products,
+        reasons: uniqueReasons(reasons),
+      });
     }
 
     const demand = new Map<SpeciesId, number>();
@@ -279,7 +328,8 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
       }
       for (const [speciesId, delta] of perReaction) groupDeltas.set(speciesId, (groupDeltas.get(speciesId) ?? 0) + delta);
       const speciesAmountDeltas: SpeciesAmountDelta[] = [...perReaction.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([speciesId, deltaMol]) => ({ speciesId, deltaMol }));
-      const scientificStatus = worstStatus(proposal.evaluation.status, "APPROXIMATED");
+      const equilibriumStatus = input.candidateExtentControls?.[proposal.candidate.id]?.eventMetadata?.equilibriumScientificStatus;
+      const scientificStatus = worstStatus(proposal.evaluation.status, "APPROXIMATED", ...(equilibriumStatus ? [equilibriumStatus] : []));
       const resolved: ResolvedReaction = {
         candidateId: proposal.candidate.id,
         rank,
@@ -289,11 +339,12 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         limitingReactantIds: proposal.limitingReactantIds,
         evaluation: proposal.evaluation,
         scientificStatus,
-        reasonCodes: reasons,
+        reasonCodes: uniqueReasons(reasons),
         speciesAmountDeltas,
       };
       selected.push(resolved);
       const sequence = events.length;
+      const eventMetadata = input.candidateExtentControls?.[proposal.candidate.id]?.eventMetadata;
       events.push({
         id: `${input.timestepId}:reaction:${String(sequence).padStart(4, "0")}:${proposal.candidate.id}`,
         timestepId: input.timestepId,
@@ -308,7 +359,8 @@ export function resolveReactionCandidates(input: ReactionResolutionInput): React
         speciesAmountDeltaMol: Object.fromEntries([...perReaction.entries()].sort(([a], [b]) => a.localeCompare(b))),
         deltaH_JPerMolExtent: proposal.evaluation.thermo.deltaH_J_per_mol,
         scientificStatus,
-        reasonCodes: reasons,
+        reasonCodes: uniqueReasons(reasons),
+        ...(eventMetadata ?? {}),
       });
     }
 
