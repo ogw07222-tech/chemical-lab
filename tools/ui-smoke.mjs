@@ -38,11 +38,11 @@ try {
       assert(openBox, 'desktop: workspace bounds unavailable before catalog collapse');
       await desktop.getByRole('button', { name: '도감 접기' }).click();
       await desktop.getByRole('button', { name: '도감 펼치기' }).waitFor();
-      await desktop.waitForFunction((openWidth) => {
-        const workspace = document.querySelector('main[aria-label="실험실 작업대"]');
-        return workspace instanceof HTMLElement && workspace.getBoundingClientRect().width > openWidth + 100;
-      }, openBox.width);
-      const collapsedBox = await center.boundingBox();
+      let collapsedBox = await center.boundingBox();
+      for (let attempt = 0; attempt < 10 && (!collapsedBox || collapsedBox.width <= openBox.width + 100); attempt += 1) {
+        await desktop.waitForTimeout(50);
+        collapsedBox = await center.boundingBox();
+      }
       assert(collapsedBox && collapsedBox.width > openBox.width + 100, 'desktop: catalog collapse did not expand workspace');
       await desktop.getByRole('button', { name: '도감 펼치기' }).click();
       await desktop.getByRole('textbox', { name: '물질 검색' }).waitFor();
