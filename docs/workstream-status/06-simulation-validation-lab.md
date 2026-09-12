@@ -1,175 +1,162 @@
 # 06 — Simulation Validation Lab
 
 - Owner: Chemistry Simulation Validation Engineer / Regression Test Developer / Scientific Model Auditor / Performance Validation Engineer
-- Current phase: Dynamic Species Registry validation
-- Overall state: STAGE_A_PREPARED / STAGE_B_PASS / PR39_INTEGRATION_APPROVED
+- Current phase: Phase 3A exact-head stack validation
+- Overall state: PASS — PHASE3A_VALIDATION_PASS / MERGE_ALLOWED_EXACT_HEADS_ONLY
 - Last updated: 2026-09-12
-- Latest production main SHA checked: `4c12c2b9be6053887f471c288618590114dc32b4`
-- Validation-prep branch / PR: `feature/06-dynamic-species-validation-prep` / PR #38
-- 01 Dynamic Species Registry PR: #39 — `feat(sim): add dynamic species registry and persistence`
-- Exact 01 PR HEAD tested: `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`
-- Independent validation branch: `validation/06-pr39-dynamic-species`
-- Final validation HEAD: `993b06cde7d3cb3a80feaa56a3a4eca7b23c06b5`
-- Final validation run: `34637612926` — SUCCESS
+- Production main baseline: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
+- PR #45 current HEAD: `92ca3ff39a1fc2616f8ab88df286575c15b298ea`
+- PR #46 exact HEAD: `6d04b9aa96bfce02717cb9a233ded33d29960132`
+- PR #47 current HEAD: `70d0d68523c0a60ff65377833459eb2547bf82b5`
+- Validation branch: `validation/06-phase3a-stack`
+- Final validation HEAD: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
+- L1 validation/integration fix commit: `9c5c445d36e74a7f085fc99ac281c28268e2c27a`
+- Final full-stack run: `34673454682` — SUCCESS
+- Determinism repeat run: `34673454706` — SUCCESS
 
-## Current Objective
-Independently validate 01 Dynamic Species Registry & Generated Species Persistence without tuning or modifying 01 production implementation.
+## Source-equivalence audit
+### PR #45
+Compared validated executable/test HEAD `74f60604bd3a5822140914b6dffaa9e3c72d6d65` with current HEAD `92ca3ff39a1fc2616f8ab88df286575c15b298ea`.
+Differences are only removal of the temporary validation workflow and 02 workstream-status documentation. Executable/test blobs are unchanged.
 
-## Source of Truth
-- Production baseline: latest `main` at `4c12c2b9be6053887f471c288618590114dc32b4`.
-- Exact implementation under validation: PR #39 HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`.
-- Scientific threshold authority: `docs/contracts/REAL_EXPERIMENT_VALIDATION.md`.
-- Final re-check confirmed PR #39 remained open, mergeable, and at the same exact HEAD after validation.
+### PR #47
+Compared validated UI code HEAD `b149bf67b8f26a9e5440c0cb7fed68761039ca30` with current HEAD `70d0d68523c0a60ff65377833459eb2547bf82b5`.
+Difference is 05 workstream-status documentation only. Executable/test blobs are unchanged.
 
-## Stage A — Validation Matrix / Failure Fixtures
-Prepared on PR #38:
-- canonical identity permutation invariance;
-- duplicate suppression and duplicate-explosion checks;
-- same-formula false-merge counterexamples;
-- bond-order / formal-charge / net-charge distinction;
-- malformed graph rejection;
-- atomic registration failure / partial-mutation blocker;
-- element / atom / charge conservation and finite/non-negative amounts;
-- deterministic registry IDs/state/events/serialization;
-- serialize/restore identity stability;
-- timestep N -> N+1 participation and same-step cascade prohibition;
-- known-species reuse;
-- unknown-species no-fabricated-truth policy;
-- performance baseline with no invented engineering threshold.
+PR #47 is stacked directly on exact PR #46 HEAD, so #46 was not duplicated during stack assembly.
 
-`docs/validation/DYNAMIC_SPECIES_REGISTRY_VALIDATION.md`, `src/validation/species-registry.ts`, and `tests/dynamic-species-registry.validation.test.ts` hold the reusable validation contract/helpers.
+## Lint blocker reproduction and classification
+Exact PR #46 HEAD was tested before any fix.
 
-## Stage B — Exact PR #39 Validation
-The independent validation branch was created directly from exact PR #39 HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`; 01 production files were not modified.
+Reproduced full-repository lint error:
+- file: `src/integration/phase3a-reaction-network.ts`
+- line/column: `241:31`
+- rule: `@typescript-eslint/no-unused-vars`
+- message: `'_amountToleranceMol' is assigned a value but never used`
 
-Added independent adversarial test coverage in `tests/validation.dynamic-species-registry.pr39.test.ts` and a branch-only validation workflow.
+Classification: **L1 — mechanical lint-only unused symbol**.
 
-### Final strict run
-Run `34637612926`, tested validation HEAD `993b06cde7d3cb3a80feaa56a3a4eca7b23c06b5`.
-The validation branch ancestry is exact PR #39 HEAD plus 06-only test/type/workflow commits.
-The workflow uses bash pipefail semantics so piped logging cannot hide command failures.
+The binding exists only to omit Phase3A-only `amountToleranceMol` from the rest object passed to Phase2E. The tolerance is already read and enforced by the Phase3A event-contract checks for same-step cascade prevention and shared-reactant overconsumption.
 
-Results:
-- `npm ci --no-audit --no-fund`: PASS
-- `npm run typecheck`: PASS / zero diagnostics
-- `npm run lint`: PASS
-- independent PR39 registry validation: **15/15 PASS**
-- production dynamic registry tests: **11/11 PASS**
-- reaction progression regression: **10/10 PASS**
-- full `npm test`: **14 files / 163 tests PASS**
-- `npm run build`: PASS
+Permitted validation/integration fix:
+```ts
+const { amountToleranceMol: _amountToleranceMol, ...phase2eConfig } = config;
+void _amountToleranceMol;
+```
 
-An earlier validation iteration exposed a 06-only test typing defect and a logging-pipeline masking risk. Both were corrected in the validation harness only; no PR #39 production behavior was changed. The final pipefail-enabled run is the authoritative evidence.
+Semantic effect: none. It preserves the omission behavior and does not change tolerance values, invariant logic, reaction selection, extent, state mutation, or event semantics.
 
-## Validation Matrix Results
+## Stack assembly
+Independent validation branch was assembled as:
 
-### Canonicalization — PASS
-- 128 deterministic pseudo-random atom/bond/runtime-ID permutations resolved to the same canonical representation, canonical key, and generated species identity.
-- Bond-list and atom ordering did not affect identity in the tested current graph model.
-- Different connectivity, bond order, formal charge, and resulting net charge remained distinct.
+`main baseline + PR #47 (already containing exact PR #46) + PR #45 + L1 fix + 06 validation-only tests/workflows`
 
-Limitations remain OPEN for full stereochemistry, resonance equivalence, chemically complete aromatic representation equivalence, and complete electronic/radical-state chemistry beyond the current graph model.
+PR #45 was overlaid through temporary validation-only PR #48; no production merge occurred.
 
-### Duplicate suppression — PASS
-Repeated resolution of the same product graph at 10 / 100 / 1000 attempts retained one registry identity and stable generated ID.
+## Validation results
+### Multi-step / same-step boundary — PASS
+- A→B / B→C: product B produced at N is unavailable as a reactant during N and eligible at N+1.
+- A→B→C→D multi-timestep chain: deterministic timestep boundaries, event sequence, and final amounts.
+- branching and generated-unknown next-step participation covered by Phase3A network tests.
+- same-step generated-product consumption is rejected by initial-snapshot reactant checks.
 
-### False merge / collision safety — PASS within current implementation contract
-- Same molecular formula with different connectivity did not merge.
-- Current registry indexes by canonical key but stores and verifies the exact canonical structural representation before reuse.
-- Same-key / different-representation collision is rejected rather than merged.
-- No true 64-bit FNV collision was brute-forced; collision-path safety is established by source/contract audit and explicit exact-verification logic rather than observed natural collision generation.
+### Shared-reactant competition — PASS
+- aggregate demand is computed for the whole equal-rank proposal group before mutation;
+- common species scaling prevents overconsumption;
+- candidateId lexical ordering determines deterministic event order, not pre-emptive inventory capture;
+- negative amounts are rejected.
 
-### Malformed graph rejection — PASS
-Rejected adversarial fixtures include missing atom reference, self bond, duplicate contradictory semantic bond, zero/NaN bond order, non-integer formal charge, and coarse over-valence graph. Registry size remained unchanged after rejection.
+### Registration atomicity — PASS
+Existing Dynamic Species Registry / Phase2E regression plus Phase3A caller-level tests confirm failed product registration does not commit partial vessel/registry state or consume reactants. No authoritative progress event/heat is committed for a failed registration.
 
-### Atomic mutation — PASS / absolute blocker cleared
-Forced product-registration failure produced no selected reaction, no reactant consumption, and no authoritative registry mutation. `PRODUCT_REGISTRATION_FAILED` was surfaced explicitly.
+### Conservation / numerical sanity — PASS
+Element/atom/applicable-charge conservation and finite/non-negative amounts remain enforced by progression/registry validation. NaN/Infinity/negative authoritative state is rejected.
 
-### Conservation — PASS
-Generated-product success path preserved element inventory, atom inventory, and applicable net charge. Final species amounts remained finite and non-negative.
+### Kinetics — PASS within current Phase 3A contract
+- `DIMENSIONED_RATE`: mol/s × dt reaches the bounded resolver extent path.
+- `RELATIVE_RATE`: remains normalized/bounded APPROXIMATED progression.
+- `QUALITATIVE_ONLY` / `OPEN`: do not fabricate numeric extent requests.
+- missing activation barrier does not create fake activation energy.
+- environment dependency metadata is descriptive unless provider support exists.
+
+### Reversibility — PASS for metadata boundaries / science remains OPEN
+Forward/reverse channel metadata is deterministic and independent. `detailedBalanceSupported` remains false without explicit evidence; no `K_eq`, reverse rate, or equilibrium solution is invented. General equilibrium/detailed-balance science remains OPEN.
+
+### Thermal aggregation — PASS
+- multiple known exothermic reactions;
+- exothermic + endothermic partial and exact cancellation;
+- all missing ΔH;
+- mixed known + missing ΔH;
+- event-order reversal;
+- single-reaction regression.
+
+Known reaction heat is aggregated from committed extents and available ΔH and applied to the thermal state once per timestep. Per-event heat facts do not independently mutate temperature.
+Coverage metadata `knownContributionCount`, `committedContributionCount`, `openHeatCandidateIds`, and `thermalCoverage` behaved as specified. Mixed known+OPEN applies known heat while keeping overall scientific status OPEN/PARTIAL.
 
 ### Determinism — PASS
-Identical registry/state/candidates/dt/config produced identical generated IDs, final vessel species amounts, `ReactionProgressEvent` records, and serialized registry state.
+Same inputs reproduce composition, generated identities, reaction/event ordering, heat result, provider composition, and timeline order. Network/progression/UI projection determinism gates were rerun 10 times successfully.
 
-### Persistence — PASS
-`serialize -> restore -> resolve` preserved generated identity, canonical key, registry size, dedup behavior, and deterministic serialization. Registration order did not change serialized order.
+### Provider/UI boundaries — PASS
+`Phase3AProviderProjection` derives composition and reaction facts from simulation authority. UI projection does not recompute stoichiometry, extent, rate, equilibrium, reaction heat, or molecular identity.
 
-### Timestep semantics — PASS
-- Timestep N production makes the generated product exist at the end of N.
-- Same-step downstream consumption is blocked via the existing zero-initial-reactant semantics.
-- On timestep N+1 the generated species can participate normally.
+Normal mode keeps generated SpeciesId/canonical/candidate internals opaque. Developer Mode exposes diagnostics separately. Unknown→confirmed transition occurs through the player-knowledge resolver boundary.
 
-### Known species reuse — PASS
-Known canonical graph reuse returns the existing known species ID rather than inventing a generated duplicate.
+APPROXIMATED numeric facts are visibly marked approximate; OPEN/missing heat is not rendered as exact numeric heat. No player-facing rate is invented.
 
-### Unknown species handling — PASS structurally / OPEN scientifically
-A valid unmatched structure receives a deterministic internal generated ID. Generated records remain `referenceMatchStatus: OPEN` and `scientificStatus: OPEN`; no real-world name or physical/thermochemical property is fabricated. 03 reference matching remains separate from registry validity.
+Timeline projection preserves provider order and timestepId+sequence metadata and de-duplicates repeated delivery using stable eventId.
 
-### Performance — OPEN / WATCH, no blocker observed
-No canonical engineering threshold exists, so no arbitrary performance PASS threshold was invented.
+### PR #44 workbench / responsive regression — PASS
+Final browser smoke passed:
+- 1536×900
+- 1440×900
+- 1024×768
+- 390×844
 
-Final independent-run observation on GitHub runner:
-- 1000 duplicate resolve/register operations: ~105.8 ms total
-- 10000 canonical-key lookups: ~86.9 ms total
-- registry size after repeated duplicate resolution: 1
+No horizontal overflow or blocking console/page errors. Catalog/condition collapse, T/P/V summary, central workbench/vessel, structural notation, inspector/notes, mobile navigation, and minimal-decoration constraints remain intact. Reaction activity remains secondary to the workbench.
 
-Full-suite observation of the same synthetic performance fixture varied with shared-run load (~164.2 ms / ~177.4 ms respectively), so these numbers are environment-local baselines only.
+### Testing-library audit — PASS
+UI tests use semantic-region scoping (`within(...)`) for legitimate repeated content. No new arbitrary `getAllByText(...)[0]`, first-element, or nth-child weakening was required for Phase3A validation.
 
-Source audit found canonical-key lookup backed by `Map` rather than a naive full-registry graph-isomorphism scan. Canonicalization itself remains bounded by the molecular-core canonical search budget. Reaction progression still performs vessel-species searching for existing states; scaling at much larger vessel/registry workloads remains WATCH / OPEN pending a pre-committed engineering budget and larger stress matrix.
+## Final checkpoint
+Final validation HEAD: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
 
-## Absolute Blockers
-No absolute blocker was found on exact PR #39 HEAD.
+Run `34673454682`:
+- source ancestry checks: PASS
+- `npm ci`: PASS
+- typecheck: PASS
+- lint: PASS with 0 errors / 1 non-blocking pre-existing React hook dependency warning in `src/ui/provider.tsx`
+- targeted: **11 files / 122 tests PASS**
+- full: **20 files / 222 tests PASS**
+- build: PASS
+- browser smoke: PASS at all four required dimensions
 
-Explicit blocker gates all PASS:
-- distinct structures false-merged: NO
-- malformed graph registered: NO
-- registration failure partially mutates registry/vessel: NO
-- reactants consumed while product registration fails: NO
-- element/atom/applicable-charge conservation violation: NO
-- negative/NaN/Infinity authoritative amount: NO
-- identical input produces unstable generated identity/state/events: NO
-- serialize/restore identity drift or duplicate creation: NO
-- same-step hidden generated-species cascade: NO
-- next-timestep generated species inaccessible: NO
+Run `34673454706`:
+- deterministic network/progression/UI projection subset repeated 10×: PASS
 
-## PASS / FAIL / OPEN
-### PASS
-- Structural registry correctness within the current molecular graph model.
-- Canonical permutation stability for tested supported graphs.
-- Duplicate suppression and false-merge prevention.
-- Malformed rejection.
-- Transactional product registration / atomic mutation.
-- Conservation and finite/non-negative state.
-- Determinism and persistence.
-- Same-step cascade prevention and next-step participation.
-- Known species reuse and honest unknown-species status.
-- Repository typecheck/lint/tests/build on independent exact-head validation branch.
+## Scientific OPEN items
+- general equilibrium solver and equilibrium convergence;
+- guaranteed detailed balance / reverse-rate inference;
+- general reaction-order inference and broad dimensioned rate-law data;
+- non-ideal activity and pressure-dependent kinetic laws;
+- diffusion/transport/surface-limited kinetics;
+- composition-dependent heat capacity and full phase/latent-heat coupling;
+- complete stereochemistry/resonance/aromatic/electronic-state identity semantics;
+- real-world generated-species identity/property completeness where 03 evidence is absent.
 
-### FAIL
-- None established on exact PR #39 HEAD.
+These remain OPEN and are not converted into PASS.
 
-### OPEN / WATCH
-- Full stereochemical identity semantics.
-- Resonance-equivalent and chemically complete aromatic representation equivalence.
-- Complete radical/electronic-state chemistry semantics beyond the represented graph fields.
-- Real-world generated-species identity and property completeness pending 03 evidence.
-- Absolute performance acceptance threshold and large-scale registry/vessel stress behavior.
-- Deliberate natural FNV-1a collision generation was not brute-forced; collision handling is source-audited safe by exact representation verification.
+## Final decision
+**PHASE3A_VALIDATION_PASS**
 
-## Owner Handoffs
-- 01: maintain canonicalization/registry/persistence/transaction semantics; investigate any future false-merge, mutation, determinism, or scaling regression.
-- 03: generated-species reference matching, provenance, real-world identity, authoritative properties.
-- 04: player knowledge/discovery; must not redefine registry identity.
-- 02: thermo/kinetic evaluation and missing-property behavior for generated species.
-- 05: presentation only; do not infer or fabricate identity/property truth.
-- 07: integrate PR #39 using exact-head protection and preserve the validated executable/test tree relationship.
+**MERGE_ALLOWED_YES_FROM_EXACT_HEADS_ONLY**
 
-## Integration Decision
-**PASS — 06 approves integration of PR #39 at exact HEAD `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`.**
+Approved source heads:
+- PR #45: `92ca3ff39a1fc2616f8ab88df286575c15b298ea`
+- PR #46: `6d04b9aa96bfce02717cb9a233ded33d29960132`
+- PR #47: `70d0d68523c0a60ff65377833459eb2547bf82b5`
+- required L1 lint-only fix: semantic-equivalent change represented by validation commit `9c5c445d36e74a7f085fc99ac281c28268e2c27a`
 
-Approval is scoped to the current Dynamic Species Registry & Generated Species Persistence contract and current molecular graph model. OPEN scientific identity/property/performance limitations do not constitute registry-correctness failures and must remain explicitly labeled.
-
-If PR #39 HEAD changes after this record, this approval becomes stale and 06 must revalidate the new exact HEAD or prove executable/test equivalence before integration.
+If any source executable/test HEAD changes, or integration applies a different lint fix with semantic differences, this approval is stale and requires revalidation.
 
 ## No Tuning
 **No tuning performed.**
