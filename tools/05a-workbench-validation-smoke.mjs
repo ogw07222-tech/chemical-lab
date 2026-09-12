@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const baseURL = process.env.UI_BASE_URL ?? 'http://127.0.0.1:4173';
+const baseURL = globalThis.process?.env?.UI_BASE_URL ?? 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
 const viewports = [
   [1536, 900],
@@ -22,8 +22,8 @@ try {
     await page.goto(`${baseURL}/validation-05a.html`, { waitUntil: 'networkidle' });
 
     const metrics = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
+      scrollWidth: globalThis.document.documentElement.scrollWidth,
+      innerWidth: globalThis.innerWidth,
     }));
     assert(metrics.scrollWidth <= metrics.innerWidth + 2, `${width}x${height}: horizontal overflow`);
 
@@ -45,8 +45,8 @@ try {
     await beaker.click();
     const selected = await beaker.evaluate((el) => ({
       cls: el.className,
-      outlineColor: getComputedStyle(el).outlineColor,
-      outlineWidth: getComputedStyle(el).outlineWidth,
+      outlineColor: globalThis.getComputedStyle(el).outlineColor,
+      outlineWidth: globalThis.getComputedStyle(el).outlineWidth,
     }));
     assert(String(selected.cls).includes('selected'), `${width}x${height}: selection state not applied`);
     assert(selected.outlineWidth !== '0px' && selected.outlineColor !== 'rgba(0, 0, 0, 0)', `${width}x${height}: selection frame invisible`);
@@ -55,8 +55,8 @@ try {
     await plate.focus();
     const focused = await plate.evaluate((el) => ({
       cls: el.className,
-      zIndex: Number(getComputedStyle(el).zIndex),
-      outlineStyle: getComputedStyle(el).outlineStyle,
+      zIndex: Number(globalThis.getComputedStyle(el).zIndex),
+      outlineStyle: globalThis.getComputedStyle(el).outlineStyle,
     }));
     assert(String(focused.cls).includes('focused'), `${width}x${height}: focus state not applied`);
     assert(focused.zIndex >= 1004, `${width}x${height}: focused z-order elevation missing`);
@@ -65,7 +65,7 @@ try {
     assert(errors.length === 0, `${width}x${height}: console/page errors: ${errors.join(' | ')}`);
     await page.close();
   }
-  console.log('05A validation harness PASS: 1536x900, 1440x900, 1024x768, 390x844');
+  globalThis.console.log('05A validation harness PASS: 1536x900, 1440x900, 1024x768, 390x844');
 } finally {
   await browser.close();
 }
