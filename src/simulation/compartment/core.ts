@@ -6,6 +6,7 @@ import {
 import type {
   CompartmentId,
   MatterCompartmentState,
+  MatterConnectionKind,
   MatterConnectionState,
   MatterSystemState,
   MatterTransferFailureReason,
@@ -17,6 +18,7 @@ import type {
 
 // Reuses the established reaction-progression default amount tolerance.
 const DEFAULT_AMOUNT_TOLERANCE_MOL = 1e-12;
+const SUPPORTED_CONNECTION_KINDS = new Set<MatterConnectionKind>(["GAS", "LIQUID"]);
 
 interface StateValidationFailure {
   reasonCode: MatterTransferFailureReason;
@@ -29,6 +31,11 @@ interface StagedDelta {
   compartmentId: CompartmentId;
   speciesId: SpeciesId;
   deltaMol: number;
+}
+
+interface CanonicalSpeciesContribution {
+  compartmentId: CompartmentId;
+  species: SpeciesState;
 }
 
 function sortedRecord(entries: Iterable<readonly [string, number]>): Readonly<Record<string, number>> {
@@ -52,6 +59,10 @@ function reject(
   details: { requestIndex?: number; speciesId?: SpeciesId; compartmentId?: CompartmentId } = {},
 ): MatterTransferResult {
   return { status: "REJECTED", state, reasonCode, message, ...details };
+}
+
+function isSupportedConnectionKind(kind: unknown): kind is MatterConnectionKind {
+  return typeof kind === "string" && SUPPORTED_CONNECTION_KINDS.has(kind as MatterConnectionKind);
 }
 
 function validateCompartment(compartment: MatterCompartmentState): StateValidationFailure | undefined {
@@ -99,6 +110,12 @@ function validateSystem(system: MatterSystemState): StateValidationFailure | und
       return { reasonCode: "DUPLICATE_CONNECTION", message: `Connection id must be non-empty and unique: ${connection.id}.` };
     }
     connectionIds.add(connection.id);
+    if (!isSupportedConnectionKind(connection.kind)) {
+      return {
+        reasonCode: "INVALID_CONNECTION_KIND",
+        message: `Connection ${connection.id} has unsupported kind: ${String(connection.kind)}.`,
+      };
+    }
     if (!compartmentIds.has(connection.sourceCompartmentId) || !compartmentIds.has(connection.destinationCompartmentId)) {
       return { reasonCode: "INVALID_CONNECTION", message: `Connection ${connection.id} references a missing compartment.` };
     }
@@ -130,9 +147,22 @@ export function createPrimaryVesselContentsCompartment(input: {
   });
 }
 
+function canonicalSpeciesContributions(system: MatterSystemState): readonly CanonicalSpeciesContribution[] {
+  const contributions: CanonicalSpeciesContribution[] = [];
+  for (const compartment of system.compartments) {
+    for (const species of compartment.species) {
+      contributions.push({ compartmentId: compartment.id, species });
+    }
+  }
+  return contributions.sort((a, b) =>
+    a.compartmentId.localeCompare(b.compartmentId)
+    || a.species.id.localeCompare(b.species.id)
+    || a.species.molecule.canonicalKey.localeCompare(b.species.molecule.canonicalKey));
+}
+
 export function aggregateSystemSpeciesAmounts(system: MatterSystemState): Readonly<Record<SpeciesId, number>> {
   const amounts = new Map<SpeciesId, number>();
-  for (const compartment of system.compartments) for (const species of compartment.species) {
+  for (const { species } of canonicalSpeciesContributions(system)) {
     amounts.set(species.id, (amounts.get(species.id) ?? 0) + species.amountMol);
   }
   return sortedRecord(amounts.entries());
@@ -140,10 +170,10 @@ export function aggregateSystemSpeciesAmounts(system: MatterSystemState): Readon
 
 export function aggregateSystemElementInventory(system: MatterSystemState): Readonly<Record<string, number>> {
   const elements = new Map<string, number>();
-  for (const compartment of system.compartments) for (const species of compartment.species) {
+  for (const { species } of canonicalSpeciesContributions(system)) {
     const vector = conservationVectorFromMolecule(species.molecule, species.amountMol);
-    for (const [element, amount] of Object.entries(vector.elements)) {
-      elements.set(element, (elements.get(element) ?? 0) + amount);
+    for (const element of Object.keys(vector.elements).sort()) {
+      elements.set(element, (elements.get(element) ?? 0) + (vector.elements[element] ?? 0));
     }
   }
   return sortedRecord(elements.entries());
@@ -151,7 +181,7 @@ export function aggregateSystemElementInventory(system: MatterSystemState): Read
 
 export function aggregateSystemAtomAmountMol(system: MatterSystemState): number {
   let total = 0;
-  for (const compartment of system.compartments) for (const species of compartment.species) {
+  for (const { species } of canonicalSpeciesContributions(system)) {
     total += species.molecule.graph.atoms.length * species.amountMol;
   }
   return total;
@@ -159,7 +189,7 @@ export function aggregateSystemAtomAmountMol(system: MatterSystemState): number 
 
 export function aggregateSystemNetChargeAmountMol(system: MatterSystemState): number {
   let total = 0;
-  for (const compartment of system.compartments) for (const species of compartment.species) {
+  for (const { species } of canonicalSpeciesContributions(system)) {
     total += species.molecule.netCharge * species.amountMol;
   }
   return total;
