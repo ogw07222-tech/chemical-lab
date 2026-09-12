@@ -1,109 +1,175 @@
 # 07 — Integration & GitHub
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
-- Current phase: Dynamic Species Registry stack integrated
-- Overall state: PASS — DYNAMIC_SPECIES_REGISTRY_STACK_INTEGRATED
+- Current phase: Phase 3A — Multi-step Reaction Network + Kinetics/Thermal + Workbench UI
+- Overall state: PASS — PHASE3A_PRODUCTION_INTEGRATED
 - Last updated: 2026-09-12
 
 ## Source of Truth
 - Repository: `ogw07222-tech/chemical-lab`
-- Starting main: `4c12c2b9be6053887f471c288618590114dc32b4`
-- Merge order: `#39 -> #40 -> #37 -> #38`
+- Starting production main: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
+- Production merge order: `#46 -> #45 -> #47`
+- 06 validated stack HEAD: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
+- 06 authoritative exact-stack run: `34673454682` — SUCCESS
+- 06 authoritative determinism repeat: `34673454706` — SUCCESS
 
-### PR #39 — 01 Dynamic Species Registry & Persistence
-- source/final PR HEAD: `7003080a1381b1420274bcb4ab9cfc2b8c0cfc93`
-- independently validated by 06: run `34637612926` — SUCCESS
-- executable/test source remained identical to the approved version; later delta was workflow/docs only
-- merge SHA: `4f60627943524631bde87cce78a50e637241be87`
+## PR #46 — 01 Phase 3A Multi-step Reaction Network
+- original 06-validated source HEAD: `6d04b9aa96bfce02717cb9a233ded33d29960132`
+- changed scope: Phase 3A network contract/status, integration export/orchestrator, network tests
+- lint audit found the known inherited unused destructure in `src/integration/phase3a-reaction-network.ts`:
+  - original: `const { amountToleranceMol: _amountToleranceMol, ...phase2eConfig } = config;`
+  - 06 validation stack resolution: immediately consume it with `void _amountToleranceMol;`
+- classification: **integration-only mechanical fix**, not a #45 overlay and not an ESLint suppression; no chemistry/runtime semantics changed
+- same one-line fix applied to production source branch
+- refreshed validated HEAD with temporary workflow: `a93030dc95b52198ec79b9001d879e7e6f3bef9d`
+- integration validation run: `34673848563` — SUCCESS
+  - npm ci: PASS
+  - typecheck: PASS
+  - lint: PASS
+  - targeted Phase 3A network/reaction-progression/registry: PASS
+  - full suite: PASS
+  - build: PASS
+- final PR HEAD after temporary workflow removal: `eb909fb85ceffe8e9790b0ca7ff77bf1f3292353`
+- validated-head -> final-head delta: temporary workflow deletion only
+- production merge SHA: `e79bcd72880c9d1809ca10c8608a5923b97d44ef`
 
-### PR #40 — 03 Generated Species Reference Matching
-- original source HEAD: `45f3b1cc49e707b8f52fa3bb457cc0bfe54a0bd7`
-- latest-main ancestry refresh: `45e38b71fd6a598541e70b233674fba8af68c6d9`
-- refreshed validated HEAD: `45baac5c2098ed30ac944fb01685ad382724c5a1`
-- validation run: `34643902746` — SUCCESS
-- final PR HEAD after temporary-workflow removal: `7fd04308c16a9dc383095217f0c0d5c5973c1d11`
-- merge SHA: `28e63fa8d39db7129c8ea13f290953bd9364f611`
+## PR #45 — 02 Phase 3A Kinetics + Aggregate Thermal Coupling
+- source HEAD at integration start: `92ca3ff39a1fc2616f8ab88df286575c15b298ea`
+- previously validated executable/test HEAD: `74f60604bd3a5822140914b6dffaa9e3c72d6d65`
+- `74f606... -> 92ca3f...` audit: executable/test source unchanged; only validation-workflow removal and documentation/status changes
+- refreshed onto post-#46 production main via temporary integration PR #49
+- ancestry refresh commit on feature branch: `a5e53101acc879eeddbadaca7e03001aa693dcb5`
+- refreshed validated HEAD: `c24fcf93368523aca8d71bc6a2648b1d6f5e0015`
+- integration validation run: `34673927888` — SUCCESS
+  - npm ci/typecheck/lint: PASS
+  - targeted kinetics + dimensioned resolver + evaluation + progression + thermal + network: PASS
+  - full suite: PASS
+  - build: PASS
+- final PR HEAD after temporary workflow removal: `0d7af638dd39f7f9792c6a205b5bf016c385c982`
+- production merge SHA: `eb87dd78f6870269210f7a38011e0ae1c2a47fe6`
 
-### PR #37 — 04 Generated Species Player Knowledge
-- original source HEAD: `cc212e6d71b7c98a3f16d89b05e776ea6d5e1f2b`
-- latest-main ancestry refresh: `71ff276e2e46479474cda8db1c1a1115fb999e96`
-- refreshed validated HEAD: `b088a86d890cfc3457ceadbd580db7c672e23f6c`
-- validation run: `34644042168` — SUCCESS
-- final PR HEAD after temporary-workflow removal: `d5f57be561d58066bf7741b6c33739dd963cdcb1`
-- merge SHA: `834cf70aa98d0ea5a5242e7757aa18c5fa04263d`
+Preserved 02 contracts:
+- `DIMENSIONED_RATE | RELATIVE_RATE | QUALITATIVE_ONLY | OPEN`
+- `kineticExtentInputOverDt()` boundary
+- no fabricated activation energy or dimensional rate
+- forward/reverse metadata remains explicit
+- aggregate reaction heat is applied exactly once
+- thermal coverage remains `COMPLETE | PARTIAL | OPEN`
+- per-event heat facts remain available
+- missing/non-finite ΔH remains OPEN rather than fabricated
 
-### PR #38 — 06 Dynamic Species Validation Gates
-- original source HEAD: `30eed6f7ac0908167a880f1b2aa241964e9cedb5`
-- latest-main ancestry refresh: `123ce0ca626588cfb51f99c033366b7c1bdcb0e5`
-- refreshed validated HEAD: `678528f6931ed326ce1c4e02042e9f6a312fe8ce`
-- validation run: `34644188978` — SUCCESS
-- final PR HEAD after temporary-workflow removal: `0c16fd6b1a53cd7959974b334c64df955c620a7d`
-- merge SHA: `be92521ced8d0362b10ae65e9aac6c35f15a4c0f`
+## PR #47 — 05 Workbench Phase 3A Reaction Activity
+- source HEAD at integration start: `70d0d68523c0a60ff65377833459eb2547bf82b5`
+- prior UI validated code HEAD: `b149bf67b8f26a9e5440c0cb7fed68761039ca30`
+- original source was stacked on exact PR #46
+- retargeted to `main` after #46/#45 production integration
+- refreshed onto production main via temporary integration PR #50
+- ancestry refresh commit on UI branch: `eb8357d9a9fe2487304aee9a9439dd8c6d139f29`
+- after retarget/refresh, PR #47 delta returned to exactly six UI/projection files:
+  - `docs/workstream-status/05-web-ui.md`
+  - `src/ui/App.tsx`
+  - `src/ui/provider.tsx`
+  - `src/ui/reactionProjection.ts`
+  - `src/ui/types.ts`
+  - `tests/ui/LaboratoryWorkspace.test.tsx`
+- refreshed validated HEAD: `b510304be6e389703564ec735c2d1b0609e145b8`
+- integration/UI validation run: `34674066039` — SUCCESS
+  - npm ci/typecheck/full lint: PASS
+  - targeted UI + Phase 3A stack: PASS
+  - full suite: PASS
+  - build: PASS
+  - Chromium install: PASS
+  - browser smoke: PASS at 1536x900, 1440x900, 1024x768, 390x844
+  - no horizontal overflow / blocking console/page errors: PASS
+- final PR HEAD after temporary workflow removal: `966f50c82edab41bbdd5374ba9b5a19807fa37de`
+- production merge SHA: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
 
-## Final Consolidated Regression
-Temporary one-shot main workflow tested exact integrated stack at:
-- tested main: `0199c434454c51362c0f78f62936d325bdfe4c46`
-- run: `34644334907` — SUCCESS
+## Workbench Regression Gate
+PR #44 Workbench direction remains intact:
+- clean mostly-empty center and prominent main vessel: PASS
+- catalog collapse: PASS
+- conditions collapse and authoritative T/P/V summary: PASS
+- structural notation: PASS
+- inspector / free-form notes: PASS
+- responsive desktop/tablet/mobile layout: PASS
+- reaction activity remains compact/secondary to the Workbench: PASS
+- no chemistry calculation moved into React: PASS
+- unknown generated-species identity remains player-safe; internal refs stay Developer-Mode-only: PASS
+- `APPROXIMATED`/`OPEN` heat and amount honesty preserved: PASS
+- `eventId` deduplication and provider timestep/event ordering preserved: PASS
+
+## 06 Validated-stack Equivalence
+Validated stack: `8080128fb8c2c7dcd51a40a2fa7c90769f888a8a`
+Production functional main after #47: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
+
+The two histories diverge because 06 used a validation-only assembly, but effective production source equality is stronger than semantic inference:
+- **entire `src` tree SHA is identical on both:** `dfcde14f9234f695c37e3cee095481e49ed9d2eb`
+- key production/test blobs are byte-identical, including:
+  - Phase 3A orchestrator
+  - reaction evaluation / extent / ranking / shared types
+  - reaction progression resolver / thermal coupling / types
+  - Workbench `App.tsx`, provider, reaction projection, UI types
+  - Phase 3A network, kinetics/thermal, dimensioned resolver, progression, evaluation, thermal, registry, knowledge/reference and Workbench tests
+- production intentionally excludes validation-only artifacts:
+  - `.github/workflows/validate-phase3a-stack.yml`
+  - `.github/workflows/validate-phase3a-determinism-repeat.yml`
+  - `tests/validation.phase3a-stack.test.ts`
+- validation-only documentation/history differences do not alter production semantics
+
+**Semantic/tree equivalence: PASS.**
+
+## Final Production Regression
+A temporary main-only workflow was added solely for final validation and removed immediately afterwards.
+
+- exact tested main: `3b05ace9a691664dc1f4c9f62f849c3e267be8f3`
+- functional production source parent: `c75aafd1eeb8373b7292a0cd6caa8ed994857ec4`
+- run: `34674190373` — SUCCESS
 
 Results:
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
-- `npm run lint`: PASS
-- targeted integrated stack: **8 files / 102 tests PASS**
-  - molecular core 21/21
-  - reaction candidates 16/16
-  - reaction evaluation 9/9
-  - reaction progression 10/10
-  - dynamic species registry 11/11
-  - generated species reference matching 12/12
-  - generated species player knowledge 8/8
-  - 06 adversarial registry validation 15/15
-- full `npm test`: **16 files / 183 tests PASS**
+- `npm run lint`: PASS with 0 errors; one non-blocking existing React Hook dependency warning in `src/ui/provider.tsx`
+- targeted final Phase 3A regression: **10 files / 107 tests PASS**
+- determinism repeat subset: **4 files / 52 tests PASS**, then **4 files / 52 tests PASS** again
+- full `npm test`: **19 files / 217 tests PASS**
 - `npm run build`: PASS
+- Chromium install: PASS
+- `npm run smoke:ui`: PASS
+  - desktop 1536x900
+  - desktop 1440x900
+  - tablet 1024x768
+  - mobile 390x844
+- tested SHA recorded by workflow: `3b05ace9a691664dc1f4c9f62f849c3e267be8f3`
 
-The temporary final workflow was then removed. The only delta from tested main `0199c434...` to post-validation main `f8aa65796...` was deletion of that workflow; production and test source remained byte-equivalent to the green run.
+The temporary final validation workflow was removed in commit `aaf048e95e33268f396b4cfb71bf75cc2bf92e84`; compare proves the sole delta from the green tested SHA was deletion of that workflow. Production executable/test source therefore remains byte-equivalent to the successful run.
 
-## Cross-layer Contract Audit
-### 01 Simulation — PASS
-`Generated graph -> DynamicSpeciesRegistry -> stable SpeciesId -> vessel SpeciesState -> next timestep` is production-owned by 01. Product registration is staged before externally visible mutation, invalid registration prevents selection, selected products are committed transactionally, generated identities are deterministic/persistent, known canonical species are reused, and generated product states begin with honest `OPEN` scientific phase/reference metadata. No same-step hidden cascade is introduced.
-
-### 03 Data — PASS
-03 consumes an opaque internal canonical identity plus graph/formula/charge for optional scientific reference matching. It does not reinterpret or replace 01 SpeciesId. Formula equality alone cannot establish identity. Missing/ambiguous reference evidence remains non-exact and unsupported properties remain OPEN. CO remains charge-aware **POSSIBLE_REFERENCE_MATCH**, not EXACT, for the production neutral-formal-charge `C#O` versus PubChem `[C-]#[O+]` representation. Provenance is retained.
-
-### 04 Game Layer — PASS
-Internal species existence is separate from player knowledge. Unknown species use stable opaque `unknownRef` projections; common name/formula/graph/internal registry metadata are not exposed through the normal unknown projection. Scientific Record, free-form My Notes, analysis, confirmation, encyclopedia registration, material unlock, persistence association, and Developer Mode isolation remain Game-Layer concerns. Unlimited unlocked stock does not imply infinite vessel amount.
-
-### 06 Validation — PASS
-06 adds validation adapters, invariants, fixtures, tests and documentation only. It does not own or tune production canonicalization, matching, chemistry truth, or player knowledge semantics.
-
-## Absolute Blockers
-No blocker found in the integrated exact-main validation:
+## Absolute Contract Gates
+- no same-step hidden cascade: PASS
+- generated products participate beginning next timestep: PASS
+- finite/non-negative material state: PASS
 - atom/element/applicable-charge conservation: PASS
-- failed product registration atomicity / no partial reactant loss: PASS
-- deterministic generated IDs: PASS
-- duplicate suppression: PASS
-- same-step cascade prohibition: PASS
-- known-species reuse: PASS
-- formula-only false identity prevention: PASS
-- unknown identity leakage guard: PASS
-- no fabricated scientific properties: PASS
-- serialize/restore identity stability: PASS
-- full-suite regression: PASS
-
-## Scientific Limitations / OPEN
-- complete stereochemistry identity semantics: OPEN
-- resonance/aromatic representation completeness: OPEN
-- complete electronic/spin-state identity: OPEN
-- real-world identity coverage for arbitrary generated species: OPEN
-- scientific properties absent from reference data: OPEN
-- absolute large-registry performance threshold remains WATCH rather than an invented pass/fail threshold
+- deterministic ordering / IDs / events: PASS
+- product registration failure atomicity: PASS
+- no shared-reactant overconsumption: PASS
+- aggregate reaction heat applied once: PASS
+- no fabricated activation energy / kinetic dimensionality / equilibrium facts: PASS
+- provider remains authoritative; UI does not compute chemistry: PASS
+- unknown identity privacy: PASS
+- PR #44 Workbench layout/interaction direction preserved: PASS
 
 ## Vercel Policy
-PR #35 remains authoritative. Root `vercel.json` still has `git.deploymentEnabled = false`.
-No Vercel production or preview deployment was created during this integration task. Manual deployment remains prohibited until explicitly requested by the user.
+Root `vercel.json` remains authoritative with:
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": false
+  }
+}
+```
+
+No manual Vercel deployment is part of this integration. Production deployment remains prohibited until explicitly requested by the user.
 
 ## Final Status
-**PASS — Dynamic Species Registry stack integrated into production main.**
-
-## Next
-**Reaction Network / Multi-step Chemistry Execution**
+**PASS — Phase 3A reaction network, kinetics/thermal, and Workbench UI integrated into production main.**
