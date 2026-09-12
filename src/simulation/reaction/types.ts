@@ -104,6 +104,12 @@ export interface ReactionCandidateDebugMetadata {
   siteKeys: readonly string[];
 }
 
+/** Explicit metadata only. Pair membership is never inferred from structures, names, or equations. */
+export interface ReactionCandidateReversibleMetadata {
+  pairId: string;
+  direction: "FORWARD" | "REVERSE";
+}
+
 export interface ReactionCandidate {
   id: string;
   family: ReactionFamily;
@@ -114,6 +120,8 @@ export interface ReactionCandidate {
   chargeChanges: readonly CandidateChargeChange[];
   electronTransfer?: ElectronTransferMetadata;
   protonTransfer?: ProtonTransferMetadata;
+  /** Phase 3B explicit reversible pairing. Absence means no pair arbitration. */
+  reversible?: ReactionCandidateReversibleMetadata;
   stoichiometry: {
     reactants: readonly ReactionStoichiometricTerm[];
     products: readonly ProductStoichiometricTerm[];

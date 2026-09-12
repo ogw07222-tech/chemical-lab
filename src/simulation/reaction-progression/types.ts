@@ -1,6 +1,9 @@
 import type { ElementProvider, MoleculeRecord, ScientificStatus, SpeciesId, SpeciesState } from "../molecular";
 import type { ReactionCandidate } from "../reaction";
-import type { RankedReactionEvaluation } from "../reaction-evaluation";
+import type {
+  EquilibriumProgressionMode,
+  RankedReactionEvaluation,
+} from "../reaction-evaluation";
 import type { ThermalState, ThermalStepInput } from "../thermal";
 
 export type ReactionResolutionReasonCode =
@@ -19,6 +22,11 @@ export type ReactionResolutionReasonCode =
   | "MAX_FRACTION_BOUNDED"
   | "COARSE_RELATIVE_RATE_EXTENT"
   | "DIMENSIONED_RATE_EXTENT"
+  | "REVERSIBLE_PAIR_SUPPRESSED"
+  | "EQUILIBRIUM_DRIVING_MODULATED"
+  | "EQUILIBRIUM_NET_FRACTION_BOUNDED"
+  | "EQUILIBRIUM_CROSSING_BOUNDED"
+  | "NEAR_EQUILIBRIUM_ZERO_NET"
   | "MISSING_REACTION_ENTHALPY"
   | "REACTION_HEAT_APPLIED";
 
@@ -43,6 +51,29 @@ export interface ReactionResolutionOptions {
   allowUncertainEvaluations?: boolean;
 }
 
+export interface ReactionEquilibriumEventMetadata {
+  reversiblePairId: string;
+  channelDirection: "FORWARD" | "REVERSE";
+  equilibriumDirection: EquilibriumProgressionMode;
+  equilibriumScientificStatus: ScientificStatus;
+  equilibriumDrivingStrength?: number;
+  lnQOverK?: number;
+  reactionQuotientQ?: number;
+  equilibriumConstantK?: number;
+}
+
+/**
+ * 01 execution-only request control. It never creates a kinetic request: the
+ * multiplier/caps are applied only after 02 kinetics yields a numeric request.
+ */
+export interface ReactionCandidateExtentControl {
+  suppress?: boolean;
+  requestMultiplier?: number;
+  maxRequestedExtentMol?: number;
+  reasonCodes?: readonly ReactionResolutionReasonCode[];
+  eventMetadata?: ReactionEquilibriumEventMetadata;
+}
+
 export interface ReactionResolutionInput {
   species: readonly SpeciesState[];
   elements: ElementProvider;
@@ -56,6 +87,7 @@ export interface ReactionResolutionInput {
   pressurePa?: number;
   volumeM3?: number;
   options?: ReactionResolutionOptions;
+  candidateExtentControls?: Readonly<Record<string, ReactionCandidateExtentControl>>;
 }
 
 export interface SpeciesAmountDelta {
@@ -100,6 +132,14 @@ export interface ReactionProgressEvent {
   temperatureAfterK?: number;
   scientificStatus: ScientificStatus;
   reasonCodes: readonly ReactionResolutionReasonCode[];
+  reversiblePairId?: string;
+  channelDirection?: "FORWARD" | "REVERSE";
+  equilibriumDirection?: EquilibriumProgressionMode;
+  equilibriumScientificStatus?: ScientificStatus;
+  equilibriumDrivingStrength?: number;
+  lnQOverK?: number;
+  reactionQuotientQ?: number;
+  equilibriumConstantK?: number;
 }
 
 export interface ReactionResolutionDiagnostics {
