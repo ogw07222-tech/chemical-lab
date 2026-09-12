@@ -27,41 +27,21 @@ export type EquilibriumProgressionReasonCode =
 
 export interface EquilibriumProgressionRecommendation {
   mode: EquilibriumProgressionMode;
-  /**
-   * Dimensionless thermodynamic modulation in [0, 1]. It never creates a
-   * kinetic rate; 01 multiplies an independently-supported kinetic request by
-   * this value before its own stoichiometric/shared-pool bounds.
-   */
   drivingStrength: number;
-  /** Same value as drivingStrength for the current coarse policy. */
   maxNetProgressFraction: number;
-  /** True only when a usable anti-crossing bound is present (or net progress is zero). */
   preventEquilibriumCrossing: boolean;
-  /**
-   * Maximum thermodynamically safe net extent magnitude toward equilibrium,
-   * when a deterministic projection is available. This is not a requested
-   * extent and is still subject to 01 kinetic/stoichiometric bounds.
-   */
   maxExtentTowardEquilibriumMol?: number;
   scientificStatus: ScientificStatus;
   reasonCodes: readonly EquilibriumProgressionReasonCode[];
 }
 
 export interface EquilibriumExtentProjection {
-  /** 01-owned feasible magnitude in the currently favored direction. */
   maxFeasibleExtentMol: number;
-  /**
-   * Pure read-only projection. Positive values mean forward net extent;
-   * negative values mean reverse net extent. The callback must not mutate the
-   * vessel and remains owned by 01 stoichiometric/state semantics.
-   */
   projectComposition(netForwardExtentMol: number): EquilibriumComposition;
 }
 
 export interface EquilibriumProgressionOptions {
-  /** Fixed upper bound for deterministic browser-safe bisection. */
   maxBisectionIterations?: number;
-  /** Engineering extent tolerance, not a scientific uncertainty claim. */
   extentToleranceMol?: number;
 }
 
@@ -74,19 +54,6 @@ function assertUnitInterval(value: number, name: string): void {
   }
 }
 
-/**
- * Continuous bounded thermodynamic modulation.
- *
- * Let x = ln(Q/K) and epsilon be the already-authoritative equilibrium
- * tolerance. The active drive outside the tolerance is
- *
- *   d = max(0, |x| - epsilon)
- *   f(d) = 1 - exp(-d)
- *
- * f(0)=0, f is monotone, symmetric in |x| and tends to 1 without a step at
- * the near-equilibrium boundary. This is an APPROXIMATED coarse modulation,
- * not a fundamental kinetic law.
- */
 export function equilibriumDrivingStrength(
   lnQOverK: number,
   epsilonLnQOverK: number,
@@ -132,21 +99,16 @@ function evaluateProjectedDrive(
 
 function sideOfEquilibrium(evaluation: EquilibriumEvaluationResult): -1 | 0 | 1 | undefined {
   if (evaluation.direction === "OPEN") return undefined;
-  if (evaluation.direction === "NEAR_EQUILIBRIUM") return 0;
   if (evaluation.lnQOverK !== undefined && Number.isFinite(evaluation.lnQOverK)) {
     if (evaluation.lnQOverK === 0) return 0;
     return evaluation.lnQOverK < 0 ? -1 : 1;
   }
+  if (evaluation.direction === "NEAR_EQUILIBRIUM") return 0;
   if (evaluation.direction === "FORWARD_FAVORED") return -1;
   if (evaluation.direction === "REVERSE_FAVORED") return 1;
   return undefined;
 }
 
-/**
- * Returns a deterministic thermodynamic recommendation for an already
- * supported reversible channel. It does not create a kinetic rate and does not
- * mutate inventory.
- */
 export function recommendEquilibriumProgression(
   view: ReactionCandidateEvaluationView,
   equilibrium: EquilibriumEvaluationResult,
