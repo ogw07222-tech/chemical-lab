@@ -35,6 +35,7 @@ export interface EquilibriumProgressionRecommendation {
   drivingStrength: number;
   /** Same value as drivingStrength for the current coarse policy. */
   maxNetProgressFraction: number;
+  /** True only when a usable anti-crossing bound is present (or net progress is zero). */
   preventEquilibriumCrossing: boolean;
   /**
    * Maximum thermodynamically safe net extent magnitude toward equilibrium,
@@ -129,6 +130,18 @@ function evaluateProjectedDrive(
   return evaluateReactionEquilibrium(view, composition, temperatureK, provider, equilibriumOptions);
 }
 
+function sideOfEquilibrium(evaluation: EquilibriumEvaluationResult): -1 | 0 | 1 | undefined {
+  if (evaluation.direction === "OPEN") return undefined;
+  if (evaluation.direction === "NEAR_EQUILIBRIUM") return 0;
+  if (evaluation.lnQOverK !== undefined && Number.isFinite(evaluation.lnQOverK)) {
+    if (evaluation.lnQOverK === 0) return 0;
+    return evaluation.lnQOverK < 0 ? -1 : 1;
+  }
+  if (evaluation.direction === "FORWARD_FAVORED") return -1;
+  if (evaluation.direction === "REVERSE_FAVORED") return 1;
+  return undefined;
+}
+
 /**
  * Returns a deterministic thermodynamic recommendation for an already
  * supported reversible channel. It does not create a kinetic rate and does not
@@ -178,7 +191,7 @@ export function recommendEquilibriumProgression(
     mode,
     drivingStrength: strength,
     maxNetProgressFraction: strength,
-    preventEquilibriumCrossing: true,
+    preventEquilibriumCrossing: false,
     scientificStatus: "APPROXIMATED",
     reasonCodes: ["THERMODYNAMIC_DRIVE_SUPPORTED", "APPROXIMATED_DRIVING_MODULATION"],
   };
@@ -196,6 +209,7 @@ export function recommendEquilibriumProgression(
   if (projection.maxFeasibleExtentMol === 0) {
     return {
       ...base,
+      preventEquilibriumCrossing: true,
       maxExtentTowardEquilibriumMol: 0,
       reasonCodes: [...base.reasonCodes, "EQUILIBRIUM_OUTSIDE_FEASIBLE_EXTENT"],
     };
@@ -219,27 +233,25 @@ export function recommendEquilibriumProgression(
     provider,
     equilibriumOptions,
   );
-  const endX = endEvaluation?.lnQOverK;
-  if (
-    !endEvaluation ||
-    endEvaluation.direction === "OPEN" ||
-    endX === undefined ||
-    !Number.isFinite(endX)
-  ) {
+  if (!endEvaluation) {
+    return {
+      ...base,
+      reasonCodes: [...base.reasonCodes, "PROJECTION_EVALUATION_OPEN", "EQUILIBRIUM_CROSSING_BOUND_UNAVAILABLE"],
+    };
+  }
+  const endSide = sideOfEquilibrium(endEvaluation);
+  if (endSide === undefined) {
     return {
       ...base,
       reasonCodes: [...base.reasonCodes, "PROJECTION_EVALUATION_OPEN", "EQUILIBRIUM_CROSSING_BOUND_UNAVAILABLE"],
     };
   }
 
-  const startX = equilibrium.lnQOverK;
-  const crossesOrReaches = mode === "FORWARD"
-    ? endX >= 0
-    : endX <= 0;
-
+  const crossesOrReaches = mode === "FORWARD" ? endSide >= 0 : endSide <= 0;
   if (!crossesOrReaches) {
     return {
       ...base,
+      preventEquilibriumCrossing: true,
       maxExtentTowardEquilibriumMol: projection.maxFeasibleExtentMol,
       reasonCodes: [...base.reasonCodes, "EQUILIBRIUM_OUTSIDE_FEASIBLE_EXTENT"],
     };
@@ -257,14 +269,20 @@ export function recommendEquilibriumProgression(
       provider,
       equilibriumOptions,
     );
-    const x = evaluation?.lnQOverK;
-    if (!evaluation || evaluation.direction === "OPEN" || x === undefined || !Number.isFinite(x)) {
+    if (!evaluation) {
       return {
         ...base,
         reasonCodes: [...base.reasonCodes, "INVALID_PROJECTION_RESULT", "EQUILIBRIUM_CROSSING_BOUND_UNAVAILABLE"],
       };
     }
-    const stillOriginalSide = mode === "FORWARD" ? x < 0 : x > 0;
+    const side = sideOfEquilibrium(evaluation);
+    if (side === undefined) {
+      return {
+        ...base,
+        reasonCodes: [...base.reasonCodes, "INVALID_PROJECTION_RESULT", "EQUILIBRIUM_CROSSING_BOUND_UNAVAILABLE"],
+      };
+    }
+    const stillOriginalSide = mode === "FORWARD" ? side < 0 : side > 0;
     if (stillOriginalSide) low = mid;
     else high = mid;
   }
@@ -279,6 +297,7 @@ export function recommendEquilibriumProgression(
 
   return {
     ...base,
+    preventEquilibriumCrossing: true,
     maxExtentTowardEquilibriumMol: bound,
     reasonCodes: [...base.reasonCodes, "EQUILIBRIUM_CROSSING_BOUND_SUPPORTED"],
   };
