@@ -12,7 +12,7 @@
 - Pre-refresh green run: `34667346241`
 - Post-refresh validated HEAD: `7555f4524511f2d17f82f611e425b33718d9e801`
 - Post-refresh validation run: `34667533394`
-- Active PR: pending final exact-head validation / creation
+- PR: #44 — `feat(ui): refine clean laboratory workbench`
 
 ## Refinement scope
 - Removed decorative background apparatus, secondary beaker/test-tube/stirrer/stand/bottle art, and sticky-note/background copy.
@@ -112,4 +112,4 @@ Workflow run: `34667533394`
 No Vercel production deployment was performed. Automatic Git deployment remains disabled through `vercel.json`.
 
 ## Gate
-**PASS** — workbench refinement is compatible with latest main and ready for final exact-head validation / PR creation.
+**PASS** — workbench refinement is compatible with latest main. PR #44 is open; final exact-head CI after this status update is the remaining merge-readiness check.
