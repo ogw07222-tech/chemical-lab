@@ -20,7 +20,29 @@ const placements: ApparatusPlacement[] = [
 
 function App() {
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', background: '#e8e7e2' }}>
+    <div
+      style={{
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        background: '#e8e7e2',
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gridTemplateRows: '1fr',
+      }}
+    >
+      <style>{`
+        .lab-center {
+          grid-column: 1 !important;
+          grid-row: 1 !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          height: 100% !important;
+        }
+        .workbench-placement-surface {
+          min-height: 360px !important;
+        }
+      `}</style>
       <WorkbenchShell
         title="05A validation"
         status="layout-only"
