@@ -1,0 +1,47 @@
+name: 06 Exact 05B Recheck
+on:
+  push:
+    branches:
+      - validation/06-05b-exact-recheck
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact source and ancestry guard
+        run: |
+          git merge-base --is-ancestor cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD
+          git merge-base --is-ancestor e64a5dad96705506f312ef90ff6b82291b6281cc HEAD
+          git diff --exit-code e64a5dad96705506f312ef90ff6b82291b6281cc HEAD -- src tests package.json package-lock.json
+      - name: Frontend physics audit
+        run: |
+          if grep -RniE 'temperatureK\s*[+\-*/=]|pressurePa\s*[+\-*/=]|reactionRate|reactionExtent|equilibrium|lnQOverK|deltaG|phaseInference|filterResult|gasTransfer|heatTransfer|condens' src/ui/apparatus; then
+            echo 'Potential frontend physics identifier found in 05B boundary' >&2
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Targeted 05B + 05A + workspace
+        run: npm test -- tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/LaboratoryWorkspace.test.tsx
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Responsive browser smoke
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/05b-vite.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - run: git rev-parse HEAD
