@@ -18,6 +18,7 @@ export interface WorkbenchPlacementSurfaceProps {
   focusedApparatusId?: ApparatusId;
   onSelectedApparatusChange?: (apparatusId: ApparatusId) => void;
   onFocusedApparatusChange?: (apparatusId: ApparatusId) => void;
+  onApparatusElementChange?: (apparatusId: ApparatusId, element: HTMLButtonElement | null) => void;
   renderApparatus?: ApparatusChildRenderer;
   baseLayer?: ReactNode;
   emptyState?: ReactNode;
@@ -48,6 +49,7 @@ export function WorkbenchPlacementSurface({
   focusedApparatusId,
   onSelectedApparatusChange,
   onFocusedApparatusChange,
+  onApparatusElementChange,
   renderApparatus,
   baseLayer,
   emptyState,
@@ -78,11 +80,12 @@ export function WorkbenchPlacementSurface({
           const focused = focusedId === instance.id;
           const zIndex = placement.zIndex ?? index + 1;
           return (
-            <div
+            <button
               key={instance.id}
-              role="group"
-              aria-label={`${instance.type} 기구`}
-              tabIndex={0}
+              ref={(element) => onApparatusElementChange?.(instance.id, element)}
+              type="button"
+              aria-label={`${instance.type} 기구 ${instance.id}`}
+              aria-pressed={selected}
               className={`apparatus-placement-item${selected ? ' selected' : ''}${focused ? ' focused' : ''}`}
               data-apparatus-id={instance.id}
               data-apparatus-type={instance.type}
@@ -100,7 +103,7 @@ export function WorkbenchPlacementSurface({
                 select: () => select(instance.id),
                 focus: () => focus(instance.id),
               })}
-            </div>
+            </button>
           );
         })}
         {apparatus.length === 0 && emptyState ? <div className="workbench-empty-state">{emptyState}</div> : null}
