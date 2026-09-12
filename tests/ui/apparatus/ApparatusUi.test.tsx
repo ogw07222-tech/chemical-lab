@@ -58,23 +58,24 @@ describe('05B placement composition and selection', () => {
     render(<ApparatusWorkspaceLayer apparatus={apparatus} placements={placements} />);
     expect(screen.getByRole('region', { name: '기구 배치 영역' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('group', { name: 'HOT_PLATE 기구' }));
-    expect(screen.getByRole('complementary', { name: 'Device Inspector' })).toHaveTextContent('Hot Plate');
+    fireEvent.click(screen.getByRole('button', { name: 'HOT_PLATE 기구 hot-plate-1' }));
+    expect(screen.getByRole('complementary', { name: 'Hot Plate' })).toHaveTextContent('Hot Plate');
     expect(screen.getByLabelText('Target Temperature')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('group', { name: 'BEAKER 기구' }));
-    expect(screen.getByRole('complementary', { name: 'Device Inspector' })).toHaveTextContent('Beaker');
+    fireEvent.click(screen.getByRole('button', { name: 'BEAKER 기구 beaker-1' }));
+    expect(screen.getByRole('complementary', { name: 'Beaker' })).toHaveTextContent('Beaker');
     expect(screen.queryByLabelText('Target Temperature')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Power')).not.toBeInTheDocument();
   });
 
   it('preserves stable instance ids for multiple apparatus of the same type', () => {
     render(<ApparatusWorkspaceLayer apparatus={[{ id: 'beaker-1', type: 'BEAKER' }, { id: 'beaker-2', type: 'BEAKER' }]} />);
-    const groups = screen.getAllByRole('group', { name: 'BEAKER 기구' });
-    expect(groups[0]).toHaveAttribute('data-apparatus-id', 'beaker-1');
-    expect(groups[1]).toHaveAttribute('data-apparatus-id', 'beaker-2');
-    fireEvent.click(groups[1]);
-    expect(screen.getByRole('complementary', { name: 'Device Inspector' })).toHaveTextContent('beaker-2');
+    const first = screen.getByRole('button', { name: 'BEAKER 기구 beaker-1' });
+    const second = screen.getByRole('button', { name: 'BEAKER 기구 beaker-2' });
+    expect(first).toHaveAttribute('data-apparatus-id', 'beaker-1');
+    expect(second).toHaveAttribute('data-apparatus-id', 'beaker-2');
+    fireEvent.click(second);
+    expect(screen.getByRole('complementary', { name: 'Beaker' })).toHaveTextContent('beaker-2');
   });
 });
 
