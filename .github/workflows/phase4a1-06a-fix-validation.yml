@@ -1,0 +1,54 @@
+name: Phase 4A-1 06A Fix Validation
+
+on:
+  push:
+    branches:
+      - feature/phase4a1-compartment-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Phase 4A-1 tests
+        run: npm test -- tests/phase4a1-compartment-foundation.test.ts
+
+      - name: Chemistry regression stack
+        run: >-
+          npm test --
+          tests/phase3a-reaction-network.test.ts
+          tests/phase3b-reversible-arbitration.test.ts
+          tests/dynamic-species-registry.test.ts
+          tests/reaction-progression.test.ts
+          tests/phase3a-kinetics-thermal.test.ts
+          tests/thermal.test.ts
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Exact HEAD
+        run: git rev-parse HEAD
