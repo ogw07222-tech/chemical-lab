@@ -1,6 +1,5 @@
 import type { ApparatusId, ApparatusInstance, ApparatusType } from '../../workbench';
 import type {
-  ApparatusFactStatus,
   ApparatusIntentSupportMap,
   ApparatusProviderFact,
 } from '../../shared/apparatus';
