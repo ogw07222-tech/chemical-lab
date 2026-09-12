@@ -1,0 +1,64 @@
+name: Phase3A UI Status Diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/phase3a-ui-status-e4139de
+
+permissions:
+  contents: read
+
+jobs:
+  verify-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout feature HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: e4139de2a63a1eedad89001b2030b520ca657a1f
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Reproducible install
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Targeted UI test
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke
+        shell: bash
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+
+      - name: Tested commit
+        run: git rev-parse HEAD
