@@ -1,5 +1,15 @@
 import { createContext, type ReactNode, useContext, useMemo, useReducer } from 'react';
-import type { LaboratoryCommand, LaboratoryEvent, LaboratoryProviderValue, LaboratorySnapshot, PhaseDiagramViewModel, SubstanceSummary } from './types';
+import type {
+  LaboratoryCommand,
+  LaboratoryEvent,
+  LaboratoryProviderValue,
+  LaboratorySnapshot,
+  PhaseDiagramViewModel,
+  ReactionActivityProjection,
+  ReactionProgressEvent,
+  ReactionSpeciesProjection,
+  SubstanceSummary,
+} from './types';
 
 const CATALOG: SubstanceSummary[] = [
   { speciesId: 'h2', name: 'Hydrogen', koreanName: '수소', formula: 'H₂', category: 'element', scientificStatus: 'OPEN', description: '가장 단순한 분자 중 하나. 상세 물성은 권위 데이터 어댑터 연결 후 표시됩니다.' },
@@ -23,8 +33,9 @@ const PHASE_FIXTURE: PhaseDiagramViewModel = {
   triplePoint: { temperatureK: 200, pressurePa: 35_000 }, criticalPoint: { temperatureK: 400, pressurePa: 235_000 },
 };
 
-// Mock-only resolver data. Undiscovered species identity must not cross the UI-facing snapshot boundary.
+// Mock-only resolver data. Undiscovered species identity must not cross the normal UI-facing projection boundary.
 const UNKNOWN_SPECIES_BY_OBSERVATION: Readonly<Record<string, string>> = { 'fixture-unknown-1': 'h2o' };
+const UNKNOWN_REFERENCE_BY_OBSERVATION: Readonly<Record<string, string>> = { 'fixture-unknown-1': 'mock-unknown-a' };
 
 const initialSnapshot: LaboratorySnapshot = {
   experimentName: 'Untitled experiment', vesselId: 'vessel-1', capacityM3: 0.002, volumeM3: 0.001,
@@ -35,14 +46,67 @@ const initialSnapshot: LaboratorySnapshot = {
   controls: { heaterPowerW: 0, coolerPowerW: 0, thermostatEnabled: false, thermostatTargetK: 298.15, requestedPressurePa: 101325, requestedVolumeM3: 0.001 },
 };
 
-interface MockState { snapshot: LaboratorySnapshot; events: LaboratoryEvent[]; eventCounter: number; }
-const initialState: MockState = { snapshot: initialSnapshot, events: [], eventCounter: 0 };
+export type MockLaboratoryScenario = 'default' | 'reaction-network';
+
+const knownH2: ReactionSpeciesProjection = { referenceId: 'known-h2', displayIdentity: 'H₂', identityConfirmed: true, knownSpeciesId: 'h2' };
+const knownO2: ReactionSpeciesProjection = { referenceId: 'known-o2', displayIdentity: 'O₂', identityConfirmed: true, knownSpeciesId: 'o2' };
+const unknownA: ReactionSpeciesProjection = { referenceId: 'mock-unknown-a', displayIdentity: 'hidden mock identity', opaqueLabel: 'Unknown α', identityConfirmed: false };
+
+const REACTION_NETWORK_EVENTS: ReactionProgressEvent[] = [
+  {
+    id: 'reaction-1', sequence: 1, simulationTimeS: 1, kind: 'reaction-progress', stepIndex: 1, state: 'completed', precision: 'OPEN', activityLabel: '반응 진행 감지',
+    consumed: [knownH2], produced: [unknownA],
+    reactionHeat: { precision: 'OPEN', status: 'unavailable', label: '반응열 데이터 미확정' },
+  },
+  {
+    id: 'reaction-2', sequence: 2, simulationTimeS: 2, kind: 'reaction-progress', stepIndex: 2, state: 'progressing', precision: 'APPROXIMATED', activityLabel: '반응 진행 감지',
+    consumed: [{ ...unknownA, amountMol: 0.1 }], produced: [{ ...knownO2, amountMol: 0.05 }],
+    observables: [{ kind: 'gas-evolution', precision: 'APPROXIMATED', label: '기체 발생 관찰됨' }],
+  },
+];
+
+interface MockState {
+  snapshot: LaboratorySnapshot;
+  events: LaboratoryEvent[];
+  reactionEvents: ReactionProgressEvent[];
+  reactionActivity?: ReactionActivityProjection;
+  eventCounter: number;
+  scenario: MockLaboratoryScenario;
+}
+
+function createInitialState(scenario: MockLaboratoryScenario): MockState {
+  if (scenario === 'reaction-network') {
+    return {
+      scenario,
+      eventCounter: 2,
+      events: [],
+      reactionEvents: REACTION_NETWORK_EVENTS,
+      reactionActivity: { eventId: 'reaction-2', simulationTimeS: 2, state: 'progressing', precision: 'APPROXIMATED', label: '반응 진행 감지' },
+      snapshot: {
+        ...initialSnapshot,
+        simulationTimeS: 2,
+        simulationStatus: 'running',
+        contents: [
+          { speciesId: 'h2', displayIdentity: 'H₂', amountMol: 0.35, phase: 'gas', identityConfirmed: true },
+          { displayIdentity: 'hidden mock identity', opaqueLabel: 'Unknown α', amountMol: 0.1, phase: 'unknown', identityConfirmed: false },
+        ],
+      },
+    };
+  }
+  return { scenario, snapshot: initialSnapshot, events: [], reactionEvents: [], reactionActivity: undefined, eventCounter: 0 };
+}
+
 function appendEvent(state: MockState, message: string, kind: LaboratoryEvent['kind'] = 'command-accepted'): MockState {
   const eventCounter = state.eventCounter + 1;
-  const event: LaboratoryEvent = { id: `mock-${eventCounter}`, simulationTimeS: state.snapshot.simulationTimeS, kind, message };
+  const event: LaboratoryEvent = { id: `mock-${eventCounter}`, sequence: eventCounter, simulationTimeS: state.snapshot.simulationTimeS, kind, message };
   return { ...state, eventCounter, events: [event, ...state.events].slice(0, 30) };
 }
 function finiteNonNegative(value: number) { return Number.isFinite(value) && value >= 0; }
+
+function confirmProjectionIdentity(projection: ReactionSpeciesProjection, referenceId: string, species: SubstanceSummary): ReactionSpeciesProjection {
+  if (projection.referenceId !== referenceId) return projection;
+  return { referenceId: projection.referenceId, displayIdentity: species.formula, identityConfirmed: true, knownSpeciesId: species.speciesId, amountMol: projection.amountMol };
+}
 
 function reducer(state: MockState, command: LaboratoryCommand): MockState {
   const s = state.snapshot;
@@ -76,22 +140,33 @@ function reducer(state: MockState, command: LaboratoryCommand): MockState {
     case 'AnalyzeUnknown': {
       const target = s.unknownObservations.find((item) => item.observationId === command.observationId);
       const confirmedSpeciesId = UNKNOWN_SPECIES_BY_OBSERVATION[command.observationId];
+      const referenceId = UNKNOWN_REFERENCE_BY_OBSERVATION[command.observationId];
       if (!target || !confirmedSpeciesId) return state;
       const species = CATALOG.find((item) => item.speciesId === confirmedSpeciesId); if (!species) return state;
       const unlocked = s.unlockedSpeciesIds.includes(species.speciesId) ? s.unlockedSpeciesIds : [...s.unlockedSpeciesIds, species.speciesId];
       const encyclopedia = s.encyclopedia.some((e) => e.speciesId === species.speciesId) ? s.encyclopedia : [...s.encyclopedia, { speciesId: species.speciesId, firstDiscoveryLabel: 'Mock analyzer fixture', knownProperties: [], phaseInfo: 'Authoritative phase data not connected' }];
       const unknownObservations = s.unknownObservations.map((item) => item.observationId === command.observationId ? { ...item, analysisState: 'confirmed' as const } : item);
-      return appendEvent({ ...state, snapshot: { ...s, unlockedSpeciesIds: unlocked, encyclopedia, unknownObservations } }, `Identity confirmed: ${species.name}. Encyclopedia registered; catalog unlocked.`, 'discovery');
+      const contents = s.contents.map((item) => item.identityConfirmed ? item : { ...item, speciesId: species.speciesId, displayIdentity: species.formula, opaqueLabel: undefined, identityConfirmed: true });
+      const reactionEvents = referenceId ? state.reactionEvents.map((event) => ({
+        ...event,
+        consumed: event.consumed.map((projection) => confirmProjectionIdentity(projection, referenceId, species)),
+        produced: event.produced.map((projection) => confirmProjectionIdentity(projection, referenceId, species)),
+      })) : state.reactionEvents;
+      return appendEvent({ ...state, reactionEvents, snapshot: { ...s, contents, unlockedSpeciesIds: unlocked, encyclopedia, unknownObservations } }, `Identity confirmed: ${species.name}. Encyclopedia registered; catalog unlocked.`, 'discovery');
     }
-    case 'ResetExperiment': return { snapshot: { ...initialSnapshot, developerMode: s.developerMode }, eventCounter: state.eventCounter + 1, events: [{ id: `mock-${state.eventCounter + 1}`, simulationTimeS: 0, kind: 'command-accepted', message: 'Experiment reset' }] };
+    case 'ResetExperiment': {
+      const reset = createInitialState(state.scenario);
+      const sequence = reset.eventCounter + 1;
+      return { ...reset, eventCounter: sequence, events: [{ id: `mock-${sequence}`, sequence, simulationTimeS: reset.snapshot.simulationTimeS, kind: 'command-accepted', message: 'Experiment reset' }] };
+    }
   }
 }
 
 const LaboratoryContext = createContext<LaboratoryProviderValue | null>(null);
-export function MockLaboratoryProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+export function MockLaboratoryProvider({ children, scenario = 'default' }: { children: ReactNode; scenario?: MockLaboratoryScenario }) {
+  const [state, dispatch] = useReducer(reducer, scenario, createInitialState);
   const phaseDiagrams = useMemo<Record<string, PhaseDiagramViewModel | undefined>>(() => ({ h2: { ...PHASE_FIXTURE, currentState: { temperatureK: state.snapshot.temperatureK, pressurePa: state.snapshot.pressurePa, phase: 'unknown' } } }), [state.snapshot.temperatureK, state.snapshot.pressurePa]);
-  const value = useMemo<LaboratoryProviderValue>(() => ({ snapshot: state.snapshot, catalog: CATALOG, events: state.events, phaseDiagrams, dispatch }), [state, phaseDiagrams]);
+  const value = useMemo<LaboratoryProviderValue>(() => ({ snapshot: state.snapshot, catalog: CATALOG, events: state.events, reactionActivity: state.reactionActivity, reactionEvents: state.reactionEvents, phaseDiagrams, dispatch }), [state, phaseDiagrams]);
   return <LaboratoryContext.Provider value={value}>{children}</LaboratoryContext.Provider>;
 }
 export function useLaboratory() { const value = useContext(LaboratoryContext); if (!value) throw new Error('useLaboratory must be used inside a LaboratoryProvider'); return value; }
