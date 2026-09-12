@@ -47,27 +47,43 @@ jobs:
           npm run smoke:ui
       - run: git rev-parse HEAD
 
-  current_main_merge_probe:
+  current_main_runtime_probe:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Probe exact lineage against latest main without committing
-        shell: bash
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Merge latest production main into exact 05A→05B→05D lineage
         run: |
-          set +e
           git fetch origin main
           git config user.email validation@example.invalid
           git config user.name validation
-          git merge --no-commit --no-ff origin/main
-          rc=$?
-          if [ $rc -ne 0 ]; then
-            echo 'CURRENT_MAIN_MERGE_CONFLICT'
-            git status --short
-            git diff --name-only --diff-filter=U
-            git merge --abort || true
+          git merge --no-edit origin/main
+          echo "MERGED_TREE=$(git rev-parse HEAD)"
+      - run: npm ci --no-audit --no-fund
+      - name: Scientific UI boundary remains non-authoritative after Phase 3B merge
+        run: |
+          if grep -RniE 'lnQOverK|equilibriumConstant|drivingStrength|reactionExtent|reactionRate|phaseInference|filterResult|heatTransfer|molecularIdentity' src/ui/adapters src/ui/providers src/ui/shared src/ui/apparatus; then
+            echo 'Forbidden scientific inference identifier found after current-main merge' >&2
             exit 1
           fi
-          echo 'CURRENT_MAIN_MERGE_CLEAN'
-          git merge --abort || true
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Current-main UI + Phase 3A + Phase 3B regression
+        run: npm test -- tests/ui/apparatus-provider.test.tsx tests/ui/apparatus-accessibility.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/LaboratoryWorkspace.test.tsx tests/phase3a-reaction-network.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-reversible-arbitration.test.ts
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Current-main responsive browser smoke
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/05d-main-vite.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
