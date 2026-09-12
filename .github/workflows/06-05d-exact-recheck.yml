@@ -1,0 +1,73 @@
+name: 06 Exact 05D Recheck
+on:
+  push:
+    branches:
+      - validation/06-05d-exact-recheck
+permissions:
+  contents: read
+jobs:
+  source_validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact source and ancestry guard
+        run: |
+          git merge-base --is-ancestor cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD
+          git merge-base --is-ancestor e64a5dad96705506f312ef90ff6b82291b6281cc HEAD
+          git merge-base --is-ancestor 95764c1b6b703ac3f4b6bef3af8a23993aff3a81 HEAD
+          git diff --exit-code 95764c1b6b703ac3f4b6bef3af8a23993aff3a81 HEAD -- src tests package.json package-lock.json
+      - name: Provider/scientific boundary audit
+        run: |
+          if grep -RniE 'lnQOverK|equilibriumConstant|drivingStrength|reactionExtent|reactionRate|phaseInference|filterResult|heatTransfer|molecularIdentity' src/ui/adapters src/ui/providers src/ui/shared src/ui/apparatus; then
+            echo 'Forbidden scientific inference identifier found in 05D-owned UI boundary' >&2
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Targeted 05D + dependencies + Phase 3A regression
+        run: npm test -- tests/ui/apparatus-provider.test.tsx tests/ui/apparatus-accessibility.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/LaboratoryWorkspace.test.tsx tests/phase3a-reaction-network.test.ts tests/phase3a-kinetics-thermal.test.ts
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Responsive browser smoke
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/05d-vite.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - run: git rev-parse HEAD
+
+  current_main_merge_probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Probe exact lineage against latest main without committing
+        shell: bash
+        run: |
+          set +e
+          git fetch origin main
+          git config user.email validation@example.invalid
+          git config user.name validation
+          git merge --no-commit --no-ff origin/main
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo 'CURRENT_MAIN_MERGE_CONFLICT'
+            git status --short
+            git diff --name-only --diff-filter=U
+            git merge --abort || true
+            exit 1
+          fi
+          echo 'CURRENT_MAIN_MERGE_CLEAN'
+          git merge --abort || true
