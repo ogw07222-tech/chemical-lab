@@ -1,0 +1,28 @@
+name: 05B Apparatus UI Validation
+
+on:
+  push:
+    branches:
+      - validation/05b-apparatus-ui-shell
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test -- tests/ui/apparatus/ApparatusUi.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx
+      - run: npm test
+      - run: npm run build
+      - name: Tested commit
+        run: git rev-parse HEAD
