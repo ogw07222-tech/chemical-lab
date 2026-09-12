@@ -1,218 +1,145 @@
 # 05 — Web UI
 
 - Owner: Lead Game UI/UX Designer / Chemistry Visualization Developer / Frontend Integration Developer / Web Laboratory Interface Developer
-- Current phase: Phase 3A reaction activity UI
-- Overall state: PASS — UI implementation validated; stacked integration depends on PR #46
+- Current phase: Phase 3B reversible / equilibrium UI
+- Overall state: **BLOCKED — authoritative Phase 3B 01/02 provider contract is not yet implemented/stable**
 - Last updated: 2026-09-12
-- Authoritative main at start: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
-- Workbench authority: PR #44 merged clean Workbench
-- Upstream dependency: PR #46 — `feat(sim): add Phase 3A multi-step reaction network execution`
-- Exact PR #46 HEAD used: `6d04b9aa96bfce02717cb9a233ded33d29960132`
-- Active stacked branch: `feature/phase3a-reaction-activity-ui`
-- Validated code HEAD: `b149bf67b8f26a9e5440c0cb7fed68761039ca30`
-- Runtime validation run: `34671192525`
+- Latest audited main: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
+- Phase 3B 01 branch discovered: `feature/phase3b-equilibrium-foundation`
+- Phase 3B 01 branch HEAD at audit: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf` — identical to main, with no Phase 3B implementation commit yet
+- 05 blocker branch: `feature/phase3b-equilibrium-ui`
 
-## PR #46 provider-contract audit
-05 inspected the actual source at PR #46 HEAD rather than relying on expected names.
+## Phase 3B provider-contract audit
 
-Actual provider-facing contract is `Phase3AProviderProjection` from `src/integration/phase3a-reaction-network.ts`:
-- `authoritativeVesselComposition: readonly VesselCompositionProjection[]`
-- `activeReactionEvents: readonly ReactionFactProjection[]`
-- `timelineEvents: readonly ReactionFactProjection[]`
+05 audited latest `main`, current integration/provider types, 01 status, 02 status, repository branches, and existing equilibrium-related contracts before changing UI code.
 
-Actual vessel fact fields consumed:
-- `speciesRef`
-- `amountMol`
-- `phase`
-- `phaseStateId`
+### Latest main
+Current production main is `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf` (`docs(07): record Phase3A production integration PASS`).
 
-Actual reaction fact fields consumed:
-- `eventId`
-- `timestepId`
-- `sequence`
-- `candidateId`
-- `startTimeS`
-- `endTimeS`
-- `consumed[] { speciesRef, amountMol }`
-- `produced[] { speciesRef, amountMol }`
-- optional `reactionHeat_J`
-- `scientificStatus`
-- `reasonCodes`
+### Existing production provider surface
+Current production UI/provider contract still exposes only Phase 3A reaction projections:
+- `reactionActivity?: ReactionActivityView`
+- `reactionEvents: ReactionProgressView[]`
+- `reactionDeveloperDiagnostics?: ReactionDeveloperDiagnostics`
+- authoritative vessel composition through `snapshot.contents`
 
-`extentMol` exists upstream but is intentionally not projected into the current player UI. React does not use it to calculate amounts, rates, heat, progress, or reaction equations.
+The production `Phase3AProviderProjection` exposes only:
+- `authoritativeVesselComposition`
+- `activeReactionEvents`
+- `timelineEvents`
 
-Important ordering fact: PR #46 `sequence` is deterministic inside each timestep and can restart at zero on the next timestep. 05 therefore preserves it as `sourceSequence` for event detail but does not treat it as a cross-timestep global sequence. The UI preserves the authoritative order of `timelineEvents` after stable `eventId` de-duplication.
+There is currently **no production provider field** for any Phase 3B equilibrium/reversible state such as:
+- forward/reverse favored state;
+- near-equilibrium state;
+- equilibrium-state transition event;
+- equilibrium fact/event stable id;
+- Q;
+- K / K_eq;
+- deltaG equilibrium projection;
+- equilibrium tolerance/proximity;
+- player-facing equilibrium scientific status/confidence;
+- developer-only equilibrium diagnostics.
 
-## Player-knowledge / unknown identity boundary
-PR #46 explicitly exposes `speciesRef` as an internal/opaque simulation reference. It is not a player identity.
+### 01 status
+`docs/workstream-status/01-simulation-engine.md` on current main is still Phase 3A multi-step network execution. It explicitly leaves long-horizon equilibrium/network acceleration OPEN. Existing provider facts are Phase 3A composition/reaction history only.
 
-The adapter requires a `PlayerSpeciesKnowledgeResolver` before any vessel/reaction fact reaches normal UI presentation. The resolver supplies only:
-- stable player-facing `unknownRef`
-- display label
-- identity-confirmed flag
-- optional known catalog species id after confirmation
+### 02 status
+`docs/workstream-status/02-thermodynamics-kinetics.md` on current main is still Phase 3A network kinetics / aggregate thermal coupling. It explicitly states:
+- forward/reverse channels may be independently evaluated;
+- detailed balance is opt-in only;
+- no automatic equilibrium assumption;
+- no `K_eq` is introduced;
+- full equilibrium solver / general `K_eq` path / guaranteed detailed balance remain OPEN;
+- do not proceed to a full equilibrium solver yet.
 
-Normal mode does not render:
-- internal `speciesRef`
-- hidden canonical key
-- hidden molecular formula
-- hidden molecular graph
-- hidden scientific-reference identity
-- reaction `candidateId`
+### Phase 3B branch state
+Repository branch search found `feature/phase3b-equilibrium-foundation`, but its current HEAD is exactly the same commit as latest main (`e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`). Therefore there is not yet an auditable Phase 3B executable/provider contract on that branch.
 
-Existing generated-species knowledge remains the intended authority for the production resolver. Developer diagnostics are carried in a separate DTO and are emitted only when Developer Mode is enabled.
+## Why UI implementation is blocked
 
-## UI implementation
-The clean PR #44 Workbench remains visually authoritative. No dashboard conversion or new large reaction surface was introduced.
+The requested player-facing labels:
+- `→ 정반응 우세`
+- `← 역반응 우세`
+- `⇌ 평형 근접`
+- `? 평형 데이터 미확정`
 
-Implemented:
-- current authoritative multi-species vessel composition in the primary vessel;
-- compact `반응 활동` strip using the existing observation-strip visual language;
-- existing Timeline enriched with provider reaction events;
-- generic event-derived `consumed → produced` rendering;
-- timestep id and upstream sequence shown as event metadata;
-- stable React keys from provider `eventId`;
-- duplicate provider deliveries de-duplicated by `eventId` without re-sorting chemistry facts;
-- separate Developer Mode diagnostics for internal candidate/species refs.
-
-Preserved unchanged:
-- mostly empty central experiment area;
-- primary vessel as visual focus;
-- collapsible catalog;
-- collapsible condition panel;
-- T/P/V controls and collapsed summary;
-- structural notation;
-- persistent inspector and notes;
-- desktop/tablet/mobile layout;
-- existing Workbench CSS authority.
-
-## Chemistry authority
-05 does not calculate or infer:
-- reaction candidates;
-- stoichiometry;
-- reaction extent;
-- reaction rate;
-- equilibrium;
+are valid presentation targets **only after** 01/02/provider supplies an authoritative state. 05 will not infer these from:
+- forward/reverse event counts;
+- consumed/produced amounts;
+- reaction rates;
 - reaction heat;
-- generated molecular identity;
-- phase/gas effects.
+- deltaG values;
+- vessel composition;
+- elapsed time;
+- candidate metadata.
 
-The arrow shown in Timeline is presentation only: it joins provider-supplied consumed and produced arrays. It is not an independently derived reaction equation.
+Doing so would move equilibrium logic into UI and violate the project authority boundary.
 
-## Scientific status / precision behavior
-05 reuses the repository canonical status only:
-- `VERIFIED`
-- `APPROXIMATED`
-- `EMPIRICAL`
-- `GAMEPLAY_SIMPLIFICATION`
-- `OPEN`
+Likewise, 05 will not invent:
+- a UI-local equilibrium enum treated as simulation truth;
+- local Q/K calculations;
+- local deltaG comparison;
+- local near-equilibrium tolerance;
+- synthetic timeline transitions derived from render history;
+- fake numeric Q/K/deltaG fixtures presented as provider facts.
 
-No new canonical scientific-status enum was introduced.
+## Required provider contract before 05 resumes
 
-Display rules:
-- supported numeric facts may display numerically;
-- `APPROXIMATED` values are visibly prefixed with `≈`;
-- `OPEN` reaction participant amounts are not rendered as exact values;
-- heat is displayed numerically only when supplied and not OPEN/missing;
-- `MISSING_REACTION_ENTHALPY` or OPEN heat renders `열 데이터 미확정`, never a fabricated `0 J` or an exact value.
+05 can implement Phase 3B immediately once an actual 01/02/provider surface exists. The minimum usable contract should expose an authoritative player-projectable equilibrium fact with stable identity and status semantics. Exact field names remain 01/02 ownership; 05 does not prescribe them as canonical types.
 
-PR #46 does not currently expose a dedicated qualitative rate/confidence UI field or a generic phase/gas observable-event collection. 05 therefore does not invent them.
+At minimum the provider must make it possible to consume, without recalculation:
+- stable reversible/equilibrium fact identity or reaction-pair identity;
+- authoritative qualitative state equivalent to forward-favored / reverse-favored / near-equilibrium / indeterminate;
+- simulation time/timestep ordering;
+- scientific status using the existing canonical status vocabulary;
+- optional numeric Q/K/deltaG only when 02 explicitly supports/exposes them;
+- a stable transition/event identity or authoritative transition stream for Timeline de-duplication;
+- species references that still pass through the existing opaque player-knowledge projection;
+- optional developer diagnostics separated from normal player projection.
 
-## Mock / adapter validation fixture
-`MockLaboratoryProvider` has an opt-in `reaction-network` scenario for UI tests only. The fixture is typed directly as PR #46 `Phase3AProviderProjection`; it is not a separately copied chemistry implementation.
+## Planned UI projection once unblocked
 
-The rendering fixture deliberately includes:
-- authoritative vessel composition containing known H2 and one generated unknown;
-- timestep 1 / sequence 0 reaction;
-- timestep 2 / sequence 0 reaction, proving sequence restart is handled;
-- the same opaque unknown reference across the two-step chain;
-- one duplicate timeline delivery to validate stable event de-duplication;
-- one OPEN event carrying a numeric heat field plus `MISSING_REACTION_ENTHALPY`, proving the player UI suppresses fake numeric heat;
-- one APPROXIMATED event, proving amount/heat approximation markers;
-- provider confirmation that changes the opaque unknown projection to H2O only after analysis confirmation.
+No implementation has been committed because doing so now would fabricate state. The intended UI shape remains:
+- compact equilibrium badge/state inside the existing `반응 활동` strip;
+- small equilibrium section in the existing inspector;
+- Timeline entries only from authoritative meaningful provider transitions;
+- no large equilibrium dashboard;
+- no loss of clean central vessel prominence;
+- no changes to catalog/condition collapse, T/P/V summary, structural notation, notes, or responsive layout.
 
-The fixture does not assert that its mocked reaction path is scientifically valid.
+Numeric honesty policy will remain:
+- `VERIFIED`: provider numeric may display normally;
+- `APPROXIMATED`: visibly mark `≈` / approximation;
+- `OPEN`: no fabricated exact Q/K/deltaG.
 
-## Testing
-`tests/ui/LaboratoryWorkspace.test.tsx` now has **21 tests**.
+Unknown-species privacy will remain unchanged:
+- normal mode never renders internal SpeciesId, hidden formula/graph/reference identity, or candidateId;
+- Developer Mode may expose diagnostics only through a separate developer surface.
 
-Phase 3A coverage includes:
-- authoritative vessel composition;
-- latest reaction event/activity;
-- deterministic two-step event order across timestep sequence restart;
-- unknown identity no-leak in normal mode;
-- Developer Mode diagnostics separation;
-- OPEN heat exact-number suppression;
-- OPEN participant exact-amount suppression;
-- APPROXIMATED amount/heat marker;
-- duplicate event de-duplication;
-- identity reprojection only after provider confirmation;
-- T/P simulation authority while reaction UI is visible.
+## Tests queued for implementation
 
-PR #44 regression coverage remains for:
-- catalog layout and collapse/restore;
-- condition collapse/restore and T/P/V summary;
-- structural notation;
-- AddSubstance / disposal / mix / stir / pause / reset;
-- notes;
-- discovery/catalog gating;
-- responsive smoke.
+Once the provider contract exists, 05 will add semantic-region-scoped tests for:
+- forward-favored state;
+- reverse-favored state;
+- near-equilibrium state;
+- OPEN/indeterminate state;
+- approximate numeric-detail honesty;
+- unknown identity no-leak;
+- Developer Mode diagnostic separation if supplied;
+- no duplicate Timeline spam;
+- deterministic provider event ordering;
+- catalog-collapse regression;
+- condition-collapse/T/P/V regression;
+- Workbench/reaction-activity regression;
+- responsive smoke at 1536×900, 1440×900, 1024×768, 390×844;
+- no horizontal overflow / blocking console or page errors.
 
-Testing Library queries are region-scoped with `within(...)` where duplicate projection text is legitimate.
+## Previous completed phase
 
-## Validation
-### Initial diagnostic
-Exact code HEAD `2e0a597b4aeb6938adbf32cc4886883ac91d974d`, run `34671055636`:
-- install: PASS
-- typecheck: FAIL — UI adapter optional heat narrowing (`TS18048`)
-
-The fix stored/narrowed `reactionHeat_J` before formatting. No chemistry or behavior semantics changed.
-
-### Full-repository lint interaction
-Exact code HEAD `b149bf67b8f26a9e5440c0cb7fed68761039ca30`, run `34671108976`:
-- install: PASS
-- typecheck: PASS
-- full `npm run lint`: blocked by an inherited PR #46 error in `src/integration/phase3a-reaction-network.ts` (`_amountToleranceMol` unused)
-- UI code additionally emitted one non-blocking React hook dependency warning in the mock provider
-
-The inherited PR #46 lint error is outside the 05 UI diff. 05 did not modify/copy the upstream reaction-network implementation merely to make the stacked branch green.
-
-### UI + stacked runtime validation — PASS
-Exact validated code HEAD: `b149bf67b8f26a9e5440c0cb7fed68761039ca30`
-Diagnostic run: `34671192525`
-
-- `npm ci --no-audit --no-fund`: PASS
-- `npm run typecheck`: PASS
-- UI-scoped ESLint (`src/ui`, `tests/ui`): PASS with 0 errors / 1 non-blocking hook dependency warning
-- targeted UI tests: **21/21 PASS**
-- full test suite: **205/205 PASS across 17 files**
-  - PR #46 `tests/phase3a-reaction-network.test.ts`: **11/11 PASS**
-- production build: PASS
-- Chromium install: PASS
-- browser smoke: PASS
-  - Desktop 1536×900
-  - Desktop 1440×900
-  - Tablet 1024×768
-  - Mobile 390×844
-- horizontal overflow regression: PASS through existing smoke
-- catalog/condition collapse regression: PASS
-- central Workbench remains usable and reaction activity remains a compact secondary strip
-- blocking page/console errors: none reported by smoke
-
-## Integration strategy
-This branch is stacked directly on exact PR #46 HEAD. It does not copy the PR #46 implementation into an independent main-based UI branch.
-
-Dedicated UI PR should target `feature/phase3a-reaction-network` while #46 is open. After #46 lands and Phase 3A stack validation is complete, the UI PR can be retargeted/rebased onto current main by integration ownership.
-
-Do not merge this UI PR independently before the Phase 3A stack is validated.
-
-## Open integration items
-- PR #46 full-repository lint error must be resolved upstream before the stacked integration can obtain an all-repository lint PASS.
-- Production Game Layer/provider wiring must supply the real player-knowledge resolver rather than the UI test fixture resolver.
-- Dedicated qualitative rate/confidence text should be added only if 02/provider exposes that authoritative projection.
-- Phase/gas observable Timeline entries should be added only if provider/simulation exposes corresponding facts.
+Phase 3A reaction activity UI is already integrated on main. Its key authority boundary remains the baseline for Phase 3B: UI projects provider facts and player-knowledge identity only; it never recalculates chemistry.
 
 ## Gate
-**PASS — Phase 3A reaction activity UI implemented against authoritative PR #46 provider state.**
 
-The UI implementation itself is validated. Merge remains intentionally deferred because this is a stacked PR dependent on #46 and #46 currently owns an inherited full-repository lint blocker.
+**BLOCKED — provider contract not stable.**
+
+Do not add Phase 3B equilibrium badges, numeric Q/K/deltaG, or Timeline equilibrium transitions until actual 01/02/provider fields are committed and auditable.
