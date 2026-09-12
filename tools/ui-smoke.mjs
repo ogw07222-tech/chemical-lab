@@ -35,10 +35,15 @@ try {
     if (width === 1536) {
       const center = desktop.getByRole('main', { name: '실험실 작업대' });
       const openBox = await center.boundingBox();
+      assert(openBox, 'desktop: workspace bounds unavailable before catalog collapse');
       await desktop.getByRole('button', { name: '도감 접기' }).click();
       await desktop.getByRole('button', { name: '도감 펼치기' }).waitFor();
+      await desktop.waitForFunction((openWidth) => {
+        const workspace = document.querySelector('main[aria-label="실험실 작업대"]');
+        return workspace instanceof HTMLElement && workspace.getBoundingClientRect().width > openWidth + 100;
+      }, openBox.width);
       const collapsedBox = await center.boundingBox();
-      assert(openBox && collapsedBox && collapsedBox.width > openBox.width + 100, 'desktop: catalog collapse did not expand workspace');
+      assert(collapsedBox && collapsedBox.width > openBox.width + 100, 'desktop: catalog collapse did not expand workspace');
       await desktop.getByRole('button', { name: '도감 펼치기' }).click();
       await desktop.getByRole('textbox', { name: '물질 검색' }).waitFor();
 
