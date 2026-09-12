@@ -19,7 +19,9 @@ try {
     const errors = [];
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto(`${baseURL}/validation-05a.html`, { waitUntil: 'networkidle' });
+    const response = await page.goto(`${baseURL}/validation/05a-workbench-browser.html`, { waitUntil: 'networkidle' });
+    assert(response?.ok(), `${width}x${height}: validation harness HTTP failure`);
+    await page.locator('[aria-label="기구 배치 영역"]').waitFor({ state: 'visible', timeout: 10_000 });
 
     const metrics = await page.evaluate(() => ({
       scrollWidth: globalThis.document.documentElement.scrollWidth,
