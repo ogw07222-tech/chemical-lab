@@ -1,0 +1,30 @@
+name: Validate Phase3A Determinism Repeat
+
+on:
+  push:
+    branches:
+      - validation/06-phase3a-stack
+
+permissions:
+  contents: read
+
+jobs:
+  determinism-repeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Repeat deterministic network / progression / UI projection gates 10x
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            echo "determinism repetition $i/10"
+            npm test -- tests/reaction-progression.test.ts tests/phase3a-reaction-network.test.ts tests/validation.phase3a-stack.test.ts >/tmp/phase3a-repeat-$i.log
+            tail -n 5 /tmp/phase3a-repeat-$i.log
+          done
