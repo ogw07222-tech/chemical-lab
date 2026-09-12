@@ -1,0 +1,25 @@
+name: Phase 3B 02 validation
+
+on:
+  push:
+    branches:
+      - feature/phase3b-equilibrium-foundation
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Targeted Phase 3B equilibrium and Phase 3A regression
+        run: npx vitest run tests/phase3b-equilibrium.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3a-dimensioned-resolver.test.ts tests/reaction-evaluation.test.ts tests/reaction-progression.test.ts tests/thermal.test.ts
+      - run: npm test
+      - run: npm run build
