@@ -5,6 +5,7 @@ import type {
   EnvironmentEvaluationResult,
   EvaluatedQuantity,
   Feasibility,
+  KineticEnvironmentDependencies,
   KineticEvaluationResult,
   PhaseAccessibilityClass,
   PressureRelevance,
@@ -37,31 +38,28 @@ const CONFIDENCE_ORDER: Record<Confidence, number> = {
   UNASSESSED: 3,
 };
 
+const NO_DEPENDENCIES: KineticEnvironmentDependencies = {
+  temperature: false,
+  activityOrConcentration: false,
+  pressure: false,
+  catalyst: false,
+  phase: false,
+};
+
 function assertFinitePositive(value: number, name: string): void {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new RangeError(`${name} must be finite and > 0.`);
-  }
+  if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be finite and > 0.`);
 }
 
 function worstStatus(values: readonly ScientificStatus[]): ScientificStatus {
-  return values.reduce(
-    (worst, value) => (STATUS_ORDER[value] > STATUS_ORDER[worst] ? value : worst),
-    "VERIFIED",
-  );
+  return values.reduce((worst, value) => STATUS_ORDER[value] > STATUS_ORDER[worst] ? value : worst, "VERIFIED");
 }
 
 function worstConfidence(values: readonly Confidence[]): Confidence {
-  return values.reduce(
-    (worst, value) => (CONFIDENCE_ORDER[value] > CONFIDENCE_ORDER[worst] ? value : worst),
-    "HIGH",
-  );
+  return values.reduce((worst, value) => CONFIDENCE_ORDER[value] > CONFIDENCE_ORDER[worst] ? value : worst, "HIGH");
 }
 
 function mergeSources(values: readonly EvaluatedQuantity[], modelId?: string): SourceMetadata {
-  return {
-    sourceIds: [...new Set(values.flatMap((value) => value.source.sourceIds))].sort(),
-    modelId,
-  };
+  return { sourceIds: [...new Set(values.flatMap((value) => value.source.sourceIds))].sort(), modelId };
 }
 
 function weightedSum(
@@ -70,17 +68,12 @@ function weightedSum(
 ): { value: number; values: EvaluatedQuantity[] } | undefined {
   let sum = 0;
   const values: EvaluatedQuantity[] = [];
-
   for (const term of terms) {
     const quantity = getter(term);
-    if (!quantity) return undefined;
-    if (!Number.isFinite(quantity.value) || !Number.isFinite(term.coefficient) || term.coefficient <= 0) {
-      return undefined;
-    }
+    if (!quantity || !Number.isFinite(quantity.value) || !Number.isFinite(term.coefficient) || term.coefficient <= 0) return undefined;
     sum += term.coefficient * quantity.value;
     values.push(quantity);
   }
-
   return { value: sum, values };
 }
 
@@ -98,15 +91,11 @@ function evaluateThermodynamics(
 ): ThermodynamicEvaluationResult {
   const direct = provider.getDirectReactionThermo?.(view.candidateId, environment);
   if (direct && (direct.deltaH_J_per_mol || direct.deltaS_J_per_mol_K || direct.deltaG_J_per_mol)) {
-    const quantities = [direct.deltaH_J_per_mol, direct.deltaS_J_per_mol_K, direct.deltaG_J_per_mol].filter(
-      Boolean,
-    ) as EvaluatedQuantity[];
-
+    const quantities = [direct.deltaH_J_per_mol, direct.deltaS_J_per_mol_K, direct.deltaG_J_per_mol].filter(Boolean) as EvaluatedQuantity[];
     let deltaG = direct.deltaG_J_per_mol?.value;
     if (deltaG === undefined && direct.deltaH_J_per_mol && direct.deltaS_J_per_mol_K) {
       deltaG = direct.deltaH_J_per_mol.value - environment.temperatureK * direct.deltaS_J_per_mol_K.value;
     }
-
     reasons.push("DIRECT_THERMO_DATA");
     return {
       deltaH_J_per_mol: direct.deltaH_J_per_mol?.value,
@@ -132,7 +121,6 @@ function evaluateThermodynamics(
     let quantities = [...reactantH.values, ...productH.values];
     let deltaS: number | undefined;
     let deltaG: number | undefined;
-
     if (reactantS && productS) {
       deltaS = productS.value - reactantS.value;
       quantities = [...quantities, ...reactantS.values, ...productS.values];
@@ -144,7 +132,6 @@ function evaluateThermodynamics(
     } else {
       reasons.push("MISSING_ENTROPY");
     }
-
     reasons.push("FORMATION_THERMO_DATA");
     return {
       deltaH_J_per_mol: deltaH,
@@ -182,22 +169,14 @@ function evaluateThermodynamics(
   }
 
   reasons.push("MISSING_THERMO_DATA", "OPEN_PROPAGATED");
-  return {
-    direction: "INDETERMINATE",
-    confidence: "UNASSESSED",
-    approximationClass: "OPEN",
-    source: { sourceIds: [], modelId: "open" },
-  };
+  return { direction: "INDETERMINATE", confidence: "UNASSESSED", approximationClass: "OPEN", source: { sourceIds: [], modelId: "open" } };
 }
 
-function evaluatePhaseAccessibility(
-  view: ReactionCandidateEvaluationView,
-): EnvironmentEvaluationResult["phaseAccessibility"] {
+function evaluatePhaseAccessibility(view: ReactionCandidateEvaluationView): EnvironmentEvaluationResult["phaseAccessibility"] {
   const phases = view.reactants.map((reactant) => reactant.phase);
   let classification: PhaseAccessibilityClass = "UNKNOWN";
   let factor = 0.5;
   let status: ScientificStatus = "APPROXIMATED";
-
   if (phases.length > 0 && phases.every((phase) => phase === "gas")) {
     classification = "GAS_GAS";
     factor = 1;
@@ -215,14 +194,11 @@ function evaluatePhaseAccessibility(
     factor = 0.5;
     status = "OPEN";
   }
-
   return { class: classification, factor, status };
 }
 
 function pressureRelevance(view: ReactionCandidateEvaluationView): PressureRelevance {
-  return view.reactants.some((term) => term.phase === "gas") || view.products.some((term) => term.phase === "gas")
-    ? "RELEVANT"
-    : "NONE";
+  return view.reactants.some((term) => term.phase === "gas") || view.products.some((term) => term.phase === "gas") ? "RELEVANT" : "NONE";
 }
 
 function classifyRate(relativeRate: number | undefined): RateClass {
@@ -234,112 +210,149 @@ function classifyRate(relativeRate: number | undefined): RateClass {
   return "VERY_FAST";
 }
 
+function normalizedDependencies(partial: Partial<KineticEnvironmentDependencies> | undefined): KineticEnvironmentDependencies {
+  return { ...NO_DEPENDENCIES, ...(partial ?? {}) };
+}
+
 function evaluateKinetics(
   view: ReactionCandidateEvaluationView,
   environment: ReactionEnvironment,
   provider: ReactionEvaluationDataProvider,
   phaseFactor: number,
   reasons: ReasonCode[],
-): {
-  kinetics: KineticEvaluationResult;
-  catalystModifier: number;
-  temperatureContribution: number;
-} {
+): { kinetics: KineticEvaluationResult; catalystModifier: number; temperatureContribution: number } {
+  const dimensioned = provider.getDimensionedExtentRate?.(view, environment);
+  const qualitative = provider.getQualitativeRate?.(view, environment);
   const barrierData = provider.getActivationBarrier?.(view);
-  if (!barrierData) {
-    reasons.push("ACTIVATION_BARRIER_UNKNOWN", "OPEN_PROPAGATED");
+
+  if (dimensioned) {
+    const rate = dimensioned.extentRateMolPerS.value;
+    if (!Number.isFinite(rate) || rate < 0) throw new RangeError("extentRateMolPerS must be finite and >= 0.");
+    reasons.push("DIMENSIONED_RATE_DATA");
+
+    let relativeRate: number | undefined;
+    let activationEnergy: number | undefined;
+    let temperatureContribution = 1;
+    let catalystModifier = 1;
+    const statuses: ScientificStatus[] = [dimensioned.extentRateMolPerS.status];
+    const confidences: Confidence[] = [dimensioned.extentRateMolPerS.confidence];
+
+    if (barrierData) {
+      activationEnergy = barrierData.activationEnergy_J_per_mol.value;
+      if (!Number.isFinite(activationEnergy) || activationEnergy < 0) throw new RangeError("activationEnergy_J_per_mol must be finite and >= 0.");
+      reasons.push("ACTIVATION_BARRIER_KNOWN");
+      if (environment.catalyst) {
+        const reduction = environment.catalyst.barrierReduction_J_per_mol ?? 0;
+        if (!Number.isFinite(reduction) || reduction < 0) throw new RangeError("catalyst barrier reduction must be finite and >= 0.");
+        activationEnergy = Math.max(0, activationEnergy - reduction);
+        catalystModifier = environment.catalyst.rateMultiplier ?? 1;
+        if (!Number.isFinite(catalystModifier) || catalystModifier <= 0) throw new RangeError("catalyst rate multiplier must be finite and > 0.");
+        reasons.push("CATALYST_APPLIED");
+        statuses.push(environment.catalyst.status);
+        confidences.push(environment.catalyst.confidence);
+      }
+      temperatureContribution = Math.exp(-activationEnergy / (GAS_CONSTANT_J_PER_MOL_K * environment.temperatureK));
+      const activityContribution = environment.activityScale ?? 1;
+      if (!Number.isFinite(activityContribution) || activityContribution < 0) throw new RangeError("activityScale must be finite and >= 0.");
+      relativeRate = temperatureContribution * phaseFactor * catalystModifier * activityContribution;
+      statuses.push(barrierData.activationEnergy_J_per_mol.status);
+      confidences.push(barrierData.activationEnergy_J_per_mol.confidence);
+    }
+
     return {
-      kinetics: { rateClass: "UNKNOWN", confidence: "UNASSESSED", approximationClass: "OPEN" },
+      kinetics: {
+        supportClass: "DIMENSIONED_RATE",
+        extentRateMolPerS: rate,
+        ...(activationEnergy === undefined ? {} : { activationEnergy_J_per_mol: activationEnergy }),
+        ...(relativeRate === undefined ? {} : { relativeRate }),
+        rateClass: qualitative?.rateClass ?? classifyRate(relativeRate),
+        confidence: worstConfidence(confidences),
+        approximationClass: worstStatus(statuses),
+        dependencies: dimensioned.dependencies,
+      },
+      catalystModifier,
+      temperatureContribution,
+    };
+  }
+
+  if (barrierData) {
+    let activationEnergy = barrierData.activationEnergy_J_per_mol.value;
+    if (!Number.isFinite(activationEnergy) || activationEnergy < 0) throw new RangeError("activationEnergy_J_per_mol must be finite and >= 0.");
+    reasons.push("ACTIVATION_BARRIER_KNOWN");
+    let catalystModifier = 1;
+    const statuses: ScientificStatus[] = [barrierData.activationEnergy_J_per_mol.status];
+    const confidences: Confidence[] = [barrierData.activationEnergy_J_per_mol.confidence];
+    if (environment.catalyst) {
+      const reduction = environment.catalyst.barrierReduction_J_per_mol ?? 0;
+      if (!Number.isFinite(reduction) || reduction < 0) throw new RangeError("catalyst barrier reduction must be finite and >= 0.");
+      activationEnergy = Math.max(0, activationEnergy - reduction);
+      catalystModifier = environment.catalyst.rateMultiplier ?? 1;
+      if (!Number.isFinite(catalystModifier) || catalystModifier <= 0) throw new RangeError("catalyst rate multiplier must be finite and > 0.");
+      reasons.push("CATALYST_APPLIED");
+      statuses.push(environment.catalyst.status);
+      confidences.push(environment.catalyst.confidence);
+    }
+    const temperatureContribution = Math.exp(-activationEnergy / (GAS_CONSTANT_J_PER_MOL_K * environment.temperatureK));
+    const activityContribution = environment.activityScale ?? 1;
+    if (!Number.isFinite(activityContribution) || activityContribution < 0) throw new RangeError("activityScale must be finite and >= 0.");
+    const relativeRate = temperatureContribution * phaseFactor * catalystModifier * activityContribution;
+    return {
+      kinetics: {
+        supportClass: "RELATIVE_RATE",
+        activationEnergy_J_per_mol: activationEnergy,
+        rateClass: classifyRate(relativeRate),
+        relativeRate,
+        confidence: worstConfidence(confidences),
+        approximationClass: worstStatus(statuses),
+        dependencies: { temperature: true, activityOrConcentration: true, pressure: false, catalyst: true, phase: true },
+      },
+      catalystModifier,
+      temperatureContribution,
+    };
+  }
+
+  if (qualitative) {
+    reasons.push("QUALITATIVE_RATE_DATA", "ACTIVATION_BARRIER_UNKNOWN");
+    return {
+      kinetics: {
+        supportClass: "QUALITATIVE_ONLY",
+        rateClass: qualitative.rateClass,
+        confidence: qualitative.confidence,
+        approximationClass: qualitative.status,
+        dependencies: normalizedDependencies(qualitative.dependencies),
+      },
       catalystModifier: 1,
       temperatureContribution: 1,
     };
   }
 
-  let activationEnergy = barrierData.activationEnergy_J_per_mol.value;
-  if (!Number.isFinite(activationEnergy) || activationEnergy < 0) {
-    throw new RangeError("activationEnergy_J_per_mol must be finite and >= 0.");
-  }
-
-  reasons.push("ACTIVATION_BARRIER_KNOWN");
-  let catalystModifier = 1;
-
-  if (environment.catalyst) {
-    const reduction = environment.catalyst.barrierReduction_J_per_mol ?? 0;
-    if (!Number.isFinite(reduction) || reduction < 0) {
-      throw new RangeError("catalyst barrier reduction must be finite and >= 0.");
-    }
-    activationEnergy = Math.max(0, activationEnergy - reduction);
-    catalystModifier = environment.catalyst.rateMultiplier ?? 1;
-    if (!Number.isFinite(catalystModifier) || catalystModifier <= 0) {
-      throw new RangeError("catalyst rate multiplier must be finite and > 0.");
-    }
-    reasons.push("CATALYST_APPLIED");
-  }
-
-  const temperatureContribution = Math.exp(
-    -activationEnergy / (GAS_CONSTANT_J_PER_MOL_K * environment.temperatureK),
-  );
-  const activityContribution = environment.activityScale ?? 1;
-  if (!Number.isFinite(activityContribution) || activityContribution < 0) {
-    throw new RangeError("activityScale must be finite and >= 0.");
-  }
-
-  const relativeRate = temperatureContribution * phaseFactor * catalystModifier * activityContribution;
-  const statuses: ScientificStatus[] = [barrierData.activationEnergy_J_per_mol.status];
-  const confidences: Confidence[] = [barrierData.activationEnergy_J_per_mol.confidence];
-  if (environment.catalyst) {
-    statuses.push(environment.catalyst.status);
-    confidences.push(environment.catalyst.confidence);
-  }
-
+  reasons.push("ACTIVATION_BARRIER_UNKNOWN", "OPEN_PROPAGATED");
   return {
     kinetics: {
-      activationEnergy_J_per_mol: activationEnergy,
-      rateClass: classifyRate(relativeRate),
-      relativeRate,
-      confidence: worstConfidence(confidences),
-      approximationClass: worstStatus(statuses),
+      supportClass: "OPEN",
+      rateClass: "UNKNOWN",
+      confidence: "UNASSESSED",
+      approximationClass: "OPEN",
+      dependencies: NO_DEPENDENCIES,
     },
-    catalystModifier,
-    temperatureContribution,
+    catalystModifier: 1,
+    temperatureContribution: 1,
   };
 }
 
-function determineFeasibility(
-  thermodynamics: ThermodynamicEvaluationResult,
-  kinetics: KineticEvaluationResult,
-): Feasibility {
-  if (thermodynamics.direction === "REVERSE_FAVORED" && thermodynamics.approximationClass !== "OPEN") {
-    return "INFEASIBLE";
-  }
-  if (
-    thermodynamics.direction === "FORWARD_FAVORED" &&
-    kinetics.rateClass !== "UNKNOWN" &&
-    kinetics.rateClass !== "NEGLIGIBLE"
-  ) {
-    return "FEASIBLE";
-  }
+function determineFeasibility(thermo: ThermodynamicEvaluationResult, kinetics: KineticEvaluationResult): Feasibility {
+  if (thermo.direction === "REVERSE_FAVORED" && thermo.approximationClass !== "OPEN") return "INFEASIBLE";
+  const accessible =
+    (kinetics.supportClass === "DIMENSIONED_RATE" && (kinetics.extentRateMolPerS ?? 0) > 0) ||
+    (kinetics.supportClass === "RELATIVE_RATE" && (kinetics.relativeRate ?? 0) > 0 && kinetics.rateClass !== "NEGLIGIBLE") ||
+    (kinetics.supportClass === "QUALITATIVE_ONLY" && kinetics.rateClass !== "UNKNOWN" && kinetics.rateClass !== "NEGLIGIBLE");
+  if (thermo.direction === "FORWARD_FAVORED" && accessible) return "FEASIBLE";
   return "UNCERTAIN";
 }
 
-function computeRankScore(
-  thermodynamics: ThermodynamicEvaluationResult,
-  kinetics: KineticEvaluationResult,
-  phaseFactor: number,
-): number | null {
-  if (
-    thermodynamics.approximationClass === "OPEN" ||
-    kinetics.approximationClass === "OPEN" ||
-    kinetics.relativeRate === undefined
-  ) {
-    return null;
-  }
-
-  const thermodynamicScore =
-    thermodynamics.deltaG_J_per_mol === undefined
-      ? 0.5
-      : 1 / (1 + Math.exp(thermodynamics.deltaG_J_per_mol / 10_000));
-
+function computeRankScore(thermo: ThermodynamicEvaluationResult, kinetics: KineticEvaluationResult, phaseFactor: number): number | null {
+  if (thermo.approximationClass === "OPEN" || kinetics.approximationClass === "OPEN" || kinetics.relativeRate === undefined) return null;
+  const thermodynamicScore = thermo.deltaG_J_per_mol === undefined ? 0.5 : 1 / (1 + Math.exp(thermo.deltaG_J_per_mol / 10_000));
   return thermodynamicScore * Math.min(1, Math.max(0, kinetics.relativeRate)) * phaseFactor;
 }
 
@@ -350,29 +363,16 @@ export function evaluateReactionCandidate<TCandidate>(
   provider: ReactionEvaluationDataProvider,
 ): ReactionEvaluation {
   assertFinitePositive(environment.temperatureK, "temperatureK");
-  if (environment.pressurePa !== undefined) {
-    assertFinitePositive(environment.pressurePa, "pressurePa");
-  }
+  if (environment.pressurePa !== undefined) assertFinitePositive(environment.pressurePa, "pressurePa");
 
   const view = adapter.toEvaluationView(candidate);
   const reasons: ReasonCode[] = [];
   const thermo = evaluateThermodynamics(view, environment, provider, reasons);
   const phaseAccessibility = evaluatePhaseAccessibility(view);
+  if (phaseAccessibility.status === "OPEN") reasons.push("PHASE_ACCESSIBILITY_UNKNOWN");
+  else if (phaseAccessibility.factor < 1) reasons.push("PHASE_ACCESSIBILITY_LIMITED");
 
-  if (phaseAccessibility.status === "OPEN") {
-    reasons.push("PHASE_ACCESSIBILITY_UNKNOWN");
-  } else if (phaseAccessibility.factor < 1) {
-    reasons.push("PHASE_ACCESSIBILITY_LIMITED");
-  }
-
-  const kineticResult = evaluateKinetics(
-    view,
-    environment,
-    provider,
-    phaseAccessibility.factor,
-    reasons,
-  );
-
+  const kineticResult = evaluateKinetics(view, environment, provider, phaseAccessibility.factor, reasons);
   const environmentResult: EnvironmentEvaluationResult = {
     temperatureContribution: kineticResult.temperatureContribution,
     pressureRelevance: pressureRelevance(view),
@@ -381,26 +381,24 @@ export function evaluateReactionCandidate<TCandidate>(
     phaseAccessibility,
   };
 
-  if (thermo.direction === "FORWARD_FAVORED") {
-    reasons.push("THERMODYNAMICALLY_FAVORABLE");
-  } else if (thermo.direction === "REVERSE_FAVORED") {
-    reasons.push("THERMODYNAMICALLY_UNFAVORABLE");
-  } else {
-    reasons.push("THERMODYNAMIC_DIRECTION_UNKNOWN");
-  }
+  if (thermo.direction === "FORWARD_FAVORED") reasons.push("THERMODYNAMICALLY_FAVORABLE");
+  else if (thermo.direction === "REVERSE_FAVORED") reasons.push("THERMODYNAMICALLY_UNFAVORABLE");
+  else reasons.push("THERMODYNAMIC_DIRECTION_UNKNOWN");
 
-  const status = worstStatus([
-    view.scientificStatus,
-    thermo.approximationClass,
-    kineticResult.kinetics.approximationClass,
-    phaseAccessibility.status,
-  ]);
+  const status = worstStatus([view.scientificStatus, thermo.approximationClass, kineticResult.kinetics.approximationClass, phaseAccessibility.status]);
+  const pairKey = view.reversible?.pairKey;
+  const detailedBalanceSupported = pairKey ? provider.supportsDetailedBalance?.(pairKey, environment) === true : false;
 
   return {
     candidateId: view.candidateId,
     thermo,
     kinetics: kineticResult.kinetics,
     environment: environmentResult,
+    reversibility: {
+      ...(pairKey ? { pairKey } : {}),
+      direction: view.reversible?.direction ?? "UNSPECIFIED",
+      detailedBalanceSupported,
+    },
     feasible: determineFeasibility(thermo, kineticResult.kinetics),
     rankScore: computeRankScore(thermo, kineticResult.kinetics, phaseAccessibility.factor),
     status,

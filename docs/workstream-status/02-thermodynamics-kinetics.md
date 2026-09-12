@@ -1,105 +1,153 @@
 # 02 — Thermodynamics & Kinetics
 
 - Owner: Thermodynamics Simulation Developer / Chemical Kinetics Systems Developer / Equilibrium Model Architect / Energy Model Architect
-- Current phase: Phase 2E boundary — evaluation outputs consumed by state progression
-- Overall state: IN_PROGRESS
-- Last updated: 2026-09-11
-- Starting main SHA for Phase 2E: `f282443e9b1c07f082fa43d2bcf7061c275d758a`
-- Latest main re-check during task: `fb1b1ed4605eca26745629d82812e216a139cc0c`
-- Shared implementation branch: `feature/phase2e-reaction-state-progression`
-- Shared PR: #33 — `feat(sim): add Phase 2E reaction state progression`
+- Current phase: Phase 3A — Network Kinetics / Aggregate Thermal Coupling
+- Overall state: PASS — IMPLEMENTED / 06 independent validation pending
+- Last updated: 2026-09-12
+- Starting / latest checked main SHA: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
+- Active branch: `feature/phase3a-kinetics-thermal-contract`
+- Active PR: #45 — `feat(02): implement Phase 3A kinetics and aggregate thermal coupling`
+- Parallel 01 PR audited: #46 — head `6d04b9aa96bfce02717cb9a233ded33d29960132`
+- Exact validated executable/test HEAD: `74f60604bd3a5822140914b6dffaa9e3c72d6d65`
+- Validation workflow run: `34671282802` — SUCCESS
 
-## Phase 2E Ownership Boundary
-02 remains authoritative for:
-- thermodynamic direction / feasibility evidence;
-- deltaH/deltaG where supported;
-- kinetic accessibility and dimensionless `relativeRate`;
-- deterministic rank score/ties;
-- catalyst/environment modifiers;
-- reaction heat and thermal primitives.
+## Objective
+Implement the minimal 02-owned Phase 3A kinetic/thermal semantics required by 01 multi-step network execution without implementing a second reaction-network engine.
 
-01 consumes those results for bounded extent, shared-reactant competition, stoichiometric mutation, conservation, and state transition. 01 does not recompute deltaG, activation barriers, Arrhenius terms, equilibrium, catalyst physics, or phase state.
+Canonical design: `docs/contracts/PHASE3A_NETWORK_KINETICS_THERMAL.md`.
 
-## New Consumption Contract
-- `RankedReactionEvaluation` is the authoritative 02 -> 01 evaluation snapshot.
-- Production ranking naturally leaves unsupported/OPEN evaluations unranked; INFEASIBLE, UNCERTAIN, unranked, missing-rate, and negligible-rate paths are rejected/deferred by the Phase 2E resolver unless an explicit controlled-test option permits uncertainty.
-- `kinetics.relativeRate` remains dimensionless and is not a physical rate constant.
-- The v1 extent bridge is explicitly `APPROXIMATED`: 01 combines the 02 relative-rate signal with `dtS`, a configured coarse timescale, stoichiometric maximum extent, and a hard maximum fractional-consumption bound.
-- `thermo.deltaH_J_per_mol` is consumed only after 01 has produced an actual applied extent.
-- Existing `reactionHeatToSystem()` remains the only reaction-heat formula: `Q = -deltaH * actualExtent`.
-- Thermal coupling runs deterministically in `ReactionProgressEvent` order and writes through the existing thermal energy ledger.
-- If deltaH is absent, no heat is fabricated; the event/coupling result propagates `OPEN`.
+## Implemented
 
-## Canonical Timestep / Thermal Semantics
-1. Read current authoritative species + thermal state.
-2. 01 generates structurally/conservation-valid candidates.
-3. 02 evaluates feasibility, kinetics, environmental modifiers, and deterministic ranking at the current environment.
-4. 01 resolves equal-rank shared-reactant competition and computes bounded applied extents.
-5. 01 applies stoichiometric amount mutation and re-checks conservation.
-6. 01 emits deterministic `ReactionProgressEvent` records containing actual extent and species deltas.
-7. 02 computes `Q = -deltaH * appliedExtent` only when deltaH exists and updates the thermal ledger/state.
-8. Existing external heater/cooler/thermostat inputs are applied through the thermal model.
-9. The next deterministic species/thermal state is returned.
-10. Phase re-evaluation remains an explicit OPEN hook; no phase result is invented in Phase 2E.
+### Kinetic support metadata
+`ReactionEvaluation` supports four explicit kinetic evidence classes:
+- `DIMENSIONED_RATE`: provider-supplied physical `extentRateMolPerS` at the queried environment;
+- `RELATIVE_RATE`: dimensionless Arrhenius-like progression/ranking signal;
+- `QUALITATIVE_ONLY`: sourced/empirical rate class with no numeric extent rate;
+- `OPEN`: insufficient kinetic evidence.
 
-## Extent / Kinetics Scientific Meaning
-The v1 normalized extent bridge is not an absolute physical rate law. Its documented conversion is:
+The executable evaluator populates support class, confidence/status, supported environment dependencies and optional reversible-channel metadata. New fields are additive/optional at the public type boundary so legacy/manual and PR #46 fixtures remain source-compatible.
 
-`fraction = min(maxFractionPerStep, 1 - exp(-relativeRate * dt / coarseRateTimescale))`
+No missing activation energy, physical rate, reverse rate, `K_eq`, or detailed-balance relationship is fabricated.
 
-The 02 contribution is the dimensionless `relativeRate`; stoichiometric maximum extent, competition allocation, and authoritative mutation remain 01-owned. The resulting extent remains `APPROXIMATED` and may not be promoted to `VERIFIED` without a dimensioned rate-law model plus validation evidence.
+### Provider / environment semantics
+The provider may optionally supply:
+- dimensioned extent rate plus dependency metadata;
+- qualitative rate class;
+- explicit detailed-balance capability for a named reversible pair.
 
-## Reaction Heat / Thermal Coupling
-- Exothermic `deltaH < 0` gives positive heat into the thermal system.
-- Endothermic `deltaH > 0` removes thermal energy.
-- Heat magnitude uses actual applied extent after shared-reactant scaling, never requested/preliminary extent.
-- Missing deltaH yields no heat term and marks thermal coupling OPEN.
-- Existing thermal ledger records the known reaction-heat contribution.
-- Current mixture/vessel sensible heat capacity is reused; composition-dependent Cp recomputation after reaction progress remains OPEN.
-- Thermal state remains simulation-owned; UI does not write temperature directly.
+The existing Arrhenius fallback remains `RELATIVE_RATE`; its supported dependencies are temperature, scalar activity/concentration, catalyst and phase accessibility. Pressure is not applied as a kinetic multiplier by that fallback. A provider-supplied dimensioned model declares its own supported dependency set.
 
-## Tests / Validation Scope
-`tests/reaction-progression.test.ts` covers:
-- limiting-reactant bounding and no negative amounts;
-- explicit atom-inventory conservation before/after mutation;
-- equal-rank shared-reactant competition / no overconsumption;
-- deterministic repeated resolution and event ordering;
-- invalid dt plus NaN/positive-Infinity/negative-Infinity species rejection;
-- unresolved product identity deferral without invented IDs;
-- zero-extent/negligible kinetics handling;
-- heat magnitude from actual applied extent;
-- reaction-heat ledger accounting;
-- missing-deltaH OPEN behavior with no fabricated heat.
+### Extent bridge consumed by the existing resolver
+Added pure `kineticExtentInputOverDt()`:
+- `DIMENSIONED_RATE` -> `requestedExtentMol = extentRateMolPerS * dt`;
+- `RELATIVE_RATE` -> bounded coarse exponential progress fraction using the existing approximate timescale bridge;
+- `QUALITATIVE_ONLY` / `OPEN` -> no numeric extent request.
 
-A synthetic-but-contract-valid pre-registered-product fixture validates progression mechanics. A complete generated-candidate -> real-data evaluation -> known registered product production case remains OPEN until current production chemistry/data exposes a stable suitable fixture without reaction-specific hardcoding.
+The existing Phase 2E resolver now consumes this helper at its kinetic-request point. It still owns and preserves all 01 semantics:
+- stoichiometric maximum extent;
+- max fractional consumption per step;
+- shared-reactant allocation;
+- non-negative state mutation;
+- conservation re-check.
 
-## Scientific Status
+No separate network engine or duplicate stoichiometric model was added. Dimensioned rates are integrated over `dt` first and then bounded by 01 availability/safety limits. Relative-rate extent is never promoted to VERIFIED; the normalized bridge remains APPROXIMATED.
+
+### Reversibility
+Candidate evaluation accepts optional `pairKey` plus independent `FORWARD` / `REVERSE` channel direction. Each channel is evaluated independently. `detailedBalanceSupported` is false unless a provider explicitly asserts support for that pair/environment.
+
+No automatic reverse barrier/rate, equilibrium assumption or `K_eq` is introduced.
+
+### Aggregate reaction heat
+`applyReactionThermalCoupling()` now:
+1. annotates each committed event with known `deltaH`/heat where available;
+2. computes each known contribution using `Q_i = -deltaH_i * appliedExtent_i`;
+3. sums all known contributions;
+4. calls `stepThermalState()` exactly once with aggregate signed `reactionHeat_J` plus external thermal controls.
+
+This removes event-order dependence from final thermal state and prevents per-event plus aggregate double application.
+
+### Partial thermal knowledge
+Thermal results populate additive metadata:
+- `knownReactionHeat_J`;
+- `knownContributionCount`;
+- `committedContributionCount`;
+- `openHeatCandidateIds`;
+- `thermalCoverage: COMPLETE | PARTIAL | OPEN`.
+
+Backward-compatible `missingHeatCandidateIds` remains.
+
+If known and unknown-deltaH reactions coexist, known heat is applied while coverage is `PARTIAL` and overall scientific status is `OPEN`. If all committed contributions lack deltaH, known heat remains zero and coverage is `OPEN`; zero is not claimed as the physical reaction heat.
+
+## PR #46 Compatibility Audit
+Audited PR #46 head: `6d04b9aa96bfce02717cb9a233ded33d29960132`.
+
+PR #46:
+- calls the existing Phase 2E progression path rather than duplicating 02 physics;
+- reads `ReactionProgressEvent.heatJ` and `thermal.knownReactionHeat_J`;
+- checks event heat sum consistency;
+- uses manually-built legacy evaluation/thermal result fixtures.
+
+Compatibility response:
+- existing event fields and `knownReactionHeat_J` semantics are preserved;
+- new kinetic/thermal metadata are additive at public type boundaries;
+- aggregate coupling retains per-event `heatJ`, while thermal energy is applied once;
+- the resolver consumed by #46 now accepts both physical dimensioned-rate inputs and the existing relative-rate fallback;
+- #46 state/timeline/provider ownership is untouched.
+
+No exact source-level contract incompatibility was found. Joint #45+#46 combined-branch CI remains a 07/06 integration step because #46 is a separate unmerged PR.
+
+## Validation Evidence
+Exact validated executable/test HEAD: `74f60604bd3a5822140914b6dffaa9e3c72d6d65`.
+Temporary validation workflow run `34671282802`: SUCCESS. The workflow file was removed afterward without changing executable/test blobs.
+
+- `npm ci --no-audit --no-fund`: PASS
+- `npm run typecheck`: PASS
+- `npm run lint`: PASS
+- targeted Phase 3A / resolver / evaluation / progression / thermal tests: **5 files / 44 tests PASS**
+  - Phase 3A kinetics/thermal: 10/10
+  - Phase 3A dimensioned-rate resolver bridge: 2/2
+  - reaction evaluation: 9/9
+  - reaction progression: 10/10
+  - thermal: 13/13
+- full `npm test`: **18 files / 198 tests PASS**
+- `npm run build`: PASS
+
+Validated cases include dimensioned-rate `rate * dt` integration and safety cap, relative-rate temperature/dt response, qualitative/OPEN no-fabrication, independent forward/reverse metadata, two exothermic reactions, exothermic/endothermic cancellation, event-order independence, all-OPEN heat, mixed known+OPEN heat and no double thermal application.
+
+## PASS / FAIL / OPEN
 ### PASS
-- Phase 2E reuses existing 02 evaluation and thermal contracts without duplicating thermo/kinetics formulas.
-- Thermodynamic feasibility and kinetic accessibility stay separate.
-- Reaction heat is based on actual applied extent after competition resolution.
-- Missing enthalpy remains OPEN and creates no invented heat.
-- Catalyst/thermodynamic invariants remain unchanged.
-- Same state/evaluations/dt/options produce deterministic competition/event/thermal ordering by construction.
+- Kinetic support classification is executable.
+- Missing kinetics does not become fake activation/rate data.
+- Dimensioned-rate input reaches the existing resolver and remains stoichiometrically/safety bounded.
+- Relative-rate fallback remains explicitly APPROXIMATED.
+- Environment dependency metadata is executable.
+- Forward/reverse metadata is independent and detailed balance is opt-in only.
+- Aggregate known reaction heat is applied exactly once per timestep.
+- Exothermic/endothermic cancellation is preserved.
+- Mixed known/OPEN thermal contributions are explicitly PARTIAL/OPEN.
+- Event ordering does not change aggregate heat/final sensible temperature in tested scope.
+- Existing progression/evaluation/thermal regression and full repository suite pass on validated HEAD.
+- #46 interfaces remain backward-compatible by audit; no second network engine was added.
 
 ### FAIL
-- None established in the source/contract audit.
+- None identified in implemented scope.
 
 ### OPEN
-- Dependency-enabled repository-native `npm ci`, typecheck, lint, targeted/full tests, and build for PR #33.
-- PR #33 currently has no applicable GitHub Actions workflow run for this code path.
-- Scientific/timestep-sensitivity validation by 06.
-- Absolute dimensioned rate-law inference and calibrated rate constants.
-- Full equilibrium/reversible flux solver.
-- Composition-dependent mixture heat-capacity refresh after reaction progress.
-- Phase re-resolution/latent-heat orchestration after each progression step.
-- Dynamic Species Registry & Generated Species Persistence.
+- 06 independent Phase 3A validation, especially timestep convergence and forward/reverse network stability.
+- Joint #45 + #46 combined-branch regression after integration ordering is chosen.
+- General physical reaction-order inference and broad dimensioned rate-law data.
+- Validated non-ideal activities / gas partial-pressure rate laws.
+- Diffusion, transport and surface-limited kinetics.
+- Full equilibrium solver / general `K_eq` path / guaranteed detailed balance.
+- Stiff/adaptive network integration beyond existing bounded/coarse hooks.
+- Composition-dependent heat-capacity refresh and phase/latent-heat coupling.
 
-## 01 / 03 / 04 / 06 Handoff
-- 01: own stoichiometric availability, shared-pool allocation, state mutation, conservation failure, and deterministic progress events. Do not infer thermo/kinetics.
-- 03: continue providing SI thermochemistry/barrier data and provenance; Phase 2E introduces no hardcoded chemistry constants.
-- 04: external heater/cooler/thermostat/catalyst controls remain typed inputs; gameplay must not set authoritative reaction outcomes or temperature.
-- 06: validate conservation, no-negative invariant, deterministic tie/shared-reactant allocation, timestep sensitivity, OPEN/deferred handling, and reaction-heat ledger sign/magnitude from actual extent.
+## Handoffs
+- 01: use the existing resolver path; it now consumes 02 `kineticExtentInputOverDt()` while retaining all stoichiometric/network-state ownership.
+- 03: supply sourced dimensioned/qualitative kinetics, thermo and provenance; absent evidence remains OPEN.
+- 05: display a numeric physical rate only for `DIMENSIONED_RATE`; relative/qualitative/OPEN must not be rendered as physical mol/s. Display heat coverage/status from simulation output.
+- 06: independently validate competition, reverse stability, timestep sensitivity, aggregate heat/partial coverage and permutation determinism using the #45/#46 integration candidate.
+- 07: choose integration order for #45/#46 and run combined regression before merge.
 
 ## Next
-After Phase 2E is validated/integrated: **Dynamic Species Registry & Generated Species Persistence**. Electrochemistry remains out of scope.
+Independent 06 validation plus combined #45/#46 integration verification. Do not proceed to a full equilibrium solver or electrochemistry yet.
