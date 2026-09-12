@@ -1,0 +1,23 @@
+name: Validate Phase3A PR46 Lint Repro
+
+on:
+  push:
+    branches:
+      - validation/06-phase3a-lint-repro
+
+permissions:
+  contents: read
+
+jobs:
+  lint-repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact PR46 lint
+        run: npm run lint
