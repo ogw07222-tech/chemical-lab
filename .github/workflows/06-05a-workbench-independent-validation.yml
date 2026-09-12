@@ -1,0 +1,85 @@
+name: 06 Independent 05A Workbench Validation
+
+on:
+  push:
+    branches:
+      - validation/06-05a-workbench-placement-boundary
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Exact source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD
+          git diff --exit-code cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD -- src/ui src/simulation
+          echo "feature source unchanged from exact target HEAD"
+
+      - name: Scientific boundary audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'temperatureK|pressurePa|deltaH|reactionHeat|evaluateReaction|equilibrium|lnQOverK|molecularIdentity|phaseInference|filterResult|gasTransfer' src/ui/workbench; then
+            echo 'Forbidden scientific/runtime calculation identifier found in 05A boundary.' >&2
+            exit 1
+          fi
+          echo 'No forbidden scientific/runtime calculation identifiers in src/ui/workbench.'
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Targeted 05A tests
+        run: npm test -- tests/ui/workbench/WorkbenchPlacementSurface.test.tsx
+
+      - name: Existing LaboratoryWorkspace regression
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Responsive production and placement browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-05a-vite.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+          node tools/05a-workbench-validation-smoke.mjs
+
+      - name: Tested commit
+        run: git rev-parse HEAD
