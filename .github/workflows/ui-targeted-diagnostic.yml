@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  isolate-laboratory-workspace:
+  capture-laboratory-workspace-failures:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -25,58 +25,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: 1. renders the catalog, clean workbench, inspector and experiment console
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "renders the catalog, clean workbench, inspector and experiment console"
+      - name: Prepare diagnostics directory
+        run: mkdir -p diagnostics
 
-      - name: 2. normal catalog exposes starters without leaking undiscovered species
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "normal catalog exposes starters without leaking undiscovered species"
+      - name: Capture catalog collapse failure
+        shell: bash
+        run: |
+          set +e
+          npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "collapses and restores the catalog without losing access state" > diagnostics/catalog-collapse.txt 2>&1
+          code=$?
+          printf '%s\n' "$code" > diagnostics/catalog-collapse.exit
+          exit 0
 
-      - name: 3. uses compact structural notation in the catalog
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "uses compact structural notation in the catalog"
+      - name: Capture finite mol add failure
+        shell: bash
+        run: |
+          set +e
+          npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "adds a finite mol amount through the provider" > diagnostics/add-finite-mol.txt 2>&1
+          code=$?
+          printf '%s\n' "$code" > diagnostics/add-finite-mol.exit
+          exit 0
 
-      - name: 4. collapses and restores the catalog without losing access state
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "collapses and restores the catalog without losing access state"
+      - name: Capture disposal failure
+        shell: bash
+        run: |
+          set +e
+          npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "disposes selected vessel material only through provider command" > diagnostics/dispose-material.txt 2>&1
+          code=$?
+          printf '%s\n' "$code" > diagnostics/dispose-material.exit
+          exit 0
 
-      - name: 5. collapses conditions into a readable summary and restores controls
+      - name: Upload Vitest failure diagnostics
         if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "collapses conditions into a readable summary and restores controls"
-
-      - name: 6. developer mode exposes all supported species
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "developer mode exposes all supported species"
-
-      - name: 7. adds a finite mol amount through the provider
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "adds a finite mol amount through the provider"
-
-      - name: 8. uses controller targets without directly mutating actual temperature or pressure
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "uses controller targets without directly mutating actual temperature or pressure"
-
-      - name: 9. supports mix, stir, pause and reset provider commands
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "supports mix, stir, pause and reset provider commands"
-
-      - name: 10. disposes selected vessel material only through provider command
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "disposes selected vessel material only through provider command"
-
-      - name: 11. confirms the mock unknown before catalog unlock feedback
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "confirms the mock unknown before catalog unlock feedback"
-
-      - name: 12. provides free-form notes without interpreting note truth
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "provides free-form notes without interpreting note truth"
-
-      - name: 13. centralizes representative SI conversions and keeps dispatch typed
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx -t "centralizes representative SI conversions and keeps dispatch typed"
-
-      - name: FULL TARGETED FILE
-        if: ${{ always() }}
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-vitest-failure-diagnostics
+          path: diagnostics/
+          if-no-files-found: error
+          retention-days: 7
