@@ -67,7 +67,13 @@ export interface ThermalStepInput {
   heater?: HeaterInput;
   cooler?: CoolerInput;
   thermostat?: ThermostatInput;
+  /** Single reaction convenience input. Mutually exclusive with reactionHeat_J. */
   reactionHeat?: ReactionHeatInput;
+  /**
+   * Signed aggregate reaction heat already computed from actual applied extents.
+   * Positive values add thermal energy. Mutually exclusive with reactionHeat.
+   */
+  reactionHeat_J?: EnergyJ;
   environmentHeat_J?: EnergyJ;
   otherExternalEnergy_J?: EnergyJ;
 }

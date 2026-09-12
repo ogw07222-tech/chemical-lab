@@ -1,102 +1,140 @@
 # 01 — Chemistry Simulation Engine
 
-- Owner: Lead Chemistry Simulation Engine Developer / Molecular Graph Systems Developer / Reaction Solver Architect / Stoichiometry Engine Developer
-- Current phase: Phase 2A — Generic Reaction Candidate Engine
-- Overall state: IN_PROGRESS
-- Last updated: 2026-09-11
-- Source main SHA at task start: `901f812edad16b67c0382e1a30ce744f2e6cd234`
-- Final synchronized main SHA before implementation commit: `a4606143e8f249e5b9a398f72c86c8171ca405b5`
-- Active branch: `feature/phase2-reaction-candidate-engine`
-- Active PR: #21 — `feat(sim): add Phase 2A generic reaction candidate engine`
-- Latest code HEAD before this final status commit: `c928fc1e2d2bcb96738ecd416702068e5ca1711c`
+- Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
+- Current phase: Dynamic Species Registry & Generated Species Persistence
+- Overall state: PASS — IMPLEMENTED / integration pending
+- Last updated: 2026-09-12
+- Starting / latest re-checked main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
+- Active branch: `feature/dynamic-species-registry`
+- Active PR: #39 — `feat(sim): add dynamic species registry and persistence`
+- Exact validated executable/test HEAD: `aaad1235b1c0408cea0b3015af7e7049c06eb4c2`
+- Validation workflow run: `34635920066` — SUCCESS
 
-## Current Objective
-Implement a bounded deterministic generic reaction-candidate engine that consumes the existing molecular core and produces conservation-valid structural candidates without reaction-equation lookup tables or thermodynamic/kinetic evaluation.
+## Objective
+Persist structurally valid reaction-generated molecular graphs as stable internal species identities so they can enter vessel state and participate in later timesteps without equating engine identity with verified real-world identity or player knowledge.
 
-## Implemented Scope
-- Reused the existing `AtomNode`, `BondEdge`, `MolecularGraph`, `MoleculeRecord`, `SpeciesState`, `ElementProvider`, canonical identity, validation, and conservation primitives; no duplicate chemistry-domain types were introduced.
-- Added executable `ReactionCandidate` / `ReactionFamily` v1 contract and explicit 02 handoff metadata.
-- Added deterministic reactive-site detection for formal charge, hetero atoms, coarse under-coordination, polarized bonds when electronegativity exists, proton donor/acceptor hints, electron-rich/electron-poor hints, and breakable bonds.
-- Added coarse over-coordination rejection using provider-supplied `typicalValences`; positive-charge valence allowance is deliberately limited to elements with five or more valence electrons so H/C are not silently granted extra valence.
-- Preserved the existing neutral CO triple-bond fixture without molecule-specific hardcoding by allowing a tightly bounded coarse multiple-bond case: a neutral atom with exactly one incident multiple bond may exceed its typical-valence maximum by at most one bond-order unit. This remains a structural approximation, not a complete valence model.
-- Added immutable/copy-based graph transformations: bond add/remove/order change, graph merge/split, proton transfer, electron-transfer charge bookkeeping.
-- Added candidate generators for `BOND_FORMATION`, `BOND_CLEAVAGE`, `PROTON_TRANSFER`, and `ELECTRON_TRANSFER`.
-- Added family vocabulary for `ASSOCIATION`, `DISSOCIATION`, `SUBSTITUTION_GENERIC`, `COMBINATION`, and `DECOMPOSITION` without implementing reaction-specific lookup entries.
-- Added hard conservation gate for element count, atom count, net charge, and optional explicit-electron bookkeeping before candidates can be returned to 02.
-- Added deterministic candidate IDs/order, structural no-op elimination, structural deduplication, per-family caps, total cap, site caps, solid contact eligibility, and bounded pruning-reason samples.
-- Candidate structural dedup identity includes authoritative Species/phase-state identity so same molecular structure in different phase states is not incorrectly collapsed.
-- Added `docs/contracts/REACTION_CANDIDATE_V1.md` documenting executable guarantees and 02 handoff.
+## Architecture
+- Added `src/simulation/species-registry/` with immutable `DynamicSpeciesRegistry` and schema-versioned persistence contracts.
+- Registry identity reuses the existing Phase 1 `mol-v1` canonical molecular core rather than defining a second graph identity system.
+- Primary index is `canonicalKey -> DynamicSpeciesRecord`; exact `canonicalStructuralRepresentation` is retained for collision-safe verification.
+- Generated ids are deterministic: `generated:<canonicalKey>`.
+- Formula alone is never used as molecular identity.
+- Phase, provenance, scientific reference matching, and player discovery are excluded from molecular identity.
 
-## Changed Files
-- `src/simulation/reaction/types.ts`
-- `src/simulation/reaction/analysis.ts`
-- `src/simulation/reaction/transforms.ts`
-- `src/simulation/reaction/engine.ts`
-- `src/simulation/reaction/index.ts`
-- `tests/reaction-candidate.test.ts`
-- `docs/contracts/REACTION_CANDIDATE_V1.md`
-- `docs/workstream-status/01-simulation-engine.md`
+## Identity Separation
+1. Internal identity: deterministic canonical graph identity used by the simulation engine.
+2. Scientific identity: known/reference compound matching; generated records remain `referenceMatchStatus: OPEN` unless enriched later by 03.
+3. Player knowledge: discovery/name/encyclopedia state remains 04/Game Layer and is not stored in the registry.
+
+Generated records use the existing scientific taxonomy and default to `scientificStatus: OPEN`, while separately recording `validationState: STRUCTURALLY_VALID`. Structural validity is not experimental verification.
+
+## Registration / Validation
+Before registration, a molecule must pass:
+- existing molecular graph validation;
+- formula/net-charge record consistency;
+- `mol-v1` canonicalization;
+- current coarse-valence sanity.
+
+Hash/key collisions with a different exact canonical representation are explicit INVALID results rather than silent identity merges.
+
+## Known / Generated Resolution
+- Existing known seed canonical identity -> reuse existing known species id.
+- Existing generated canonical identity -> reuse stable generated id and merge deterministic provenance.
+- New valid canonical identity -> create generated record with OPEN scientific/reference status.
+- Invalid/malformed/canonicalization-failed structure -> reject registration.
+
+No density, phase boundary, pKa, thermochemistry, entropy, Gibbs energy, redox potential, or rate constant is invented by 01.
+
+## Provenance / Persistence
+Generated provenance records candidate id, parent reactant species ids, reaction family, creation timestep, product index, and canonicalization version. Provenance never affects identity.
+
+`registry.serialize()` and `restoreDynamicSpeciesRegistry()` provide save/load-friendly persistence. Restore revalidates records, canonical representation/key, schema/canonicalization version, and deterministic generated ids before accepting the snapshot.
+
+## Phase 2E Integration / Atomic Mutation
+Added `resolveReactionCandidatesWithRegistry()` as the registry-backed Phase 2E bridge.
+
+Canonical transaction:
+1. stage product graph resolution/registration in an immutable working registry;
+2. stage missing product vessel species at zero amount;
+3. run existing Phase 2E ranking/competition/extent/conservation logic;
+4. commit only registry records/products belonging to selected reactions;
+5. return next vessel state + persistent registry.
+
+The caller's input registry/state are never mutated in place. Registration failure or conservation failure cannot leave reactants consumed without products.
+
+Generated vessel species start with phase `unknown` / scientific status `OPEN`; phase determination remains outside this registry layer.
+
+## Timestep Semantics
+- Same-step generated-product cascade: BLOCKED by existing `ZERO_INITIAL_REACTANT` policy.
+- Next timestep: generated product is a normal positive-amount `SpeciesState`, so reactive-site detection/candidate generation can consume it normally.
+- `runPhase2EReactionProgression()` remains backward compatible: legacy `productStateResolver` still works, while `speciesRegistry` enables persistent generated-species flow and is returned in `nextState`.
 
 ## Tests Added
-- H2, O2, N2, H2O, CO, CO2, CH4, NH3 reactive-site/coarse-valence fixtures
-- explicit charged-fragment/H+ compatible structures
-- reactive-site determinism
-- immutable add/remove bond primitives
-- proton-transfer primitive
-- candidate ID/order determinism
-- conservation for every emitted candidate
-- structural duplicate elimination
-- structural no-op elimination check
-- candidate family/total caps
-- invalid graph rejection before candidate generation
-- bounded candidate count over the MVP species set
+`tests/dynamic-species-registry.test.ts` — 11 tests covering:
+- canonical identity invariance and distinction by connectivity/bond order/formal charge;
+- known-species reuse;
+- unknown generated registration/dedup/different ids;
+- malformed graph rejection;
+- serialize/restore identity stability;
+- generated product entering vessel state;
+- no same-step cascade;
+- next-step generated-species participation;
+- known product reuse;
+- registration failure atomicity;
+- atom/charge conservation;
+- deterministic repeated state/registry result.
 
-## Validation Performed
-- Local network clone / `npm ci`: BLOCKED in the execution environment because `github.com` DNS resolution failed.
-- Exact new TypeScript source + strict repository-compatible compiler settings: PASS using available `tsc 5.8.3`.
-- New Vitest source type/shape audit: PASS with a minimal local Vitest declaration because Vitest is not installed globally.
-- Independent executable runtime harness over the same new reaction-engine source: PASS for water/ammonia generic proton-transfer candidate generation, deterministic ordering, duplicate pruning, and conservation.
-- CO coarse-valence compatibility was explicitly rechecked after the generic multiple-bond refinement: PASS.
-- `npm run lint`: OPEN locally; ESLint is not globally installed and dependencies cannot be installed in this environment.
-- `npm test`: OPEN locally; Vitest is not globally installed and dependencies cannot be installed in this environment.
-- `npm run build`: OPEN locally; Vite is not globally installed and dependencies cannot be installed in this environment.
+## Validation Evidence
+Validated exact HEAD: `aaad1235b1c0408cea0b3015af7e7049c06eb4c2`
+GitHub Actions run: `34635920066` — SUCCESS.
+
+- `npm ci --no-audit --no-fund`: PASS
+- `npm run typecheck`: PASS
+- `npm run lint`: PASS
+- targeted registry + reaction progression/candidate/evaluation/thermal: **5 files / 59 tests PASS**
+  - dynamic registry 11/11
+  - reaction progression 10/10
+  - reaction candidate 16/16
+  - reaction evaluation 9/9
+  - thermal 13/13
+- full `npm test`: **13 files / 148 tests PASS**
+- reaction validation matrix included in full suite: 8/8 PASS
+- UI workspace regression included in full suite: 10/10 PASS
+- `npm run build`: PASS
+
+The temporary branch-only validation workflow was removed after preserving the successful run. That cleanup and this status update do not alter the validated executable/test blobs.
 
 ## PASS / FAIL / OPEN
-
 ### PASS
-- Generic graph-derived candidate infrastructure exists without a stored reaction database.
-- Existing molecular core types and conservation utilities are reused.
-- Reactive-site detection is deterministic.
-- Candidate transformations are copy-based and do not mutate vessel state.
-- Every emitted candidate passes graph/coarse-valence sanity and conservation gates.
-- Candidate generation is bounded and deterministic with explicit pruning diagnostics.
-- 02 has a clean structurally validated handoff contract.
+- Deterministic canonical registry identity and duplicate prevention.
+- Known species reuse and generated species registration.
+- Collision-safe exact canonical verification.
+- Generated provenance separated from identity.
+- Registry serialization/restore with stable ids.
+- Phase 2E generated-product amount mutation.
+- Atomic failure semantics: no reactant-only partial mutation.
+- Element/atom/charge and finite/non-negative amount invariants retained.
+- Same-step cascade prevention and next-step generated-species participation.
+- Full repository regression/build on validated executable HEAD.
 
 ### FAIL
-- None identified in the locally executable Phase 2A scope.
+- None identified in validated scope.
 
 ### OPEN
-- Repository-native `npm ci`, lint, Vitest, and production build in a dependency-enabled environment.
-- Full chemistry-aware valence, resonance/aromaticity, coordination, radical, stereochemical, implicit-H, hypervalent, solvent, and surface chemistry.
-- `SUBSTITUTION_GENERIC` and higher semantic family generators.
-- External electron/electrode reservoir bookkeeping.
-- Thermodynamic/kinetic ranking and rejection by 02.
-- Reaction extent / state mutation / competition resolution.
-- 06 randomized/property/performance validation against candidate explosion and graph permutations.
+- Generated-species real-world/reference identity verification.
+- Scientific property enrichment from 03/02 data.
+- Full stereochemistry and chemically complete aromatic/resonance/coordination identity beyond the current graph model.
+- Canonical search budget for very large/highly symmetric graphs remains bounded by the existing molecular core.
+- Full save-game orchestration beyond the registry serialization contract.
+- Advanced phase re-resolution for newly generated species.
+- Equilibrium/electrochemistry remain out of scope.
 
-## 02 Handoff
-02 may consume emitted candidate IDs, family, reactant refs, validated product graphs, atom mapping, bond/charge changes, proton/electron metadata, stoichiometric coefficients, structural confidence, assumptions, rule ID, phase-bearing SpeciesState refs, and `conservation.valid === true`.
+## Handoffs
+- 03: match generated canonical structures to reference compounds where possible and attach sourced property/provenance enrichment without changing internal identity.
+- 02: consume only available sourced thermodynamic/kinetic properties; OPEN generated species must not receive fabricated physics.
+- 04/05: player discovery/naming/encyclopedia presentation remains Game/UI ownership and must not infer knowledge from internal registry presence.
+- 06: validate registry collision/dedup, restore determinism, generated-product conservation, atomic failure paths, and next-step participation with randomized graph ordering.
+- 07: integrate PR #39 after normal latest-main/CI review; the temporary validation workflow is not intended for production.
 
-02 must independently evaluate thermodynamic direction, reaction enthalpy/free energy, activation/rate behavior, equilibrium, phase/rate corrections, and later competing-candidate resolution. `structuralConfidence` is not a thermodynamic or kinetic probability.
-
-## 03 Handoff
-01 only consumes `ElementProvider` fields already defined by the molecular core. Electronegativity and typical-valence data improve reactive-site detection, but authoritative values/provenance remain 03-owned.
-
-## 06 Handoff
-Run repository-native tests plus randomized graph-order/atom-ID permutations, conservation property tests, candidate-cap stress tests, duplicate/no-op checks, invalid/coarse-overvalence cases, and browser-relevant candidate-count/performance measurements.
-
-## Next Actions
-1. Run dependency-enabled repository validation for PR #21.
-2. 06 validates determinism, conservation, candidate bounds, and randomized graph transformations.
-3. 02 consumes `REACTION_CANDIDATE_V1.md` and defines/evaluates thermo/kinetics result interfaces without moving physical evaluation into 01.
-4. After validation, refine generic substitution/bond-order transformations and atom mapping only where scientifically justified; do not add reaction lookup tables.
+## Next
+**Generated Species Scientific Enrichment + Registry Validation**.

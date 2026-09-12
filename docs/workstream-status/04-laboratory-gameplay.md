@@ -1,186 +1,225 @@
 # 04 — Laboratory Gameplay
 
 - Owner: Lead Laboratory Gameplay Designer / Chemistry Sandbox Systems Designer / Progression Designer / Experiment Gameplay Developer
-- Current phase: Lab Notebook / Scientific Knowledge Contract
-- Overall state: NOTEBOOK_CONTRACT_REFRESHED / READY_FOR_MERGE
-- Last updated: 2026-09-11
-- Latest production main incorporated: `f282443e9b1c07f082fa43d2bcf7061c275d758a`
-- Active branch: `docs/lab-notebook-knowledge-contract`
-- Active PR: #28 — `docs(game): define lab notebook scientific knowledge contract`
+- Current phase: Generated Species Player Knowledge Boundary
+- Overall state: IMPLEMENTED_PENDING_RUNTIME_VALIDATION
+- Last updated: 2026-09-12
+- Starting main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
+- Active branch: `feature/generated-species-player-knowledge`
+- Active PR: #37 — `feat(game): support generated species knowledge progression`
 
 ## Current Objective
+Implement the Game Layer boundary that keeps generated/internal species identity separate from player knowledge while reusing the existing discovery -> encyclopedia -> unlimited inventory progression.
 
-Define a player-centered Lab Notebook / Encyclopedia contract that automatically records objective measurements while leaving interpretation primarily to the player rather than turning the notebook into a mandatory answer-submission system.
+Core invariant:
 
-This work is contract/design only. It does not implement chemistry formulas, analyzer physics, scientific tolerances, graph-equality algorithms, reaction logic, or production UI.
+`internal existence != player knowledge`
 
-## Canonical Direction
+01 registry implementation is not modified.
 
-The notebook has three separate concepts:
+## Source of Truth Reviewed
+- `docs/contracts/LAB_NOTEBOOK_SCIENTIFIC_KNOWLEDGE.md`
+- `docs/contracts/DISCOVERY_INVENTORY_PROGRESSION.md`
+- `docs/contracts/SIMULATION_CONTRACT.md`
+- `src/game/progression.ts`
+- this status file
 
-1. **Scientific Record** — objective instrument/simulation observations and raw data, automatically recorded.
-2. **My Notes** — free-form player-authored observations, interpretations, hypotheses, and reminders; never graded as correct/incorrect.
-3. **Structured Hypothesis** — optional structured submissions only where verification has meaningful gameplay/scientific value, such as molecular identity, formula, structure, or selected quantitative estimates.
+## Generated Species Knowledge Lifecycle
+Canonical lifecycle implemented/proposed:
 
-Canonical principle:
+`internal species exists -> unknown player projection -> Scientific Record / My Notes -> analysis -> optional structured hypothesis -> authoritative identity confirmation -> existing SpeciesDiscovery -> existing Encyclopedia registration -> existing InventoryUnlock -> unlimited reuse`
 
-`direct measurement is automatic -> interpretation is player-owned -> formal verification is optional and targeted`
+Generated species do not receive a second progression system.
 
-The previous `PLAYER_INFERENCE` concept is retained as an acquisition category but no longer implies that every interpretation must be submitted for grading.
+## Implemented Runtime
+Added `src/game/generatedSpeciesKnowledge.ts` with:
 
-## Completed Contract Work
+- `InternalSpeciesDescriptor`
+- generated/known origin metadata
+- scientific reference-match state
+- stable opaque `unknownRef`
+- normal unknown-species projection
+- Developer Mode internal projection
+- Scientific Record accumulation
+- My Notes attachment
+- optional structured hypothesis storage
+- analysis-history state
+- authoritative identity-confirmation bridge into existing `handleIdentityEvent`
+- encyclopedia/unlock knowledge flags
+- deterministic generated-knowledge serialization/deserialization
 
-### Scientific Record
+The module depends only on the existing Game Layer progression interface and does not import or mutate 01 registry implementation.
 
-Instrument-readable values and authoritative observations are AUTO-recorded with:
+## Identity Leakage Rules
+### Normal Mode
+Before authoritative identity confirmation, normal projection exposes only gameplay-safe information such as:
 
-- measurement/event identity;
-- value/unit;
-- uncertainty where available;
-- instrument/source reference;
-- timestamp;
-- condition/evidence references;
-- repeat-measurement history.
+- `Unknown substance`
+- opaque `unknownRef`
+- observed/analyzed state
+- whether hypothesis interaction is available
 
-The same authoritative observation is idempotent. Players are not asked to retype already known raw values.
+It does not expose:
 
-### My Notes
+- internal SpeciesId
+- registry ID
+- molecular formula
+- molecular graph
+- verified/common name
+- generated/known origin
+- scientific reference-match state
+- registry/debug metadata
 
-Players may freely write notes such as:
+Scientific Record may accumulate measurements while identity remains hidden.
 
-- “물과 닿으면 빠르게 발열하는 것 같음”
-- “공기 중 반응성 높음”
-- “가열 시 기체 생성”
+### Developer Mode
+Developer Mode may additionally expose SpeciesId, origin, formula, graph reference, registry metadata, reference-match state, and available verified/common name for QA.
 
-These notes:
+Developer projection does not alter discovery, encyclopedia, inventory, notes, or chemistry state.
 
-- may link to evidence;
-- are not evaluated against hidden truth;
-- do not become `CONFIRMED`/`REJECTED` merely from text;
-- do not unlock species by themselves;
-- remain distinct from validated Encyclopedia facts.
+## Notebook Behavior
+Generated unknown species can accumulate:
 
-Qualitative interpretations such as flammability, water reactivity, oxidizing behavior, or corrosiveness are not automatically mandatory system-defined answer fields.
+- Scientific Record measurements/raw outputs
+- repeated measurement history
+- experiment provenance
+- My Notes
+- analysis references
+- optional structured hypotheses
 
-### Optional Structured Hypothesis
+Scientific Record ingestion is idempotent by authoritative `observationRef`.
 
-Structured verification remains appropriate for high-value machine-verifiable targets such as:
+My Notes remain free-form and ungraded. Notes do not unlock identity or inventory by themselves.
 
-- molecular identity;
-- molecular formula;
-- formula-only / partial / full molecular structure;
-- selected quantitative estimates backed by approved provider/tolerance policy.
+## Encyclopedia / Unlock Behavior
+Identity confirmation reuses the existing `IdentityConfirmedEvent` and `handleIdentityEvent` progression path.
 
-Structured submissions are optional rather than the default representation for all player interpretation.
+On valid confirmation:
 
-### Notebook vs Encyclopedia
+- knowledge entry becomes identity-confirmed;
+- existing progression creates/reuses `SpeciesDiscovery`;
+- Encyclopedia registration follows existing progression semantics;
+- material access becomes unlocked;
+- duplicate observations/internal references do not create duplicate knowledge entries.
 
-Lab Notebook is experiment-centered research history containing Scientific Record, My Notes, calculations/evidence, and optional structured hypotheses.
+Generated species therefore obey the same unlimited-stock rule as other discovered species.
 
-Encyclopedia is a species-centered curated player research record. It may show confirmed/validated/reference-backed facts and clearly labeled player research history, but it must not behave as an automatic ground-truth wiki merely because the backend knows a species.
+Every actual `AddUnlockedMaterial` operation remains finite (`amountMol > 0`, finite number). `NaN`/`Infinity` remain invalid. Simulation Core never receives unlimited-inventory semantics.
 
-### Unknown Species / Identity Leak
+## Real-World Identity Boundary
+A structurally valid generated species is not automatically promoted to a named real-world compound by 04.
 
-Canonical flow remains:
+If 03 reference matching remains OPEN or GENERATED_UNVERIFIED:
 
-`internal species -> unknownRef -> Scientific Record + My Notes -> optional structured identity/structure hypothesis or approved analyzer -> IdentityConfirmedEvent -> SpeciesDiscovery -> Encyclopedia -> InventoryUnlock`
+- player experiments remain valid;
+- measurements/notes/history remain valid;
+- identity/progression state may remain game-canonical;
+- 04 does not invent a common name or precise external reference properties.
 
-Normal projections must not leak hidden species keys, canonical graphs, reference matches, names, or developer metadata before disclosure is allowed.
+Reference support remains separate from player discovery state.
 
-### Anti-Grind
+## Persistence Requirements
+Generated player knowledge is keyed by stable 01 SpeciesId and preserves an opaque `unknownRef` for historical player-facing records.
 
-Canonical anti-grind requirements:
+Save/load must preserve:
 
-- instrument-readable values auto-record;
-- duplicate observation ingestion is idempotent;
-- confirmed/raw values are never retyped for progression;
-- My Notes are freely authored and never graded;
-- structured submissions are optional and limited to meaningful fields;
-- confirmed structured knowledge is not repeatedly quizzed;
-- evidence may accumulate across experiments;
-- progression emphasizes experiment choice and interpretation rather than transcription.
+- species association
+- unknownRef
+- observed/analyzed/confirmed state
+- Scientific Record
+- My Notes
+- hypotheses
+- analysis history
+- encyclopedia/unlock linkage
+- origin/reference-support metadata
+- schema version
 
-## Ownership Boundaries
+Restoring the same registry SpeciesId must restore the same player knowledge association. Knowledge may not migrate to another species or disappear silently.
 
-### 01 — Chemistry Simulation Engine
-Owns molecular/species identity, graph semantics/equality, formula/structure verification semantics, and reaction structure.
+## Tests Added
+Added `tests/game/generatedSpeciesKnowledge.test.ts` covering:
 
-### 02 — Thermodynamics & Kinetics
-Owns thermodynamic/kinetic truth and derived physical results.
+- internal generated species does not leak identity in normal projection
+- unknown species accumulates Scientific Record
+- duplicate observation ingestion is idempotent
+- My Notes attach to the correct species
+- analysis -> confirmation -> existing discovery progression
+- generated unlock reuses unlimited stock + finite vessel amount rule
+- save/restore keeps knowledge associated with stable SpeciesId
+- Developer Mode reveals internals without mutating normal progression
+- duplicate internal references do not create duplicate knowledge entries
 
-### 03 — Chemistry Data & Validation
-Owns reference values, provenance, uncertainty, reference matching, and scientific data quality.
+## Validation Performed
+### PASS — source/contract audit
+- 01-owned simulation/registry files untouched.
+- No graph canonicalization or generated SpeciesId creation implemented.
+- No reaction, thermo, phase, or reference-matching logic added.
+- Normal projection omits identity-bearing internal fields.
+- Confirmation delegates to existing Game Layer progression.
+- Unlimited inventory remains entitlement-only and Simulation additions remain finite.
 
-### 04 — Laboratory Gameplay
-Owns:
+### OPEN — executable test/typecheck run
+Attempted repository clone/test execution from the current environment, but DNS resolution for `github.com` failed before checkout. Therefore `npm run typecheck` and `npm test` could not be executed here. Runtime PASS is not claimed.
 
-- Notebook state;
-- Scientific Record organization;
-- player My Notes;
-- evidence/history;
-- optional Structured Hypothesis lifecycle;
-- progression/Encyclopedia presentation rules;
-- unknownRef progression/disclosure;
-- anti-grind behavior.
+## 01 Handoff
+04 requires only:
 
-04 does not own hardcoded chemistry-truth labels for qualitative property grading.
+- stable SpeciesId across save/load for the same canonical registry identity
+- origin: known/generated
+- optional scientific reference-match state
+- optional developer/post-confirmation metadata such as graph/formula/name refs
+- no requirement for a player-facing name
 
-### 05 — Web UI
-Owns Scientific Record, My Notes, worksheet/hypothesis, unknown-species, and Encyclopedia UI surfaces.
+01 remains owner of SpeciesId generation, registry persistence, graph canonicalization, structural identity, and duplicate structural identity handling.
 
-### 06 — Simulation Validation Lab
-Owns scientific acceptance/tolerance policy and validation that structured confirmation does not produce false scientific claims.
+See `docs/contracts/GENERATED_SPECIES_PLAYER_KNOWLEDGE.md`.
 
-## Phase 2 Compatibility
+## 03 Handoff
+Later loose updates may provide:
 
-The branch was refreshed after Phase 2 reaction candidate/data/evaluation/validation integration and now incorporates production main `f282443e9b1c07f082fa43d2bcf7061c275d758a`.
+- scientific reference match state
+- verified/common name where available
+- provenance refs
+- property evidence refs
 
-The Notebook contract does not overwrite or redefine Phase 2 reaction/data/thermo/validation semantics.
+No reference match must not be interpreted by 04 as impossibility.
+
+## 05 Handoff
+05 should render normal generated species from the Game Layer projection only. Before confirmation it must use an unknown/sample presentation and must not read Developer/internal metadata. My Notes and Scientific Record remain available for the unknown subject.
+
+## 06 Handoff
+Validate:
+
+- nested normal projections/Scientific Record cannot leak internal identity
+- Developer Mode reveal does not mutate normal progression
+- save/restore preserves knowledge-to-SpeciesId association
+- duplicate registry references remain one knowledge/encyclopedia identity
+- confirmation uses ordinary progression semantics
+- unlocked generated material additions remain finite
+- serialization is deterministic and malformed/unknown schemas fail safely
 
 ## PASS / FAIL / OPEN
-
 ### PASS
-
-- Scientific Record AUTO measurement direction defined.
-- My Notes free-form/ungraded direction defined.
-- optional Structured Hypothesis boundary defined.
-- Notebook and Encyclopedia responsibilities separated.
-- unknown species can accumulate research history without identity leakage.
-- anti-grind rules prevent measurement transcription gameplay.
-- player knowledge remains separate from scientific support.
-- scientific ownership remains in 01/02/03/06.
-- Phase 2 production docs/code semantics are not redefined by 04.
+- generated/internal existence separated from player knowledge
+- unknown normal projection implemented
+- Scientific Record accumulation implemented
+- My Notes association implemented
+- analysis/hypothesis state supported
+- confirmation bridges into existing discovery progression
+- encyclopedia/unlock lifecycle reused
+- unlimited stock / finite-add rule preserved
+- Developer Mode observability boundary implemented
+- deterministic persistence foundation implemented
+- 01/03 interface handoff documented
 
 ### FAIL
-
-- None identified at contract level.
+- None established by available evidence.
 
 ### OPEN
-
-- executable `LabNotebookState` persistence schema;
-- minimum Scientific Record field registry;
-- production ObservationRecord -> Notebook adapter;
-- exact MVP Structured Hypothesis fields;
-- analyzer/identity-confirmation progression;
-- field-specific evidence requirements;
-- 03/06 tolerance policy IDs where needed;
-- My Notes search/tagging UX;
-- graph-editor exchange format with 01/05;
-- long-save migration/checkpoint strategy.
-
-## Next Implementation Slice
-
-### 04 — Minimum Executable Notebook Runtime
-
-Implement only:
-
-- `LabNotebookState`;
-- AUTO Scientific Record ingestion with idempotent history;
-- free-form My Notes CRUD/persistence;
-- tiny optional Structured Hypothesis registry;
-- provider-neutral verification-result ingestion;
-- unknownRef -> confirmed species linking;
-- Encyclopedia projection of confirmed/disclosed fields;
-- deterministic serialization.
-
-Do not add scientific formulas, chemistry truth duplication, compulsory qualitative-property quizzes, or production UI in this runtime.
+- actual executable typecheck/test result
+- final 01 runtime descriptor/type names once the parallel registry implementation lands
+- whether integration adapter or 01 directly supplies origin/reference DTO
+- analyzer path producing authoritative `IdentityConfirmedEvent`
+- 03 scientific-reference update event shape
+- policy for confirmed but permanently unnamed generated species display label
+- future generated-knowledge save migration policy
