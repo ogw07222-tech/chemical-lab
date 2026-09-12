@@ -1,0 +1,105 @@
+name: Validate Phase3A Exact-Head Stack
+
+on:
+  push:
+    branches:
+      - validation/06-phase3a-stack
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare logs
+        run: mkdir -p validation-logs
+
+      - name: Source ancestry evidence
+        run: |
+          set -o pipefail
+          git merge-base --is-ancestor 92ca3ff39a1fc2616f8ab88df286575c15b298ea HEAD
+          git merge-base --is-ancestor 6d04b9aa96bfce02717cb9a233ded33d29960132 HEAD
+          git merge-base --is-ancestor 70d0d68523c0a60ff65377833459eb2547bf82b5 HEAD
+          git log --oneline --decorate -15 | tee validation-logs/ancestry.log
+
+      - name: Typecheck
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee validation-logs/typecheck.log
+
+      - name: Lint
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee validation-logs/lint.log
+
+      - name: Targeted Phase3A stack tests
+        run: |
+          set -o pipefail
+          npm test -- \
+            tests/reaction-candidate.test.ts \
+            tests/reaction-evaluation.test.ts \
+            tests/reaction-progression.test.ts \
+            tests/phase3a-reaction-network.test.ts \
+            tests/dynamic-species-registry.test.ts \
+            tests/dynamic-species-registry.validation.test.ts \
+            tests/generated-species-reference-enrichment.test.ts \
+            tests/phase3a-kinetics-thermal.test.ts \
+            tests/phase3a-dimensioned-resolver.test.ts \
+            tests/ui/LaboratoryWorkspace.test.tsx \
+            tests/validation.phase3a-stack.test.ts \
+            2>&1 | tee validation-logs/targeted.log
+
+      - name: Full test suite
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee validation-logs/full-test.log
+
+      - name: Build
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee validation-logs/build.log
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke
+        run: |
+          set -o pipefail
+          npm run preview -- --host 127.0.0.1 > validation-logs/preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui 2>&1 | tee validation-logs/smoke-ui.log
+
+      - name: Tested commit
+        run: git rev-parse HEAD | tee validation-logs/tested-commit.txt
+
+      - name: Upload validation logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3a-stack-validation-logs
+          path: validation-logs
