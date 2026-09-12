@@ -42,7 +42,8 @@ describe('LaboratoryWorkspace workbench refinement', () => {
     expect(screen.queryByLabelText('물질 검색')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'도감 펼치기'}));
     expect(screen.getByLabelText('물질 검색')).toBeInTheDocument();
-    expect(screen.getByText('수소')).toBeInTheDocument();
+    const catalog=screen.getByRole('complementary',{name:'도감'});
+    expect(within(catalog).getByText('수소')).toBeInTheDocument();
   });
 
   it('collapses conditions into a readable summary and restores controls', () => {
@@ -67,7 +68,8 @@ describe('LaboratoryWorkspace workbench refinement', () => {
     renderLab();
     fireEvent.change(screen.getByLabelText('추가할 양'),{target:{value:'0.25'}});
     fireEvent.click(screen.getByRole('button',{name:/실험실에 추가/}));
-    expect(screen.getByText(/0.250 mol/)).toBeInTheDocument();
+    const vessel=screen.getByLabelText('주 용기');
+    expect(within(vessel).getByText(/0.250 mol/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'타임라인'}));
     expect(screen.getByText(/Added 0.250 mol H₂/)).toBeInTheDocument();
   });
@@ -96,7 +98,8 @@ describe('LaboratoryWorkspace workbench refinement', () => {
   it('disposes selected vessel material only through provider command', () => {
     renderLab();
     fireEvent.click(screen.getByRole('button',{name:/실험실에 추가/}));
-    expect(screen.getByText(/1.000 mol/)).toBeInTheDocument();
+    const vessel=screen.getByLabelText('주 용기');
+    expect(within(vessel).getByText(/1.000 mol/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'선택 물질 폐기'}));
     fireEvent.click(screen.getByRole('button',{name:'폐기 확인'}));
     fireEvent.click(screen.getByRole('button',{name:'타임라인'}));
