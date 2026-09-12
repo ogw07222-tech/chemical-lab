@@ -45,7 +45,7 @@ export function ApparatusWorkspaceLayer({
   const selected = useMemo(() => apparatus.find((item) => item.id === selectedId), [apparatus, selectedId]);
   const inspectorRef = useRef<HTMLElement>(null);
   const apparatusElements = useRef(new Map<ApparatusId, HTMLButtonElement>());
-  const previousSelectedId = useRef<ApparatusId>();
+  const previousSelectedId = useRef<ApparatusId | undefined>(undefined);
 
   const select = (apparatusId: ApparatusId) => {
     previousSelectedId.current = apparatusId;
