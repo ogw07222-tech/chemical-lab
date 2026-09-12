@@ -2,182 +2,131 @@
 
 - Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
 - Current phase: Phase 4A-1 — Compartment & Conservation Foundation
-- Overall state: PASS — implementation validated / independent 06 validation pending
+- Overall state: PASS — independently validated and production-integrated
 - Last updated: 2026-09-12
-- Starting production main: `555c6e74ef94a9c06416fb80ce703980ce6a1889`
-- Active branch: `feature/phase4a1-compartment-foundation`
-- Exact executable/test HEAD validated: `6e7b45f62e0a6822b53a77b179e0445ba1f9b83e`
-- Validation workflow run: `34691782906` — SUCCESS
+- Original implementation baseline: `555c6e74ef94a9c06416fb80ce703980ce6a1889`
+- Feature branch: `feature/phase4a1-compartment-foundation`
+- Exact fixed executable/test implementation HEAD: `a11fb3e24197a5c30ca19f0468cdacf1d6c20ad2`
+- Implementation validation workflow: `34693370905` — SUCCESS
+- 06A independent revalidation HEAD: `320c457c55503bad1f2523f311d82a5c6701d25e`
+- 06A independent workflow: `34693888788` — SUCCESS / `PHASE4A1_INDEPENDENT_VALIDATION_PASS`
+- Production merge SHA: `9fd2d6f37cf64c7bbf9ad73a89a7cba69cba2a82`
 
 ## Objective
-Phase 4A-1 establishes reusable matter containers, system-wide inventory/conservation accounting, and atomic deterministic matter transfer. It deliberately does not implement apparatus-specific or flow/thermal physics.
-
-## Source of Truth
-Production main was rechecked at task start and was `555c6e74ef94a9c06416fb80ce703980ce6a1889` (`docs(07): record Phase3B production integration PASS`). Phase 3B reversible arbitration, Phase 3A network execution, Dynamic Species Registry, reaction progression, and aggregate-once thermal coupling are therefore production-integrated dependencies.
-
-The Phase 4A-1 branch starts directly from that main commit.
+Phase 4A-1 establishes reusable matter compartments, system-wide inventory/conservation accounting, and atomic deterministic matter transfer. It deliberately does not implement apparatus-specific behavior, pressure/headspace physics, automatic transport, or thermal transport.
 
 ## Compartment Authority
-Added `src/simulation/compartment/` as an additive simulation-core subdomain.
+`src/simulation/compartment/` is an additive simulation-core subdomain. `MatterCompartmentState` owns matter-location bookkeeping only: compartment id/kind, optional apparatus owner, existing `SpeciesState[]` inventory, and optional non-authoritative metadata fields prepared for later phases.
 
-`MatterCompartmentState` owns only matter-location bookkeeping:
-- compartment id;
-- compartment kind;
-- optional owner apparatus id;
-- existing `SpeciesState[]` inventory;
-- optional volume/environment/scientific metadata.
+Prepared compartment kinds do not imply transport or apparatus physics in Phase 4A-1.
 
-Prepared kinds cover vessel contents/headspace, lab atmosphere, gas collector, filter retentate/filtrate, bath medium, chamber atmosphere, exhaust reservoir, and generic other.
+## Species Identity
+Compartment inventory reuses the existing `SpeciesId` / `SpeciesState` authority. Known and Dynamic Species Registry-generated ids follow the same path. The transfer layer does not infer identity from formula or display name and does not create molecular graphs or new SpeciesIds.
 
-No kind has transport or apparatus physics attached in Phase 4A-1.
+A single SpeciesId resolving to conflicting canonical molecular identities across compartments is rejected. Amounts must remain finite and non-negative.
 
-## Species Inventory / Identity
-Compartment inventory continues to use the existing `SpeciesId`/`SpeciesState` boundary. Known and generated Dynamic Species Registry ids are handled identically.
+## System Inventory / Conservation
+The foundation provides system-wide aggregation for:
+- species amount;
+- element amount;
+- atom amount;
+- net-charge amount.
 
-The transfer layer does not use formula strings or display names as keys and does not create molecular graphs or new SpeciesIds. A single SpeciesId resolving to conflicting canonical molecular identities across compartments is rejected.
+Aggregation uses a deterministic canonical contribution order by compartment id, SpeciesId, then molecular canonical key. This fixes the 06A-discovered floating-point order-dependence defect without adding an epsilon waiver for deterministic equality.
 
-Amounts must remain finite and non-negative.
-
-## Existing Vessel Migration
-`createPrimaryVesselContentsCompartment()` adapts the existing production vessel species snapshot into a first `VESSEL_CONTENTS` compartment without changing current Phase 3A/3B authority.
-
-No existing reaction state/pipeline was rewritten. No gas is automatically moved to headspace. The compartment model is currently additive infrastructure for later integration.
-
-## Global System Inventory
-Added helpers for system-wide totals across all compartments:
-- `aggregateSystemSpeciesAmounts()`;
-- `aggregateSystemElementInventory()`;
-- `aggregateSystemAtomAmountMol()`;
-- `aggregateSystemNetChargeAmountMol()`;
-- `aggregateSystemMatterInventory()`.
-
-These use existing molecular identity/formula/net-charge facts. They let future transport move matter locally while system-wide conservation remains observable.
+Pure transfer preserves system-wide species, element, atom, and charge inventories within the existing amount-tolerance policy.
 
 ## Transfer Authority
-`transferMatterBatch()` is the authoritative 01 matter-commit primitive. `transferMatter()` is a one-request wrapper.
+`transferMatterBatch()` is the authoritative Phase 4A-1 matter-commit primitive; `transferMatter()` is the single-request wrapper.
 
-Transaction order:
-1. validate the full start state;
-2. canonicalize request and species-entry ordering;
-3. validate source/destination/optional connection/species/amounts;
-4. aggregate all outgoing demand against the same start snapshot;
-5. reject the whole batch if any source is insufficient or invalid;
-6. stage touched species/compartment deltas;
-7. commit one immutable next state;
-8. validate system-wide species/element/atom/charge conservation.
+Transaction semantics remain:
+1. validate the complete starting system;
+2. canonicalize request/species-entry order;
+3. validate source, destination, optional connection, species identity, and amounts;
+4. aggregate all outgoing demand against the same starting snapshot;
+5. reject the entire batch if any demand is invalid or insufficient;
+6. stage all deltas;
+7. conservation-check the staged state;
+8. commit one immutable next state.
 
-Incoming matter in the same batch cannot fund outgoing demand in that batch. This prevents hidden transport cascades and caller-order inventory capture.
-
-No silent clamping/partial fulfillment is permitted. An upper transport solver must explicitly request the authoritative movable amount.
-
-## Atomicity
-Failure returns the original `MatterSystemState` reference. No partial source decrement or destination increment is externally committed.
-
-A multi-species transfer with one insufficient species rejects the entire request. Competing requests whose aggregate demand exceeds one source snapshot also reject atomically.
-
-## Determinism
-Canonical request/entry ordering plus snapshot-wide aggregate-demand validation makes the result independent of caller batch order for equivalent inputs.
-
-Production code uses no RNG.
-
-## Conservation
-Pure transfer preserves, within the existing reaction-progression amount tolerance policy:
-- every SpeciesId total amount;
-- every element total;
-- total atom amount;
-- total net-charge amount.
-
-Reaction and transfer semantics remain separate: reactions may change species identities/amounts under stoichiometric conservation, whereas transfers only relocate already-authoritative species amounts.
+Consequences:
+- no partial commit;
+- no silent clamp / partial fulfillment;
+- incoming matter cannot fund outgoing matter in the same transaction;
+- competing demands cannot capture source inventory by caller order;
+- failure returns the original authoritative state;
+- no RNG is used.
 
 ## Connection Contract
-`MatterConnectionState` prepares minimal directed topology:
-- connection id;
-- source compartment;
-- destination compartment;
-- `GAS | LIQUID` kind;
-- enabled flag.
+Only runtime-supported Phase 4A-1 matter connection kinds are:
+- `GAS`
+- `LIQUID`
 
-If a transfer supplies a connection id, it must exist, be enabled, and match source/destination. Connection type does not calculate or imply flow amount.
+Runtime/deserialized values are explicitly validated. Unsupported values such as `SOLID`, empty string, or malformed values reject with `INVALID_CONNECTION_KIND`; there is no coercion or default.
 
-## Headspace / Atmosphere Preparation
-`VESSEL_HEADSPACE` and `LAB_ATMOSPHERE` are available compartment kinds only.
+A supplied connection must also exist, be enabled, and match the transfer source/destination. Connection type does not calculate flow amount.
 
-Phase 4A-1 does not implement automatic gas escape, gas-product routing, pressure, ventilation, diffusion, or headspace equilibrium.
+## 06A Defects and Fixes
+The old source HEAD `86dad8298be2997370fc529ab9e07179aba843d7` independently failed and is not merge-authorized.
 
-## Thermal Boundary
-Existing Phase 3A aggregate-once reaction thermal coupling is unchanged. Phase 4A-1 calculates no temperature, heat transfer, pressure, or energy transport.
+06A found two blockers:
+1. system aggregation depended on caller compartment/species order at IEEE-754 precision;
+2. malformed runtime connection kinds could pass the TypeScript-only boundary.
 
-## Files Added / Changed
-- `src/simulation/compartment/types.ts`
-- `src/simulation/compartment/core.ts`
-- `src/simulation/compartment/index.ts`
-- `tests/phase4a1-compartment-foundation.test.ts`
-- `docs/contracts/PHASE4A1_COMPARTMENT_MATTER_TRANSFER.md`
-- `docs/workstream-status/01-simulation-engine.md`
+Both were fixed in the executable/test lineage ending at `a11fb3e24197a5c30ca19f0468cdacf1d6c20ad2`:
+- canonical accumulation order is explicit and deterministic;
+- runtime connection-kind validation allows only `GAS | LIQUID`.
 
-A temporary branch-only validation workflow was used to obtain exact-head evidence and is removed before final PR state.
+Implementation workflow `34693370905` passed after these fixes. Fresh independent branch `validation/06a-phase4a1-revalidation` tested the fixed implementation at validation HEAD `320c457c55503bad1f2523f311d82a5c6701d25e`; workflow `34693888788` completed SUCCESS and cleared the independent merge gate.
 
-## Validation Evidence
-Exact executable/test HEAD: `6e7b45f62e0a6822b53a77b179e0445ba1f9b83e`
+## Production Integration
+07 refreshed the feature branch onto the later production main only after auditing the intervening changes as UI/docs-only with no simulation/registry/reaction/progression/thermal overlap.
 
-GitHub Actions run `34691782906`: **SUCCESS**.
+- original PR checkpoint: `269c00fd56b8c19f9a08c783bf7198a95b052e2b`
+- refresh PR: #65
+- ancestry refresh commit: `09e0fb7e4dfc3349988313b4e9e041552845720e`
+- refreshed integration-tested HEAD: `def738cb3567cb3c7c760bc3d5a2ed02204d094e`
+- integration validation workflow: `34694318207` — SUCCESS
+- final refreshed PR #57 HEAD after workflow cleanup: `f92a8fa3bca723f4c37e5a0f44fd2e97b6f51794`
+- production merge SHA: `9fd2d6f37cf64c7bbf9ad73a89a7cba69cba2a82`
 
-- `npm ci --no-audit --no-fund`: PASS
-- `npm run typecheck`: PASS
-- `npm run lint`: PASS — 0 errors; one inherited `src/ui/provider.tsx` hook-dependency warning
-- targeted Phase 4A-1 + Phase 3A/3B/registry/progression/thermal: **7 files / 84 tests PASS**
-- Phase 4A-1 compartment tests: **13/13 PASS**
-- full `npm test`: **23 files / 274 tests PASS**
-- `npm run build`: PASS
+The refresh did not alter compartment/transfer executable semantics. The compartment core blob remained identical to the independently validated implementation lineage.
 
-## Phase 3A / Phase 3B Regression
+## Regression Evidence
+Integration validation on refreshed PR #57:
+- typecheck: PASS
+- lint: PASS — 0 errors; one inherited non-blocking `src/ui/provider.tsx` hook warning
+- Phase 4A-1: 17/17 PASS
+- exact 06A independent + extended tests: 18/18 PASS
+- cross-phase Phase 3A / Phase 3B / Dynamic Species / progression / thermal: 7 files / 86 tests PASS
+- full suite including imported 06A tests: 29 files / 319 tests PASS
+- build: PASS
+
+Post-merge main regression repeated the same stack and again passed 17 Phase 4A-1 tests, 18 exact 06A tests, 86 cross-phase tests, full 29 files / 319 tests, and production build.
+
+## Preserved Dependencies
 PASS:
-- Phase 3A network 11/11;
-- Phase 3B reversible arbitration 16/16;
-- reaction progression 10/10;
-- Phase 3A kinetics/thermal 10/10;
-- thermal 13/13.
+- Phase 3A reaction-network behavior unchanged;
+- Phase 3B equilibrium/reversible arbitration unchanged;
+- Dynamic Species Registry identity path unchanged;
+- reaction progression unchanged;
+- existing thermal coupling unchanged;
+- generated species transfer uses the same SpeciesId authority as known species.
 
-No Phase 3A/3B source file was modified by this implementation, so same-step generated-species prohibition and next-step generated-species participation stay on the existing production path.
+## Out of Scope / OPEN
+Phase 4A-1 does not implement:
+- pressure or ideal-gas calculations;
+- headspace equilibrium or automatic gas routing;
+- temperature evolution or heat/energy transport;
+- diffusion, automatic gas escape, ventilation, pump flow, valve conductance, or filtration physics;
+- apparatus-specific simulation behavior;
+- UI/provider scientific derivation;
+- reaction tuning.
 
-## Dynamic Species Regression
-PASS:
-- Dynamic Species Registry targeted 11/11;
-- full registry validation remains green in the 274-test full suite;
-- an actual registry-generated SpeciesId is transferred successfully by the new primitive.
+These belong to later coordinated phases. Phase 4A-2 must decide why/how much matter moves and then use this atomic transfer foundation rather than bypassing it.
 
-## PASS / FAIL / OPEN
-### PASS
-- reusable compartment state contract;
-- deterministic empty/populated compartment creation;
-- existing-vessel adapter without mass refactor;
-- system-wide species/element/atom/charge aggregation;
-- single and multi-species matter transfer;
-- atomic rejection on invalid/insufficient requests;
-- order-independent competing-request rejection;
-- generated SpeciesId compatibility;
-- explicit topology contract without flow physics;
-- conservation-safe commit;
-- Phase 3A/3B/registry/thermal regressions green;
-- full suite/build green.
-
-### FAIL
-- None identified in Phase 4A-1 scope.
-
-### OPEN
-- independent 06 validation before merge;
-- integration of compartment authority into the production laboratory runtime/provider remains a later coordinated step;
-- 4A-2 transport solver must decide *why/how much* matter moves;
-- headspace partitioning, automatic gas escape, diffusion, pressure-driven flow, valve conductance, pump behavior and filtration remain unimplemented;
-- energy transfer remains 02/future Phase 4A responsibility;
-- 05D owns eventual provider/UI projection.
-
-## Handoffs
-- 02/04/4A-2: calculate or decide explicit requested transfer amounts; do not mutate inventory directly.
-- 01: validate and atomically commit those explicit requests through this transfer foundation.
-- 05D: later project compartment facts through provider authority; no React/UI changes are part of this PR.
-- 06: independently validate atomicity, order independence, system conservation, generated-id transfer, and Phase 3A/3B regressions.
-- 07: integrate only after 06 approval.
+## Final Status
+**PASS — Phase 4A-1 Compartment + Matter Transfer + Conservation Foundation is independently validated and production-integrated.**
 
 ## Next
-**06 independent Phase 4A-1 validation, then 07 integration review.**
+00 HQ may proceed to Phase 4A-2 pressure/headspace/gas-transport design and validation without expanding Phase 4A-1 semantics retroactively.
