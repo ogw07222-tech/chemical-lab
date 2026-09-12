@@ -6,7 +6,7 @@ import type {
   LaboratorySnapshot,
   PhaseDiagramViewModel,
   ReactionActivityProjection,
-  ReactionProgressEvent,
+  ReactionProgressProjection,
   ReactionSpeciesProjection,
   SubstanceSummary,
 } from './types';
@@ -52,23 +52,28 @@ const knownH2: ReactionSpeciesProjection = { referenceId: 'known-h2', displayIde
 const knownO2: ReactionSpeciesProjection = { referenceId: 'known-o2', displayIdentity: 'O₂', identityConfirmed: true, knownSpeciesId: 'o2' };
 const unknownA: ReactionSpeciesProjection = { referenceId: 'mock-unknown-a', displayIdentity: 'hidden mock identity', opaqueLabel: 'Unknown α', identityConfirmed: false };
 
-const REACTION_NETWORK_EVENTS: ReactionProgressEvent[] = [
+// These are already-projected provider facts. No chemistry is calculated by the UI mock.
+// sourceSequence deliberately restarts at 0 in each timestep to prove that timelineOrder,
+// not an engine-local per-timestep sequence, controls mixed UI history ordering.
+const REACTION_NETWORK_EVENTS: ReactionProgressProjection[] = [
   {
-    id: 'reaction-1', sequence: 1, simulationTimeS: 1, kind: 'reaction-progress', stepIndex: 1, state: 'completed', precision: 'OPEN', activityLabel: '반응 진행 감지',
+    id: 'reaction-1', timelineOrder: 1, timestepId: 'mock-step-1', sourceSequence: 0, startTimeS: 0, endTimeS: 1,
+    kind: 'reaction-progress', stepIndex: 1, state: 'completed', displayPrecision: 'OPEN', scientificStatus: 'OPEN', confidence: 'UNASSESSED', activityLabel: '반응 진행 감지',
     consumed: [knownH2], produced: [unknownA],
-    reactionHeat: { precision: 'OPEN', status: 'unavailable', label: '반응열 데이터 미확정' },
+    reactionHeat: { displayPrecision: 'OPEN', status: 'unavailable', coverage: 'NONE', label: '반응열 데이터 미확정', scientificStatus: 'OPEN', confidence: 'UNASSESSED' },
   },
   {
-    id: 'reaction-2', sequence: 2, simulationTimeS: 2, kind: 'reaction-progress', stepIndex: 2, state: 'progressing', precision: 'APPROXIMATED', activityLabel: '반응 진행 감지',
+    id: 'reaction-2', timelineOrder: 2, timestepId: 'mock-step-2', sourceSequence: 0, startTimeS: 1, endTimeS: 2,
+    kind: 'reaction-progress', stepIndex: 2, state: 'progressing', displayPrecision: 'APPROXIMATED', scientificStatus: 'APPROXIMATED', confidence: 'MEDIUM', activityLabel: '반응 진행 감지',
     consumed: [{ ...unknownA, amountMol: 0.1 }], produced: [{ ...knownO2, amountMol: 0.05 }],
-    observables: [{ kind: 'gas-evolution', precision: 'APPROXIMATED', label: '기체 발생 관찰됨' }],
+    observables: [{ kind: 'gas-evolution', displayPrecision: 'APPROXIMATED', label: '기체 발생 관찰됨' }],
   },
 ];
 
 interface MockState {
   snapshot: LaboratorySnapshot;
   events: LaboratoryEvent[];
-  reactionEvents: ReactionProgressEvent[];
+  reactionEvents: ReactionProgressProjection[];
   reactionActivity?: ReactionActivityProjection;
   eventCounter: number;
   scenario: MockLaboratoryScenario;
@@ -81,7 +86,10 @@ function createInitialState(scenario: MockLaboratoryScenario): MockState {
       eventCounter: 2,
       events: [],
       reactionEvents: REACTION_NETWORK_EVENTS,
-      reactionActivity: { eventId: 'reaction-2', simulationTimeS: 2, state: 'progressing', precision: 'APPROXIMATED', label: '반응 진행 감지' },
+      reactionActivity: {
+        eventId: 'reaction-2', simulationTimeS: 2, state: 'progressing', displayPrecision: 'APPROXIMATED',
+        scientificStatus: 'APPROXIMATED', confidence: 'MEDIUM', label: '반응 진행 감지',
+      },
       snapshot: {
         ...initialSnapshot,
         simulationTimeS: 2,
@@ -98,7 +106,7 @@ function createInitialState(scenario: MockLaboratoryScenario): MockState {
 
 function appendEvent(state: MockState, message: string, kind: LaboratoryEvent['kind'] = 'command-accepted'): MockState {
   const eventCounter = state.eventCounter + 1;
-  const event: LaboratoryEvent = { id: `mock-${eventCounter}`, sequence: eventCounter, simulationTimeS: state.snapshot.simulationTimeS, kind, message };
+  const event: LaboratoryEvent = { id: `mock-${eventCounter}`, timelineOrder: eventCounter, simulationTimeS: state.snapshot.simulationTimeS, kind, message };
   return { ...state, eventCounter, events: [event, ...state.events].slice(0, 30) };
 }
 function finiteNonNegative(value: number) { return Number.isFinite(value) && value >= 0; }
@@ -156,8 +164,8 @@ function reducer(state: MockState, command: LaboratoryCommand): MockState {
     }
     case 'ResetExperiment': {
       const reset = createInitialState(state.scenario);
-      const sequence = reset.eventCounter + 1;
-      return { ...reset, eventCounter: sequence, events: [{ id: `mock-${sequence}`, sequence, simulationTimeS: reset.snapshot.simulationTimeS, kind: 'command-accepted', message: 'Experiment reset' }] };
+      const timelineOrder = reset.eventCounter + 1;
+      return { ...reset, eventCounter: timelineOrder, events: [{ id: `mock-${timelineOrder}`, timelineOrder, simulationTimeS: reset.snapshot.simulationTimeS, kind: 'command-accepted', message: 'Experiment reset' }] };
     }
   }
 }
