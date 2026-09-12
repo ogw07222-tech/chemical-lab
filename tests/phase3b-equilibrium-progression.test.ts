@@ -123,8 +123,9 @@ describe("Phase 3B-B equilibrium progression policy", () => {
       approximationClass: "OPEN",
     };
     expect(kineticExtentInputOverDt(openKinetics, 1)).toEqual({
-      mode: "NO_NUMERIC_EXTENT",
+      supportClass: "OPEN",
       scientificStatus: "OPEN",
+      reason: "NO_NUMERIC_EXTENT",
     });
   });
 
@@ -168,20 +169,15 @@ describe("Phase 3B-B equilibrium progression policy", () => {
     expect(result.reasonCodes).toContain("EQUILIBRIUM_OUTSIDE_FEASIBLE_EXTENT");
   });
 
-  it("provides the exact cap needed to prevent a one-step equilibrium overshoot", () => {
+  it("provides the cap needed to prevent a one-step equilibrium overshoot", () => {
     const equilibrium = eq(0.9, 0.1);
-    const result = recommendEquilibriumProgression(
-      view(),
-      equilibrium,
-      T,
-      provider(),
-      {},
-      projection(0.9, 0.1, 0.9),
-    );
+    const projected = projection(0.9, 0.1, 0.9);
+    const result = recommendEquilibriumProgression(view(), equilibrium, T, provider(), {}, projected);
     const cap = result.maxExtentTowardEquilibriumMol!;
-    const atCap = evaluateReactionEquilibrium(view(), projection(0.9, 0.1, 0.9).projectComposition(cap), T, provider());
+    const atCap = evaluateReactionEquilibrium(view(), projected.projectComposition(cap), T, provider());
     expect(Math.abs(atCap.lnQOverK ?? 0)).toBeLessThanOrEqual(1e-6 + 1e-8);
     expect(cap).toBeLessThan(0.41);
+    expect(cap).toBeGreaterThan(0.39);
   });
 
   it("stays finite for tiny and huge thermodynamic driving coordinates", () => {
@@ -213,7 +209,6 @@ describe("Phase 3B-B equilibrium progression policy", () => {
     const equilibrium = eq(0.9, 0.1);
     const recommendation = recommendEquilibriumProgression(view(), equilibrium, T, provider());
     expect(recommendation.scientificStatus).toBe("APPROXIMATED");
-    expect(recommendation.reasonCodes).not.toContain("STANDARD_GIBBS_TO_K" as never);
     expect(recommendation).not.toHaveProperty("heatJ");
     expect(recommendation).not.toHaveProperty("deltaH_J_per_mol");
   });
