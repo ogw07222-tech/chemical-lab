@@ -1,0 +1,91 @@
+name: Validate Phase3B Reversible Independent
+
+on:
+  push:
+    branches:
+      - validation/06-phase3b-reversible
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      - name: Prepare logs
+        run: mkdir -p validation-logs
+
+      - name: Exact source ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor 116cfa30192556b3236f4f2814000ad971361bac HEAD
+          git merge-base --is-ancestor aadd8d28312f85e99903bc1b731faffd4ac7de94 HEAD
+          git log --oneline --decorate -12 | tee validation-logs/ancestry.log
+
+      - name: Typecheck
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee validation-logs/typecheck.log
+
+      - name: Lint
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee validation-logs/lint.log
+
+      - name: Targeted Phase3B stack
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test -- \
+            tests/validation.phase3b-reversible.test.ts \
+            tests/phase3b-reversible-arbitration.test.ts \
+            tests/phase3b-equilibrium-progression.test.ts \
+            tests/phase3b-equilibrium.test.ts \
+            tests/phase3a-reaction-network.test.ts \
+            tests/phase3a-kinetics-thermal.test.ts \
+            tests/phase3a-dimensioned-resolver.test.ts \
+            tests/reaction-evaluation.test.ts \
+            tests/reaction-progression.test.ts \
+            tests/dynamic-species-registry.test.ts \
+            tests/dynamic-species-registry.validation.test.ts \
+            tests/thermal.test.ts \
+            2>&1 | tee validation-logs/targeted.log
+
+      - name: Full test suite
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee validation-logs/full-test.log
+
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee validation-logs/build.log
+
+      - name: Tested commit
+        run: git rev-parse HEAD | tee validation-logs/tested-head.txt
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase3b-reversible-validation-logs
+          path: validation-logs
