@@ -1,180 +1,206 @@
 # 02 — Thermodynamics & Kinetics
 
 - Owner: Thermodynamics Simulation Developer / Chemical Kinetics Systems Developer / Equilibrium Model Architect / Energy Model Architect
-- Current phase: Phase 3B — Equilibrium Thermodynamics Foundation
-- Overall state: PASS — FOUNDATION IMPLEMENTED / 06 independent validation pending
+- Current phase: Phase 3B-B — Equilibrium Progression Policy
+- Overall state: PASS — 01 REVERSIBLE-PAIR ARBITRATION UNBLOCKED / 06 independent validation pending
 - Last updated: 2026-09-12
 - Starting / latest checked main SHA: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
 - Active branch: `feature/phase3b-equilibrium-foundation`
 - Active PR: #51 — `feat(02): add Phase 3B equilibrium thermodynamics foundation`
-- Exact validated executable/test HEAD: `c2f65f11d43e3498ed2b78133b551a0c48f0ba5f`
-- Validation workflow run: `34674889820` — SUCCESS
+- Exact validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`
+- Validation workflow run: `34682342429` — SUCCESS
 
 ## Objective
-Implement a provider-neutral, scientifically bounded Q/K/DeltaG thermodynamic direction layer for explicit reversible channels without creating a second reaction engine or an equilibrium-composition solver.
+Close the remaining Phase 3B policy gap by converting supported `ln(Q/K)` evidence into a deterministic, bounded, scientifically-labeled net reversible-pair progression recommendation that 01 can consume without inventing damping, anti-overshoot or pair-arbitration rules.
 
 Canonical contract: `docs/contracts/PHASE3B_EQUILIBRIUM_THERMODYNAMICS.md`.
 
 ## Implemented
 
-### Equilibrium result contract
-`evaluateReactionEquilibrium()` returns a provider-neutral result with:
-- `direction: FORWARD_FAVORED | REVERSE_FAVORED | NEAR_EQUILIBRIUM | OPEN`;
-- `reactionQuotientQ` when representable;
-- `equilibriumConstantK` when representable;
-- `lnReactionQuotientQ`;
-- `lnEquilibriumConstantK`;
-- `lnQOverK` as the preferred driving coordinate;
-- finite current `deltaG_J_per_mol = RT ln(Q/K)` when supported;
-- `activityModel`;
-- scientific status / confidence / reason codes;
-- reference temperature, standard state and tolerance metadata.
+### Equilibrium foundation retained
+`evaluateReactionEquilibrium()` remains authoritative for:
+- `Q`, `K`, `lnQ`, `lnK`, `ln(Q/K)`;
+- `FORWARD_FAVORED | REVERSE_FAVORED | NEAR_EQUILIBRIUM | OPEN`;
+- ideal-gas / ideal-dilute / explicit pure-phase activity semantics;
+- standard-state/reference-temperature/provenance handling;
+- finite `DeltaG = RT ln(Q/K)` when supported;
+- OPEN propagation when the model/data is insufficient.
 
-Numeric fields are optional by design. Missing/unsupported evidence remains `OPEN`.
+No fallback K or current-composition K inference was added.
 
-### Activity models
-Supported initial models:
-- `IDEAL_GAS_PARTIAL_PRESSURE`: `a = p_i / 1 bar`;
-- `IDEAL_DILUTE_SOLUTION`: `a = c_i / 1 mol L^-1`;
-- `PURE_PHASE_ACTIVITY_ONE`: explicit present pure solid/liquid phase only;
-- `OPEN`: unsupported/nonideal/mixed models.
+### Authoritative progression recommendation
+Added `EquilibriumProgressionRecommendation` with:
+- `mode: FORWARD | REVERSE | NEAR_EQUILIBRIUM | INDETERMINATE`;
+- `drivingStrength` in `[0,1]`;
+- `maxNetProgressFraction` in `[0,1]`;
+- `preventEquilibriumCrossing`;
+- optional `maxExtentTowardEquilibriumMol`;
+- scientific status + reason codes.
 
-The implementation does not silently use concentration for gases or arbitrary condensed phases. Gas+aqueous mixed systems are `OPEN` in this foundation.
+This recommendation does not contain or synthesize a reaction rate.
 
-### Reaction quotient / numerical safety
-`ln Q = sum(nu_i ln a_i)` is accumulated in log space.
+### Continuous thermodynamic driving modulation
+For authoritative `x = ln(Q/K)` and existing `epsilon_eq`:
 
-- stoichiometric exponents are preserved;
-- large/small Q can remain represented as finite `lnQ` even when raw Q cannot be exponentiated safely;
-- zero product activity gives a forward-favored boundary if K is supported;
-- zero reactant activity gives a reverse-favored boundary if K is supported;
-- simultaneous zero activities on both sides are indeterminate -> `OPEN`;
-- invalid/non-finite required inputs do not propagate NaN/Infinity into the result/state.
+`d = max(0, |x| - epsilon_eq)`
 
-### K support
-K is resolved only from:
-1. authoritative dimensionless K/lnK with explicit reference T + standard state; or
-2. supported standard reaction Gibbs energy via `ln K = -DeltaG_standard/(RT)` at the same reference T/standard state.
+`drivingStrength = 1 - exp(-d)`
 
-No fallback K exists. K is never inferred from current composition. Reference-temperature mismatch is `OPEN`; no K(T) extrapolation is performed.
+implemented as `-expm1(-d)`.
 
-### Near-equilibrium tolerance
-Default engineering tolerance:
+Properties:
+- zero throughout the near-equilibrium engineering band;
+- continuous at the band edge;
+- monotonic outside the band;
+- symmetric forward/reverse magnitude;
+- bounded and deterministic;
+- stable for tiny/huge finite driving coordinates.
 
-`|ln(Q/K)| <= 1e-6` -> `NEAR_EQUILIBRIUM`.
+Scientific status is `APPROXIMATED`: this is a coarse thermodynamic driving-force modulation, not a fundamental kinetic law.
 
-This threshold is exposed/configurable and tagged `APPROXIMATED`. It is explicitly an engineering numerical boundary, not experimental uncertainty or scientific truth.
+### Kinetic composition contract
+01 conceptually applies:
 
-06 guidance: sensitivity sweep at least `1e-8`, `1e-6`, `1e-4`, checking direction invariance outside the boundary and timestep sensitivity once 01 consumes the driving signal.
+`kineticRequestedExtent * drivingStrength`
 
-### Kinetics / 01 interface
-02 now provides:
-- favored direction;
-- finite thermodynamic driving coordinate `lnQOverK` when available;
-- current finite DeltaG when available;
-- near-equilibrium signal;
-- existing Phase 3A reversible-pair metadata.
+then preserves 01 authority for:
+- stoichiometric availability;
+- shared-reactant allocation;
+- max fractional consumption safety cap;
+- conservation and species-state mutation.
 
-No composition mutation, exact-equilibrium snap or reaction extent is produced here. Kinetics remains responsible for speed; 01 remains responsible for bounded extent/network mutation. The returned drive can later support progressively smaller net progression near equilibrium without forcing an exact solve.
+If Phase 3A kinetic evidence is `OPEN` or qualitative-only, Phase 3B-B does not fabricate a numeric rate/extent.
 
-### Exact reverse thermochemistry
-`deriveExactReverseStandardThermo()` may negate standard DeltaG/DeltaH only when explicit exact-reverse provenance confirms the same reversible pair.
+### Near-equilibrium policy
+For `|ln(Q/K)| <= epsilon_eq`:
+- mode = `NEAR_EQUILIBRIUM`;
+- `drivingStrength = 0`;
+- `maxNetProgressFraction = 0`;
+- coarse net pair progression recommendation = zero;
+- no composition snap;
+- no forward/reverse flip-flop.
 
-This supports:
-- `DeltaG_standard_reverse = -DeltaG_standard_forward`;
-- `DeltaH_standard_reverse = -DeltaH_standard_forward`.
+This does not claim microscopic forward/reverse rates are zero.
 
-No unrelated channel pairing or automatic reverse data synthesis occurs.
+### OPEN / indeterminate policy
+When equilibrium evidence is unsupported:
+- mode = `INDETERMINATE`;
+- status = `OPEN`;
+- equilibrium arbitration contributes no suppression, boost or direction bias;
+- no anti-crossing bound is claimed.
+
+Existing independently-supported Phase 3A kinetics may continue under existing rules; 01 must not infer equilibrium behavior.
+
+### Deterministic anti-overshoot
+Added an 02-owned bounded bisection policy.
+
+01 supplies only:
+- `maxFeasibleExtentMol` in the favored direction;
+- a pure read-only `projectComposition(netForwardExtentMol)` callback using 01-owned stoichiometric/state semantics.
+
+02 solves for the sign crossing:
+
+`ln(Q(xi_eq)/K) = 0`
+
+within the 01-supplied feasible interval.
+
+Default engineering solver settings:
+- maximum 48 bisection iterations;
+- `1e-12 mol` extent tolerance;
+- configurable;
+- no vessel mutation;
+- no global equilibrium solve;
+- no frame-by-frame solver;
+- returned bound never exceeds the supplied feasible extent.
+
+The root search uses the actual sign of finite `ln(Q/K)`, not entry into the wider near-equilibrium tolerance band. Zero-activity endpoints may bracket the root using thermodynamic direction when finite `ln(Q/K)` is intentionally absent.
+
+If equilibrium lies beyond the feasible interval, the safe thermodynamic cap is simply the full supplied feasible extent. If projection/equilibrium evaluation becomes OPEN, no bound is fabricated.
+
+### Pair arbitration order for 01
+Phase 3B-B defines pair-level arbitration **before** ordinary shared-reactant competition:
+- `FORWARD`: only the forward net channel survives pair arbitration;
+- `REVERSE`: symmetric reverse rule;
+- `NEAR_EQUILIBRIUM`: zero coarse net pair request;
+- `INDETERMINATE`: equilibrium arbitration abstains.
+
+The surviving/modulated request then enters normal 01 competition with unrelated reactions.
+
+This prevents ordering-induced ping-pong without claiming detailed balance.
 
 ### Thermal consistency
-Phase 3A aggregate-once reaction heat path is unchanged. Phase 3B adds no second thermal application path. Exact reverse DeltaH sign derivation is provenance-gated, so paired heat signs can remain physically consistent without double application.
-
-## 03 Data Handoff
-Exact data useful to advance Phase 3B coverage:
-- named reaction/reversible-pair `K` or preferably `lnK`;
-- reference temperature for every K;
-- explicit standard-state convention (pressure/concentration, phase, solvent context);
-- source/provenance, confidence and scientific status;
-- standard reaction DeltaG where K is unavailable;
-- DeltaG_f data where 03 can reconstruct reaction DeltaG with phase/standard-state consistency;
-- standard DeltaH for exact reverse heat-sign consistency and future K(T) work;
-- explicit exact-reverse provenance for sign-derived reverse thermochemistry.
-
-Not required to unblock this foundation:
-- broad database completeness;
-- K(T) correlation for every reaction;
-- activity coefficients / ionic strength models;
-- fugacity corrections.
-
-Absent reference support remains `OPEN`.
+No second heat path was introduced.
+- Phase 3A aggregate-once reaction heat remains authoritative.
+- Progression recommendation contains no `heatJ` or `deltaH` mutation semantics.
+- exact reverse `DeltaH` sign derivation remains provenance-gated under the existing Phase 3B contract.
 
 ## Validation Evidence
-Validated executable/test HEAD: `c2f65f11d43e3498ed2b78133b551a0c48f0ba5f`.
-Temporary GitHub Actions run `34674889820`: SUCCESS. The workflow was removed afterward; executable/test blobs remain the validated versions.
+Exact validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`.
+Temporary validation workflow run `34682342429`: SUCCESS.
 
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
 - `npm run lint`: PASS with 0 errors; one pre-existing UI hooks warning
-- targeted Phase 3B equilibrium + Phase 3A regression: **6 files / 59 tests PASS**
+- targeted Phase 3B-B / equilibrium / Phase 3A / evaluation / thermal: **5 files / 60 tests PASS**
+  - Phase 3B-B progression policy: 13/13
   - Phase 3B equilibrium: 15/15
   - Phase 3A kinetics/thermal: 10/10
-  - Phase 3A dimensioned resolver: 2/2
   - reaction evaluation: 9/9
-  - reaction progression: 10/10
   - thermal: 13/13
-- full `npm test`: **20 files / 232 tests PASS**
+- full `npm test`: **21 files / 245 tests PASS**
 - `npm run build`: PASS
 
-## Tested Phase 3B Cases
-- A <=> B mostly-A -> forward favored;
-- mostly-B -> reverse favored;
-- near-equilibrium log-ratio classification;
-- stoichiometric Q exponents;
-- ideal-gas partial-pressure activity;
-- ideal-dilute aqueous activity;
-- explicit pure solid/liquid activity one;
-- unsupported gas+aqueous model -> OPEN;
-- zero/tiny activities without NaN/Infinity propagation;
-- very large Q retained in log space;
-- missing K/DeltaG_standard -> OPEN;
-- standard DeltaG -> lnK conversion;
-- deterministic repeated evaluation;
-- exact forward/reverse DeltaG/DeltaH sign consistency;
-- configurable near-equilibrium tolerance stability.
+An earlier run `34682295232` exposed a real policy bug: bisection initially treated entry into the near-equilibrium band as the root. The implementation was corrected so anti-overshoot solves the actual `ln(Q/K)` sign crossing. Final run `34682342429` passed.
+
+## Tested Phase 3B-B Cases
+- driving strength exactly zero at/inside equilibrium tolerance;
+- monotonic increase with `|lnQOverK|`;
+- forward/reverse symmetry;
+- `[0,1]` boundedness;
+- continuity at the epsilon boundary;
+- deterministic repeated recommendation;
+- near-equilibrium zero net recommendation;
+- missing K -> equilibrium arbitration abstains;
+- supported forward `xi_eq` bound;
+- supported reverse symmetric bound;
+- anti-crossing bound never exceeds 01 feasible extent;
+- one-step overshoot cap reaches the actual equilibrium sign crossing;
+- tiny/huge driving coordinates remain finite;
+- Phase 3A kinetics remains independently authoritative;
+- OPEN kinetics does not become a fabricated rate;
+- reverse thermochemical/heat semantics remain untouched.
 
 ## PASS / FAIL / OPEN
 ### PASS
-- Provider-neutral Q/K/DeltaG equilibrium direction foundation is executable.
-- Q uses dimensionless activities and stoichiometric exponents.
-- Supported ideal activity models are explicit; unsupported models remain OPEN.
-- K provenance/reference temperature/standard state survive evaluation.
-- No current-composition K inference or fallback K exists.
-- Log-space implementation avoids raw Q/K overflow propagation.
-- Near-equilibrium threshold is configurable and explicitly approximate.
-- Thermodynamic direction is separated from kinetic speed and inventory mutation.
-- Exact reverse sign derivation is provenance-gated.
-- Phase 3A kinetic/thermal and full repository regression pass on validated HEAD.
+- Q/K/DeltaG foundation remains executable and regression-safe.
+- Thermodynamic progression mapping is deterministic, continuous, bounded and symmetric.
+- Mapping is explicitly `APPROXIMATED`, not presented as kinetic law.
+- Near-equilibrium coarse net progression is exactly zero without equilibrium snap.
+- OPEN equilibrium evidence produces no thermodynamic bias.
+- 01 no longer needs to invent damping/hysteresis/anti-overshoot policy.
+- Deterministic fixed-budget bisection provides a safe equilibrium crossing cap when projection support exists.
+- Pair-level forward/reverse arbitration order is explicit.
+- Phase 3A kinetic and thermal ownership remains intact.
+- Full repository regression/build pass on the validated HEAD.
 
 ### FAIL
-- None identified in implemented Phase 3B foundation scope.
+- None identified in final implemented scope.
 
 ### OPEN
-- 06 independent scientific/numerical validation of tolerance and reversible-network behavior.
-- 01 integration policy for converting `lnQOverK` into progressively small forward/reverse net progression; no snap-to-equilibrium implementation exists.
-- General K(T) interpolation/extrapolation.
-- Nonideal solution activity coefficients / ionic strength.
-- Gas fugacity / nonideal pressure corrections.
-- Gas-solution coupled equilibria and phase-partition solving.
-- Precipitation/dissolution phase-appearance solving.
-- Full equilibrium composition solver.
-- Detailed-balance enforcement and stiff reversible-network integration.
+- 06 independent validation of anti-ping-pong behavior and timestep sensitivity after 01 consumes the recommendation.
+- 01 production wiring of pair arbitration + modulation + anti-crossing cap.
+- K(T) interpolation/extrapolation.
+- nonideal activities / ionic strength / fugacity.
+- gas-solution coupled equilibria / precipitation-dissolution phase appearance.
+- full equilibrium composition solver.
+- detailed-balance enforcement / stiff reversible-network integration.
 
 ## Handoffs
-- 01: consume equilibrium result as thermodynamic direction/driving evidence only; preserve authoritative stoichiometric bounds and mutation. Do not snap composition to K.
-- 03: supply exact K/lnK, reference T, standard-state and standard reaction thermochemistry/provenance records described above.
-- 05: display direction/Q/K only when provided; `OPEN` must remain unknown, not zero/equilibrium.
-- 06: independently validate Q/K direction, tolerance sensitivity, permutation determinism and coupled forward/reverse timestep behavior.
-- 07: integrate only after 06 approval; no merge was performed by 02.
+- 01: consume `EquilibriumProgressionRecommendation` before normal shared-reactant competition. Apply independently-supported kinetic request × `drivingStrength`, then cap by `maxExtentTowardEquilibriumMol` when `preventEquilibriumCrossing=true`, followed by normal 01 stoichiometric/network bounds.
+- 03: continue supplying K/lnK, reference T, standard-state and standard reaction thermo/provenance. Missing data remains OPEN.
+- 05: do not infer rates/equilibrium progression. Display simulation-provided direction/status only.
+- 06: validate permutation stability, anti-ping-pong, timestep sensitivity and crossing-cap behavior once 01 wires the policy.
+- 07: integrate only after 06 approval; PR #51 remains unmerged.
 
 ## Next
-Independent 06 Phase 3B validation, then an explicit 00/01/02 contract for how finite `lnQOverK` modulates net reversible progression across timesteps. Do not implement a full equilibrium solver yet.
+01 can now implement reversible-pair arbitration without inventing thermodynamic policy. The next gate is 01 wiring + 06 independent validation, not a full equilibrium solver or electrochemistry.
