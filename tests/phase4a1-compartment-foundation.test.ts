@@ -227,4 +227,59 @@ describe("Phase 4A-1 compartment foundation", () => {
     expect(result.status).toBe("REJECTED");
     if (result.status === "REJECTED") expect(result.reasonCode).toBe("INVALID_CONNECTION");
   });
+
+  it("aggregates species, elements, atoms, and charge identically across compartment and species ordering", () => {
+    const a = createMatterCompartment({
+      id: "A",
+      kind: "VESSEL_CONTENTS",
+      species: [species("H2", 1), species("H+", 1, hPlus)],
+    });
+    const b = createMatterCompartment({
+      id: "B",
+      kind: "VESSEL_HEADSPACE",
+      species: [species("H+", 1e-16, hPlus), species("H2", 1e-16)],
+    });
+    const c = createMatterCompartment({
+      id: "C",
+      kind: "LAB_ATMOSPHERE",
+      species: [species("H2", 1e-16), species("H+", 1e-16, hPlus)],
+    });
+
+    const canonical: MatterSystemState = { compartments: [a, b, c] };
+    const reversed: MatterSystemState = {
+      compartments: [
+        { ...c, species: [...c.species].reverse() },
+        { ...b, species: [...b.species].reverse() },
+        { ...a, species: [...a.species].reverse() },
+      ],
+    };
+    const shuffled: MatterSystemState = {
+      compartments: [
+        { ...b, species: [...b.species].reverse() },
+        a,
+        { ...c, species: [...c.species].reverse() },
+      ],
+    };
+
+    const expected = aggregateSystemMatterInventory(canonical);
+    expect(aggregateSystemMatterInventory(reversed)).toEqual(expected);
+    expect(aggregateSystemMatterInventory(shuffled)).toEqual(expected);
+    expect(expected.speciesAmountsMol.H2).toBe(1);
+    expect(expected.speciesAmountsMol["H+"]).toBe(1);
+  });
+
+  it.each(["SOLID", "", "MALFORMED"])("rejects runtime-invalid connection kind %j atomically", (invalidKind) => {
+    const before = system([species("H2", 1)]);
+    const malformed = {
+      ...before,
+      connections: [{ ...before.connections![0]!, kind: invalidKind }],
+    } as unknown as MatterSystemState;
+
+    const result = transferMatter(malformed, transfer([{ speciesId: "H2", amountMol: 0.2 }]));
+    expect(result.status).toBe("REJECTED");
+    expect(result.state).toBe(malformed);
+    expect(amount(result.state, "A", "H2")).toBe(1);
+    expect(amount(result.state, "B", "H2")).toBe(0);
+    if (result.status === "REJECTED") expect(result.reasonCode).toBe("INVALID_CONNECTION_KIND");
+  });
 });
