@@ -1,5 +1,5 @@
 export type SimulationStatus = 'stopped' | 'paused' | 'running' | 'stable' | 'error';
-export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'multiphase' | 'unknown';
+export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'supercritical' | 'plasma' | 'multiphase' | 'unknown';
 export type ScientificStatus = 'VERIFIED' | 'APPROXIMATED' | 'EMPIRICAL' | 'GAMEPLAY_SIMPLIFICATION' | 'OPEN';
 export type SubstanceCategory = 'element' | 'compound';
 
@@ -18,7 +18,14 @@ export interface SubstanceSummary {
   graph?: MoleculeGraphViewModel;
 }
 
-export interface VesselContentView { speciesId?: string; displayIdentity: string; amountMol: number; phase: Phase; identityConfirmed: boolean; }
+export interface VesselContentView {
+  speciesId?: string;
+  displayIdentity: string;
+  opaqueLabel?: string;
+  amountMol: number;
+  phase: Phase;
+  identityConfirmed: boolean;
+}
 export interface UnknownObservation { observationId: string; label: string; analysisState: 'unanalysed' | 'pending' | 'confirmed'; }
 export interface EncyclopediaEntry { speciesId: string; firstDiscoveryLabel: string; knownProperties: string[]; phaseInfo?: string; }
 
@@ -34,6 +41,53 @@ export interface PhaseDiagramViewModel {
   triplePoint?: PhasePointView;
   criticalPoint?: PhasePointView;
   currentState?: { temperatureK: number; pressurePa: number; phase: Phase };
+}
+
+export interface ReactionSpeciesView {
+  unknownRef: string;
+  displayIdentity: string;
+  identityConfirmed: boolean;
+  knownSpeciesId?: string;
+  amountMol: number;
+}
+
+export interface ReactionHeatView {
+  status: 'reported' | 'unavailable';
+  valueJ?: number;
+  label: string;
+}
+
+export interface ReactionProgressView {
+  id: string;
+  timestepId: string;
+  sourceSequence: number;
+  timelineOrder: number;
+  startTimeS: number;
+  endTimeS: number;
+  scientificStatus: ScientificStatus;
+  activityLabel: string;
+  consumed: ReactionSpeciesView[];
+  produced: ReactionSpeciesView[];
+  reactionHeat: ReactionHeatView;
+}
+
+export interface ReactionActivityView {
+  eventId: string;
+  timestepId: string;
+  simulationTimeS: number;
+  scientificStatus: ScientificStatus;
+  label: string;
+}
+
+export interface ReactionDeveloperEventDiagnostic {
+  eventId: string;
+  candidateId: string;
+  consumedSpeciesRefs: string[];
+  producedSpeciesRefs: string[];
+}
+
+export interface ReactionDeveloperDiagnostics {
+  events: ReactionDeveloperEventDiagnostic[];
 }
 
 export interface LaboratorySnapshot {
@@ -86,6 +140,9 @@ export interface LaboratoryProviderValue {
   snapshot: LaboratorySnapshot;
   catalog: SubstanceSummary[];
   events: LaboratoryEvent[];
+  reactionActivity?: ReactionActivityView;
+  reactionEvents: ReactionProgressView[];
+  reactionDeveloperDiagnostics?: ReactionDeveloperDiagnostics;
   phaseDiagrams: Record<string, PhaseDiagramViewModel | undefined>;
   dispatch(command: LaboratoryCommand): void;
 }
