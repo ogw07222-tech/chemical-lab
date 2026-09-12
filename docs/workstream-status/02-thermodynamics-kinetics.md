@@ -6,7 +6,7 @@
 - Last updated: 2026-09-12
 - Starting / latest checked main SHA: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
 - Active branch: `feature/phase3a-kinetics-thermal-contract`
-- Active PR: pending creation
+- Active PR: #45 — `docs(02): define Phase 3A network kinetics thermal contract`
 
 ## Objective
 Define the 02-owned kinetic and thermal semantics required for 01 to execute deterministic multi-step and competing reactions across timesteps without implementing a second reaction-network engine or fabricating physical precision.
