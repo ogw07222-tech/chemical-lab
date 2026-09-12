@@ -7,13 +7,15 @@ import { celsiusToKelvin, litersToCubicMeters } from '../../src/ui/units';
 
 function renderLab() { return render(<MockLaboratoryProvider><LaboratoryWorkspace /></MockLaboratoryProvider>); }
 
-describe('LaboratoryWorkspace workbench redesign', () => {
-  it('renders the catalog, workbench, inspector and experiment console', () => {
+describe('LaboratoryWorkspace workbench refinement', () => {
+  it('renders the catalog, clean workbench, inspector and experiment console', () => {
     renderLab();
     expect(screen.getByRole('complementary',{name:'도감'})).toBeInTheDocument();
     expect(screen.getByRole('main',{name:'실험실 작업대'})).toBeInTheDocument();
     expect(screen.getByRole('complementary',{name:'물질 정보'})).toBeInTheDocument();
     expect(screen.getByRole('region',{name:'실험 콘솔'})).toBeInTheDocument();
+    expect(screen.getByLabelText('주 용기')).toBeInTheDocument();
+    expect(screen.queryByText(/작은 혼합이/)).not.toBeInTheDocument();
   });
 
   it('normal catalog exposes starters without leaking undiscovered species', () => {
@@ -23,6 +25,37 @@ describe('LaboratoryWorkspace workbench redesign', () => {
     expect(within(catalog).getByText('산소')).toBeInTheDocument();
     expect(within(catalog).getByText('질소')).toBeInTheDocument();
     expect(within(catalog).queryByText('물')).not.toBeInTheDocument();
+  });
+
+  it('uses compact structural notation in the catalog', () => {
+    renderLab();
+    const catalog=screen.getByRole('complementary',{name:'도감'});
+    expect(within(catalog).getByText('H-H')).toBeInTheDocument();
+    expect(within(catalog).getByText('O=O')).toBeInTheDocument();
+    expect(within(catalog).getByText('N≡N')).toBeInTheDocument();
+  });
+
+  it('collapses and restores the catalog without losing access state', () => {
+    renderLab();
+    fireEvent.click(screen.getByRole('button',{name:'도감 접기'}));
+    expect(screen.getByRole('button',{name:'도감 펼치기'})).toBeInTheDocument();
+    expect(screen.queryByLabelText('물질 검색')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'도감 펼치기'}));
+    expect(screen.getByLabelText('물질 검색')).toBeInTheDocument();
+    const catalog=screen.getByRole('complementary',{name:'도감'});
+    expect(within(catalog).getByText('수소')).toBeInTheDocument();
+  });
+
+  it('collapses conditions into a readable summary and restores controls', () => {
+    renderLab();
+    fireEvent.click(screen.getByRole('button',{name:'실험 조건 접기'}));
+    expect(screen.getByRole('button',{name:'실험 조건 펼치기'})).toBeInTheDocument();
+    expect(screen.getByText(/온도 25 °C/)).toBeInTheDocument();
+    expect(screen.getByText(/압력 1.00 atm/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'실험 조건 펼치기'}));
+    expect(screen.getByLabelText('온도')).toBeInTheDocument();
+    expect(screen.getByLabelText('압력')).toBeInTheDocument();
+    expect(screen.getByLabelText('부피')).toBeInTheDocument();
   });
 
   it('developer mode exposes all supported species', () => {
@@ -35,7 +68,8 @@ describe('LaboratoryWorkspace workbench redesign', () => {
     renderLab();
     fireEvent.change(screen.getByLabelText('추가할 양'),{target:{value:'0.25'}});
     fireEvent.click(screen.getByRole('button',{name:/실험실에 추가/}));
-    expect(screen.getByText('0.250 mol')).toBeInTheDocument();
+    const vessel=screen.getByLabelText('주 용기');
+    expect(within(vessel).getByText(/0.250 mol/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'타임라인'}));
     expect(screen.getByText(/Added 0.250 mol H₂/)).toBeInTheDocument();
   });
@@ -64,10 +98,10 @@ describe('LaboratoryWorkspace workbench redesign', () => {
   it('disposes selected vessel material only through provider command', () => {
     renderLab();
     fireEvent.click(screen.getByRole('button',{name:/실험실에 추가/}));
-    expect(screen.getByText('1.000 mol')).toBeInTheDocument();
+    const vessel=screen.getByLabelText('주 용기');
+    expect(within(vessel).getByText(/1.000 mol/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'선택 물질 폐기'}));
     fireEvent.click(screen.getByRole('button',{name:'폐기 확인'}));
-    expect(screen.queryByText('1.000 mol')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button',{name:'타임라인'}));
     expect(screen.getByText(/Disposed H₂ from vessel/)).toBeInTheDocument();
   });
