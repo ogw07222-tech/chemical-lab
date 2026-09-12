@@ -1,140 +1,185 @@
 # 01 — Chemistry Simulation Engine
 
 - Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
-- Current phase: Dynamic Species Registry & Generated Species Persistence
-- Overall state: PASS — IMPLEMENTED / integration pending
+- Current phase: Phase 3A — Multi-step Reaction Network Execution
+- Overall state: PASS — implementation prepared / full-repository validation OPEN
 - Last updated: 2026-09-12
-- Starting / latest re-checked main SHA: `4c12c2b9be6053887f471c288618590114dc32b4`
-- Active branch: `feature/dynamic-species-registry`
-- Active PR: #39 — `feat(sim): add dynamic species registry and persistence`
-- Exact validated executable/test HEAD: `aaad1235b1c0408cea0b3015af7e7049c06eb4c2`
-- Validation workflow run: `34635920066` — SUCCESS
+- Latest re-checked main SHA: `3055ce6d2229806f4560a220ca835fb4b7f7c303`
+- Active branch: `feature/phase3a-reaction-network`
+- Active PR: #46 — `feat(sim): add Phase 3A multi-step reaction network execution`
+- PR HEAD before this status commit: `aaab4b0fd4dc665ee1a0f4c5692438bc4ad652ed`
 
 ## Objective
-Persist structurally valid reaction-generated molecular graphs as stable internal species identities so they can enter vessel state and participate in later timesteps without equating engine identity with verified real-world identity or player knowledge.
+Extend the existing Phase 2E reaction progression and Dynamic Species Registry into an explicit multi-step execution contract where products committed at timestep N can become reactants at timestep N+1, but never inside the same timestep.
+
+The authoritative network remains emergent from changing vessel state rather than a persistent reaction-graph solver.
+
+## Source of Truth
+- Base/main checked at task start and again before PR creation: `3055ce6d2229806f4560a220ca835fb4b7f7c303`.
+- Existing production Phase 2E progression remains authoritative for candidate generation, thermodynamic/kinetic evaluation, deterministic competition, finite extent, registry-backed product identity, conservation, and reaction-heat handoff.
+- Existing Dynamic Species Registry remains authoritative for generated internal identity, deterministic generated ids, known-species reuse, provenance, and registration atomicity.
 
 ## Architecture
-- Added `src/simulation/species-registry/` with immutable `DynamicSpeciesRegistry` and schema-versioned persistence contracts.
-- Registry identity reuses the existing Phase 1 `mol-v1` canonical molecular core rather than defining a second graph identity system.
-- Primary index is `canonicalKey -> DynamicSpeciesRecord`; exact `canonicalStructuralRepresentation` is retained for collision-safe verification.
-- Generated ids are deterministic: `generated:<canonicalKey>`.
-- Formula alone is never used as molecular identity.
-- Phase, provenance, scientific reference matching, and player discovery are excluded from molecular identity.
+Added `src/integration/phase3a-reaction-network.ts` as a thin orchestration layer above the existing Phase 2E path.
 
-## Identity Separation
-1. Internal identity: deterministic canonical graph identity used by the simulation engine.
-2. Scientific identity: known/reference compound matching; generated records remain `referenceMatchStatus: OPEN` unless enriched later by 03.
-3. Player knowledge: discovery/name/encyclopedia state remains 04/Game Layer and is not stored in the registry.
+Canonical per-timestep execution:
+1. create immutable reactant snapshot from authoritative vessel state;
+2. generate candidates from that snapshot only;
+3. evaluate thermo/kinetics through the existing Phase 2 pipeline;
+4. deterministic competition/ranking;
+5. finite shared-reactant allocation;
+6. selected extent resolution;
+7. Dynamic Species Registry product resolution/registration;
+8. atomic vessel mutation;
+9. reaction heat aggregation;
+10. `ReactionProgressEvent` emission;
+11. close timestep;
+12. use the committed returned state as the only source for the next timestep.
 
-Generated records use the existing scientific taxonomy and default to `scientificStatus: OPEN`, while separately recording `validationState: STRUCTURALLY_VALID`. Structural validity is not experimental verification.
+No giant persistent reaction graph is introduced. Event-derived graphs may be used for diagnostics or visualization only.
 
-## Registration / Validation
-Before registration, a molecule must pass:
-- existing molecular graph validation;
-- formula/net-charge record consistency;
-- `mol-v1` canonicalization;
-- current coarse-valence sanity.
+## Same-step Cascade Rule
+`runPhase3AReactionNetworkStep()` exposes exactly one immutable species snapshot to the Phase 2E executor.
 
-Hash/key collisions with a different exact canonical representation are explicit INVALID results rather than silent identity merges.
+A product created during the step is present only in `nextState.species`. It cannot enter candidate generation again until a later call.
 
-## Known / Generated Resolution
-- Existing known seed canonical identity -> reuse existing known species id.
-- Existing generated canonical identity -> reuse stable generated id and merge deterministic provenance.
-- New valid canonical identity -> create generated record with OPEN scientific/reference status.
-- Invalid/malformed/canonicalization-failed structure -> reject registration.
+Phase 3A additionally validates emitted events: any reactant consumed by an event must have had positive amount in the timestep-start snapshot. A hidden A→B then B→C same-step cascade therefore fails even if a downstream executor were to accidentally emit it.
 
-No density, phase boundary, pKa, thermochemistry, entropy, Gibbs energy, redox potential, or rate constant is invented by 01.
+## Competing Reactions / Finite Matter
+Phase 3A preserves the existing Phase 2E equal-rank shared-reactant proportional scaling and does not use candidate-id lexical ordering as an allocation policy.
 
-## Provenance / Persistence
-Generated provenance records candidate id, parent reactant species ids, reaction family, creation timestep, product index, and canonicalization version. Provenance never affects identity.
+The Phase 3A guard independently checks the aggregate consumed amount per reactant across all events and rejects any step where total consumption exceeds snapshot availability.
 
-`registry.serialize()` and `restoreDynamicSpeciesRegistry()` provide save/load-friendly persistence. Restore revalidates records, canonical representation/key, schema/canonicalization version, and deterministic generated ids before accepting the snapshot.
+All committed species amounts must remain finite and non-negative, and species ids must remain unique.
 
-## Phase 2E Integration / Atomic Mutation
-Added `resolveReactionCandidatesWithRegistry()` as the registry-backed Phase 2E bridge.
+## Dynamic Species Registry / Atomicity
+Phase 3A requires a persistent `DynamicSpeciesRegistryLike` and passes it directly to Phase 2E.
 
-Canonical transaction:
-1. stage product graph resolution/registration in an immutable working registry;
-2. stage missing product vessel species at zero amount;
-3. run existing Phase 2E ranking/competition/extent/conservation logic;
-4. commit only registry records/products belonging to selected reactions;
-5. return next vessel state + persistent registry.
+The existing registry bridge remains unchanged:
+- stage product graph identity resolution in an immutable working registry;
+- stage zero-amount product state where needed;
+- perform Phase 2E resolution/conservation;
+- commit only selected reaction products;
+- return the new registry and vessel state together.
 
-The caller's input registry/state are never mutated in place. Registration failure or conservation failure cannot leave reactants consumed without products.
+Registration failure therefore propagates without mutating the caller's authoritative input state. No fake product ids are introduced.
 
-Generated vessel species start with phase `unknown` / scientific status `OPEN`; phase determination remains outside this registry layer.
+Internal simulation identity, scientific reference identity, and player knowledge remain separate.
 
-## Timestep Semantics
-- Same-step generated-product cascade: BLOCKED by existing `ZERO_INITIAL_REACTANT` policy.
-- Next timestep: generated product is a normal positive-amount `SpeciesState`, so reactive-site detection/candidate generation can consume it normally.
-- `runPhase2EReactionProgression()` remains backward compatible: legacy `productStateResolver` still works, while `speciesRegistry` enables persistent generated-species flow and is returned in `nextState`.
+## Event / Provider Contract
+Added a provider projection that lets 05 display simulation facts without recalculating chemistry.
+
+### Authoritative vessel composition source
+`Phase3AReactionNetworkStepResult.nextState.species`
+
+`provider.authoritativeVesselComposition` projects only:
+- opaque internal `speciesRef`;
+- `amountMol`;
+- phase;
+- phase-state id.
+
+It deliberately omits molecule graph, formula, name, and discovery state.
+
+### Active/latest reaction source
+`provider.activeReactionEvents`
+
+Contains only the just-completed timestep's projected reaction facts:
+- event/timestep/sequence;
+- candidate stable id;
+- simulation start/end time;
+- applied extent mol;
+- consumed species refs + mol;
+- produced species refs + mol;
+- reaction heat J when known;
+- scientific status;
+- reason codes.
+
+### Timeline source
+`provider.timelineEvents`
+
+Ordering is append-only: prior authoritative timeline followed by current timestep events in deterministic sequence order.
+
+### Unknown species boundary
+`speciesRef` is an internal opaque reference and must not be rendered directly as a player-facing name or formula.
+
+04/05 player-knowledge projection remains authoritative. Unknown generated species must stay unknown in normal UI until the Game Layer knowledge contract permits disclosure. 05 must not inspect molecular graphs or recompute chemistry to infer identity.
+
+## Thermal Consistency
+Phase 3A does not calculate thermodynamic properties or fabricate reaction enthalpies.
+
+Existing Phase 2E / 02 coupling remains authoritative for reaction heat. The network layer only checks that all defined per-event `heatJ` values sum to `thermal.knownReactionHeat_J` within deterministic tolerance.
+
+## Files Changed
+- `src/integration/phase3a-reaction-network.ts` — Phase 3A snapshot orchestrator, network invariants, provider projections.
+- `src/integration/index.ts` — exports the Phase 3A integration API.
+- `tests/phase3a-reaction-network.test.ts` — multi-step/network/provider contract tests.
+- `docs/contracts/MULTI_STEP_REACTION_NETWORK.md` — authoritative Phase 3A execution and UI/provider contract.
+- `docs/workstream-status/01-simulation-engine.md` — this status update.
 
 ## Tests Added
-`tests/dynamic-species-registry.test.ts` — 11 tests covering:
-- canonical identity invariance and distinction by connectivity/bond order/formal charge;
-- known-species reuse;
-- unknown generated registration/dedup/different ids;
-- malformed graph rejection;
-- serialize/restore identity stability;
-- generated product entering vessel state;
-- no same-step cascade;
-- next-step generated-species participation;
-- known product reuse;
-- registration failure atomicity;
-- atom/charge conservation;
-- deterministic repeated state/registry result.
+`tests/phase3a-reaction-network.test.ts` covers:
+1. A→B / B→C next-step visibility;
+2. three-step chain;
+3. shared-reactant fair allocation acceptance + aggregate overconsumption rejection;
+4. branching network without persistent authority graph;
+5. generated unknown next-step participation;
+6. registration failure caller atomicity;
+7. deterministic replay;
+8. negative/non-finite amount rejection;
+9. same-step hidden cascade rejection;
+10. multi-reaction heat consistency and provider fact projection;
+11. provider timeline ordering.
+
+Existing Phase 2E tests remain responsible for actual resolver equal-rank proportional allocation, conservation, bounded extent, and deterministic event ordering.
 
 ## Validation Evidence
-Validated exact HEAD: `aaad1235b1c0408cea0b3015af7e7049c06eb4c2`
-GitHub Actions run: `34635920066` — SUCCESS.
+### Local behavioral harness — PASS
+A standalone deterministic harness was compiled/executed locally before creating the feature branch. It exercised:
+- three-step next-timestep visibility;
+- same-step cascade rejection;
+- shared-reactant overconsumption rejection;
+- reaction heat event/aggregate consistency.
 
-- `npm ci --no-audit --no-fund`: PASS
-- `npm run typecheck`: PASS
-- `npm run lint`: PASS
-- targeted registry + reaction progression/candidate/evaluation/thermal: **5 files / 59 tests PASS**
-  - dynamic registry 11/11
-  - reaction progression 10/10
-  - reaction candidate 16/16
-  - reaction evaluation 9/9
-  - thermal 13/13
-- full `npm test`: **13 files / 148 tests PASS**
-- reaction validation matrix included in full suite: 8/8 PASS
-- UI workspace regression included in full suite: 10/10 PASS
-- `npm run build`: PASS
+### Production source typecheck harness — PASS
+The actual `phase3a-reaction-network.ts` source was compiled under strict ES2022 / Bundler TypeScript semantics against locally reconstructed current contract stubs matching the repository interfaces.
 
-The temporary branch-only validation workflow was removed after preserving the successful run. That cleanup and this status update do not alter the validated executable/test blobs.
+### Full repository regression — OPEN
+This environment could not clone GitHub over DNS, so no claim is made for full local `npm ci`, full repository `npm run typecheck`, `npm test`, lint, or build on the branch. Those remain required before merge.
 
 ## PASS / FAIL / OPEN
 ### PASS
-- Deterministic canonical registry identity and duplicate prevention.
-- Known species reuse and generated species registration.
-- Collision-safe exact canonical verification.
-- Generated provenance separated from identity.
-- Registry serialization/restore with stable ids.
-- Phase 2E generated-product amount mutation.
-- Atomic failure semantics: no reactant-only partial mutation.
-- Element/atom/charge and finite/non-negative amount invariants retained.
-- Same-step cascade prevention and next-step generated-species participation.
-- Full repository regression/build on validated executable HEAD.
+- Explicit immutable timestep reactant snapshot.
+- Generated product becomes eligible only on later timesteps.
+- Defensive no-same-step-cascade guard.
+- Existing Phase 2E finite shared-reactant competition preserved.
+- Aggregate overconsumption guard.
+- Dynamic Species Registry authority and stable generated-id path preserved.
+- Known species reuse path preserved.
+- Registration failure does not partially mutate caller state.
+- Finite/non-negative amount guard.
+- Deterministic event/timeline ordering contract.
+- Reaction heat event consistency interface.
+- UI-consumable simulation fact projection without molecule/name/formula leakage.
+- Scientific identity and player knowledge remain separate.
 
 ### FAIL
-- None identified in validated scope.
+- None identified in the implemented Phase 3A orchestration scope.
 
 ### OPEN
-- Generated-species real-world/reference identity verification.
-- Scientific property enrichment from 03/02 data.
-- Full stereochemistry and chemically complete aromatic/resonance/coordination identity beyond the current graph model.
-- Canonical search budget for very large/highly symmetric graphs remains bounded by the existing molecular core.
-- Full save-game orchestration beyond the registry serialization contract.
-- Advanced phase re-resolution for newly generated species.
-- Equilibrium/electrochemistry remain out of scope.
+- Full repository branch typecheck/test/lint/build.
+- Independent 06 validation of chain, branch, shared-reactant fairness, replay, atomicity, and heat consistency.
+- Advanced phase re-resolution ordering after committed reaction state.
+- Long-horizon equilibrium/network acceleration; intentionally not part of Phase 3A.
+- Full save-game orchestration for reaction timeline history.
+- Player-facing unknown-species naming/disclosure remains 04/05 ownership.
+- Generated-species scientific enrichment remains 03/02 ownership.
 
 ## Handoffs
-- 03: match generated canonical structures to reference compounds where possible and attach sourced property/provenance enrichment without changing internal identity.
-- 02: consume only available sourced thermodynamic/kinetic properties; OPEN generated species must not receive fabricated physics.
-- 04/05: player discovery/naming/encyclopedia presentation remains Game/UI ownership and must not infer knowledge from internal registry presence.
-- 06: validate registry collision/dedup, restore determinism, generated-product conservation, atomic failure paths, and next-step participation with randomized graph ordering.
-- 07: integrate PR #39 after normal latest-main/CI review; the temporary validation workflow is not intended for production.
+- 02: keep thermodynamic/kinetic formulas and reaction heat derivation authoritative; Phase 3A consumes only existing evaluated outputs.
+- 03: enrich generated species with sourced scientific reference/property matches without changing internal registry identity.
+- 04/05: consume provider composition/events, but resolve player-facing identity only through the player-knowledge boundary.
+- 06: independently validate multi-step chains/branches, no same-step cascades, shared-reactant fairness, deterministic replay, registration failure atomicity, conservation, and heat-event consistency.
+- 07: run normal repository regression/CI and integrate PR #46 only after validation.
 
 ## Next
-**Generated Species Scientific Enrichment + Registry Validation**.
+**06 independent Phase 3A network validation, then 07 integration review.**
