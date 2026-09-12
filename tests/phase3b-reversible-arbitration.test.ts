@@ -8,7 +8,6 @@ import {
   createMoleculeRecord,
   type ElementDefinition,
   type ElementProvider,
-  type MoleculeRecord,
   type SpeciesState,
 } from "../src/simulation/molecular";
 import type { ReactionCandidate } from "../src/simulation/reaction";
@@ -55,27 +54,19 @@ function species(h2Mol: number, hMol: number, hId = "H"): SpeciesState[] {
   ];
 }
 
-function candidate(
-  id: string,
-  direction: "FORWARD" | "REVERSE",
-  hId = "H",
-): ReactionCandidate {
+function candidate(id: string, direction: "FORWARD" | "REVERSE", hId = "H"): ReactionCandidate {
   const forward = direction === "FORWARD";
   return {
     id,
     family: forward ? "BOND_CLEAVAGE" : "BOND_FORMATION",
-    reactantRefs: forward
-      ? [{ speciesId: "H2", coefficient: 1 }]
-      : [{ speciesId: hId, coefficient: 2 }],
+    reactantRefs: forward ? [{ speciesId: "H2", coefficient: 1 }] : [{ speciesId: hId, coefficient: 2 }],
     productGraphs: forward ? [atomH] : [h2],
     atomMapping: [],
     bondChanges: [],
     chargeChanges: [],
     reversible: { pairId: "pair:H2:2H", direction },
     stoichiometry: {
-      reactants: forward
-        ? [{ speciesId: "H2", coefficient: 1 }]
-        : [{ speciesId: hId, coefficient: 2 }],
+      reactants: forward ? [{ speciesId: "H2", coefficient: 1 }] : [{ speciesId: hId, coefficient: 2 }],
       products: [{ productIndex: 0, coefficient: forward ? 2 : 1 }],
     },
     structuralConfidence: 1,
@@ -133,13 +124,7 @@ function evaluation(
       source: { sourceIds: ["test"] },
     },
     kinetics: supportClass === "DIMENSIONED_RATE"
-      ? {
-          supportClass,
-          extentRateMolPerS,
-          rateClass: "FAST",
-          confidence: "HIGH",
-          approximationClass: "VERIFIED",
-        }
+      ? { supportClass, extentRateMolPerS, rateClass: "FAST", confidence: "HIGH", approximationClass: "VERIFIED" }
       : {
           supportClass,
           rateClass: supportClass === "OPEN" ? "UNKNOWN" : "MODERATE",
@@ -220,11 +205,7 @@ function authority(dataProvider: EquilibriumDataProvider = provider()): Phase3BE
 }
 
 function thermal() {
-  return createThermalState({
-    temperatureK: T,
-    mixtureHeatCapacity_JPerK: 100,
-    vesselHeatCapacity_JPerK: 100,
-  });
+  return createThermalState({ temperatureK: T, mixtureHeatCapacity_JPerK: 100, vesselHeatCapacity_JPerK: 100 });
 }
 
 function run(
@@ -314,22 +295,8 @@ describe("Phase 3B reversible-pair arbitration", () => {
 
   it("G: candidate/evaluation permutation does not change arbitration", () => {
     const current = species(0.9, 0.1);
-    const first = arbitrateReversiblePairs({
-      species: current,
-      candidates: [forward(), reverse()],
-      rankedEvaluations: evals(),
-      temperatureK: T,
-      pressurePa: P,
-      authority: authority(),
-    });
-    const second = arbitrateReversiblePairs({
-      species: current,
-      candidates: [reverse(), forward()],
-      rankedEvaluations: [...evals()].reverse(),
-      temperatureK: T,
-      pressurePa: P,
-      authority: authority(),
-    });
+    const first = arbitrateReversiblePairs({ species: current, candidates: [forward(), reverse()], rankedEvaluations: evals(), temperatureK: T, pressurePa: P, authority: authority() });
+    const second = arbitrateReversiblePairs({ species: current, candidates: [reverse(), forward()], rankedEvaluations: [...evals()].reverse(), temperatureK: T, pressurePa: P, authority: authority() });
     expect(second).toEqual(first);
   });
 
@@ -341,11 +308,7 @@ describe("Phase 3B reversible-pair arbitration", () => {
 
   it("I: surviving pair channel enters normal shared-reactant competition", () => {
     const branch = unrelatedIonization();
-    const result = run(
-      species(0.9, 0.1),
-      [forward(), reverse(), branch],
-      [...evals(10), evaluation(branch.id, "UNSPECIFIED", 10, 0)],
-    );
+    const result = run(species(0.9, 0.1), [forward(), reverse(), branch], [...evals(10), evaluation(branch.id, "UNSPECIFIED", 10, 0)]);
     expect(amount(result, "H2")).toBeGreaterThanOrEqual(0);
     expect(result.resolution.selected.some((entry) => entry.candidateId === "reverse")).toBe(false);
     expect(result.resolution.selected.some((entry) => entry.candidateId === branch.id)).toBe(true);
@@ -353,25 +316,14 @@ describe("Phase 3B reversible-pair arbitration", () => {
 
   it("J: INDETERMINATE/OPEN equilibrium authority abstains without bias", () => {
     const current = species(0.9, 0.1);
-    const arbitration = arbitrateReversiblePairs({
-      species: current,
-      candidates: [forward(), reverse()],
-      rankedEvaluations: evals(),
-      temperatureK: T,
-      pressurePa: P,
-      authority: authority({}),
-    });
+    const arbitration = arbitrateReversiblePairs({ species: current, candidates: [forward(), reverse()], rankedEvaluations: evals(), temperatureK: T, pressurePa: P, authority: authority({}) });
     expect(arbitration.pairs[0]!.equilibriumDirection).toBe("INDETERMINATE");
     expect(arbitration.pairs[0]!.equilibriumScientificStatus).toBe("OPEN");
     expect(arbitration.candidateExtentControls).toEqual({});
   });
 
   it("K: equilibrium driving never fabricates numeric extent for OPEN kinetics", () => {
-    const result = run(
-      species(0.9, 0.1),
-      [forward(), reverse()],
-      [evaluation("forward", "FORWARD", 0, -100, "OPEN"), evaluation("reverse", "REVERSE", 1, 100)],
-    );
+    const result = run(species(0.9, 0.1), [forward(), reverse()], [evaluation("forward", "FORWARD", 0, -100, "OPEN"), evaluation("reverse", "REVERSE", 1, 100)]);
     expect(result.arbitration.pairs[0]!.equilibriumDirection).toBe("FORWARD");
     expect(result.resolution.selected).toHaveLength(0);
     expect(result.resolution.deferred.find((entry) => entry.candidateId === "forward")?.reasonCodes).toContain("MISSING_KINETIC_SIGNAL");
@@ -381,7 +333,6 @@ describe("Phase 3B reversible-pair arbitration", () => {
     const forwardRun = run(species(0.9, 0.1), [forward(), reverse()], evals(0.1));
     expect(forwardRun.thermal.knownReactionHeat_J).toBeGreaterThan(0);
     expect(forwardRun.thermal.committedContributionCount).toBe(1);
-
     const reverseRun = run(species(0.1, 1.8), [forward(), reverse()], evals(0.1));
     expect(reverseRun.thermal.knownReactionHeat_J).toBeLessThan(0);
     expect(reverseRun.thermal.committedContributionCount).toBe(1);
@@ -393,14 +344,9 @@ describe("Phase 3B reversible-pair arbitration", () => {
     const first = runPhase3BReactionProgressionFromFoundation(
       { species: initial, elements },
       {
-        environment: { temperatureK: T, pressurePa: P },
-        dtS: 1,
-        timestepId: "generate-H",
-        startTimeS: 0,
-        thermalState: thermal(),
-        speciesRegistry: createDynamicSpeciesRegistryFromSpecies(elements, initial),
-        resolutionOptions: { maxFractionalConsumptionPerStep: 1 },
-        equilibrium: authority(),
+        environment: { temperatureK: T, pressurePa: P }, dtS: 1, timestepId: "generate-H", startTimeS: 0,
+        thermalState: thermal(), speciesRegistry: createDynamicSpeciesRegistryFromSpecies(elements, initial),
+        resolutionOptions: { maxFractionalConsumptionPerStep: 1 }, equilibrium: authority(),
       },
       foundation([firstForward], [evaluation("forward", "FORWARD", 10)]),
     );
@@ -414,14 +360,9 @@ describe("Phase 3B reversible-pair arbitration", () => {
     const second = runPhase3BReactionProgressionFromFoundation(
       { species: first.nextState.species, elements },
       {
-        environment: { temperatureK: T, pressurePa: P },
-        dtS: 1,
-        timestepId: "consume-generated-H",
-        startTimeS: 1,
-        thermalState: first.nextState.thermalState,
-        speciesRegistry: first.nextState.speciesRegistry!,
-        resolutionOptions: { maxFractionalConsumptionPerStep: 1 },
-        equilibrium: authority(),
+        environment: { temperatureK: T, pressurePa: P }, dtS: 1, timestepId: "consume-generated-H", startTimeS: 1,
+        thermalState: first.nextState.thermalState, speciesRegistry: first.nextState.speciesRegistry!,
+        resolutionOptions: { maxFractionalConsumptionPerStep: 1 }, equilibrium: authority(),
       },
       foundation([secondForward, secondReverse], [evaluation("forward", "FORWARD", 0.1), evaluation("reverse", "REVERSE", 0.1)]),
     );
@@ -438,14 +379,9 @@ describe("Phase 3B reversible-pair arbitration", () => {
     const result = runPhase3BReactionProgressionFromFoundation(
       { species: initial, elements },
       {
-        environment: { temperatureK: T, pressurePa: P },
-        dtS: 1,
-        timestepId: "no-cascade",
-        startTimeS: 0,
-        thermalState: thermal(),
-        speciesRegistry: createDynamicSpeciesRegistryFromSpecies(elements, initial),
-        resolutionOptions: { maxFractionalConsumptionPerStep: 1 },
-        equilibrium: authority(),
+        environment: { temperatureK: T, pressurePa: P }, dtS: 1, timestepId: "no-cascade", startTimeS: 0,
+        thermalState: thermal(), speciesRegistry: createDynamicSpeciesRegistryFromSpecies(elements, initial),
+        resolutionOptions: { maxFractionalConsumptionPerStep: 1 }, equilibrium: authority(),
       },
       foundation([f, r], [evaluation("forward", "FORWARD", 1), evaluation("reverse", "REVERSE", 1)]),
     );
@@ -464,7 +400,7 @@ describe("Phase 3B reversible-pair arbitration", () => {
     expect(b.thermal.knownReactionHeat_J).toBe(a.thermal.knownReactionHeat_J);
   });
 
-  it("timestep subdivision remains finite, conservative, and on the same equilibrium side", () => {
+  it("timestep subdivision remains finite and non-negative", () => {
     const initial = species(0.9, 0.1);
     const one = run(initial, [forward(), reverse()], evals(0.08), 1);
     const half1 = run(initial, [forward(), reverse()], evals(0.08), 0.5, authority(), "half-1");
