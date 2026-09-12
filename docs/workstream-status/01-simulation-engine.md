@@ -1,218 +1,183 @@
 # 01 — Chemistry Simulation Engine
 
 - Owner: Lead Chemistry Simulation Engine Developer / Reaction Solver Architect / Stoichiometry Engine Developer
-- Current phase: Phase 3B — Reversible Pair Arbitration Wiring
-- Overall state: PASS — executable wiring validated / independent 06 validation pending
+- Current phase: Phase 4A-1 — Compartment & Conservation Foundation
+- Overall state: PASS — implementation validated / independent 06 validation pending
 - Last updated: 2026-09-12
-- Latest production main checked at task start: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
-- Active branch: `feature/phase3b-reversible-pair-arbitration`
-- Upstream dependency: PR #51 — `feat(02): add Phase 3B equilibrium thermodynamics foundation`
-- PR #51 source HEAD used as branch ancestry: `116cfa30192556b3236f4f2814000ad971361bac`
-- PR #51 validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`
-- Exact 01 executable/test HEAD validated: `888eb99b0a2e11988db63866505eabf9f9eb6026`
-- Validation workflow run: `34683568587` — SUCCESS
+- Starting production main: `555c6e74ef94a9c06416fb80ce703980ce6a1889`
+- Active branch: `feature/phase4a1-compartment-foundation`
+- Exact executable/test HEAD validated: `6e7b45f62e0a6822b53a77b179e0445ba1f9b83e`
+- Validation workflow run: `34691782906` — SUCCESS
 
 ## Objective
-Wire PR #51's authoritative Phase 3B equilibrium progression recommendation into the existing Phase 3A timestep/network execution so an explicitly paired forward/reverse process has one deterministic coarse net direction per determinate timestep, approaches equilibrium with 02-owned damping/crossing limits, and never receives invented Q/K/deltaG/rate physics from 01.
+Phase 4A-1 establishes reusable matter containers, system-wide inventory/conservation accounting, and atomic deterministic matter transfer. It deliberately does not implement apparatus-specific or flow/thermal physics.
 
-## Source of Truth / Dependency
-This branch is intentionally stacked directly on exact PR #51 HEAD `116cfa30192556b3236f4f2814000ad971361bac` because the 01 implementation consumes new 02 runtime types/functions that are not yet on production main.
+## Source of Truth
+Production main was rechecked at task start and was `555c6e74ef94a9c06416fb80ce703980ce6a1889` (`docs(07): record Phase3B production integration PASS`). Phase 3B reversible arbitration, Phase 3A network execution, Dynamic Species Registry, reaction progression, and aggregate-once thermal coupling are therefore production-integrated dependencies.
 
-The consumed 02 authorities are:
-- `evaluateReactionEquilibrium()`;
-- `recommendEquilibriumProgression()`;
-- `EquilibriumProgressionRecommendation` including mode, drivingStrength, maxNetProgressFraction, preventEquilibriumCrossing, optional maxExtentTowardEquilibriumMol, scientific status, and reason codes.
+The Phase 4A-1 branch starts directly from that main commit.
 
-01 does not copy or recompute PR #51's Q/K, ln(Q/K), equilibrium direction, near-equilibrium policy, driving-strength mapping, or crossing-search logic.
+## Compartment Authority
+Added `src/simulation/compartment/` as an additive simulation-core subdomain.
 
-## Architecture
-Phase 3B preserves the existing Phase 3A authoritative timestep pipeline:
+`MatterCompartmentState` owns only matter-location bookkeeping:
+- compartment id;
+- compartment kind;
+- optional owner apparatus id;
+- existing `SpeciesState[]` inventory;
+- optional volume/environment/scientific metadata.
 
-1. immutable `snapshot(N)`;
-2. candidate generation;
-3. 02 thermo/kinetic evaluation;
-4. explicit reversible-pair arbitration;
-5. existing deterministic competing-reaction/shared-reactant resolution;
-6. bounded extent commit;
-7. Dynamic Species Registry/product commit;
-8. vessel mutation;
-9. existing aggregate-once thermal coupling;
-10. factual event/provider projection;
-11. committed `state(N+1)` becomes the next timestep source.
+Prepared kinds cover vessel contents/headspace, lab atmosphere, gas collector, filter retentate/filtrate, bath medium, chamber atmosphere, exhaust reservoir, and generic other.
 
-No second equilibrium solver and no persistent reaction-network authority are introduced.
+No kind has transport or apparatus physics attached in Phase 4A-1.
 
-## Explicit Pair Identity
-`ReactionCandidate` now supports optional execution metadata:
-- `reversible.pairId`;
-- `reversible.direction: FORWARD | REVERSE`.
+## Species Inventory / Identity
+Compartment inventory continues to use the existing `SpeciesId`/`SpeciesState` boundary. Known and generated Dynamic Species Registry ids are handled identically.
 
-Only this explicit metadata creates an arbitration pair. Pair membership is never inferred from formula, candidate name/id, graph similarity, reaction family, or reactant/product resemblance.
+The transfer layer does not use formula strings or display names as keys and does not create molecular graphs or new SpeciesIds. A single SpeciesId resolving to conflicting canonical molecular identities across compartments is rejected.
 
-Once explicitly paired, 01 validates represented forward-product/opposite-reactant structural identity before constructing the 02 equilibrium view. This is pair validation, not pair discovery.
+Amounts must remain finite and non-negative.
 
-## Pair Arbitration
-`src/integration/phase3b-reversible-arbitration.ts` directly consumes PR #51.
+## Existing Vessel Migration
+`createPrimaryVesselContentsCompartment()` adapts the existing production vessel species snapshot into a first `VESSEL_CONTENTS` compartment without changing current Phase 3A/3B authority.
 
-### FORWARD
-- forward remains the only net pair channel eligible for ordinary competition;
-- reverse is suppressed as a separate net channel;
-- only an already-numeric 02 kinetic request is multiplied by PR #51 `drivingStrength`;
-- request is bounded by `maxNetProgressFraction` and optional `maxExtentTowardEquilibriumMol`;
-- existing 01 stoichiometric, per-step, finite-matter and shared-reactant bounds remain authoritative afterward.
+No existing reaction state/pipeline was rewritten. No gas is automatically moved to headspace. The compartment model is currently additive infrastructure for later integration.
 
-### REVERSE
-Symmetric to FORWARD.
+## Global System Inventory
+Added helpers for system-wide totals across all compartments:
+- `aggregateSystemSpeciesAmounts()`;
+- `aggregateSystemElementInventory()`;
+- `aggregateSystemAtomAmountMol()`;
+- `aggregateSystemNetChargeAmountMol()`;
+- `aggregateSystemMatterInventory()`.
 
-### NEAR_EQUILIBRIUM
-Both pair channels are suppressed from coarse net mutation. There is no composition snap and no claim that microscopic directional rates are zero.
+These use existing molecular identity/formula/net-charge facts. They let future transport move matter locally while system-wide conservation remains observable.
 
-### INDETERMINATE
-Phase 3B arbitration deliberately installs **no controls**:
-- no channel suppression;
-- no equilibrium multiplier/cap;
-- no Phase 3B bias or boost.
+## Transfer Authority
+`transferMatterBatch()` is the authoritative 01 matter-commit primitive. `transferMatter()` is a one-request wrapper.
 
-Independently supported Phase 3A kinetics therefore continue through the pre-existing resolver. This is an explicit scientific abstention and makes no equilibrium-direction claim.
+Transaction order:
+1. validate the full start state;
+2. canonicalize request and species-entry ordering;
+3. validate source/destination/optional connection/species/amounts;
+4. aggregate all outgoing demand against the same start snapshot;
+5. reject the whole batch if any source is insufficient or invalid;
+6. stage touched species/compartment deltas;
+7. commit one immutable next state;
+8. validate system-wide species/element/atom/charge conservation.
 
-## Kinetic Request Boundary
-`ReactionCandidateExtentControl` was added as an execution-only resolver boundary.
+Incoming matter in the same batch cannot fund outgoing demand in that batch. This prevents hidden transport cascades and caller-order inventory capture.
 
-Order is:
-1. existing 02 kinetics must first produce a numeric request (`DIMENSIONED_RATE` or supported relative-rate bridge);
-2. OPEN/qualitative-only kinetics remain non-numeric and are deferred by existing rules;
-3. only then does 01 apply PR #51 `drivingStrength`;
-4. apply PR #51 net-fraction/crossing caps;
-5. apply existing per-step safety and stoichiometric bounds;
-6. enter unchanged shared-reactant allocation.
+No silent clamping/partial fulfillment is permitted. An upper transport solver must explicitly request the authoritative movable amount.
 
-Equilibrium driving can therefore never fabricate a numeric extent from missing kinetics.
+## Atomicity
+Failure returns the original `MatterSystemState` reference. No partial source decrement or destination increment is externally committed.
 
-## Anti-Overshoot / No Ping-Pong
-01 supplies PR #51 only a stoichiometric maximum and a pure projected-composition callback. PR #51 computes the authoritative anti-crossing recommendation.
+A multi-species transfer with one insufficient species rejects the entire request. Competing requests whose aggregate demand exceeds one source snapshot also reject atomically.
 
-When `maxExtentTowardEquilibriumMol` is present, 01 enforces it as a hard request ceiling. No extra 01 hysteresis, deadband, damping curve, or equilibrium tolerance is added.
+## Determinism
+Canonical request/entry ordering plus snapshot-wide aggregate-demand validation makes the result independent of caller batch order for equivalent inputs.
 
-Repeated high-driving tests show deterministic approach without persistent forward/reverse ping-pong.
+Production code uses no RNG.
 
-## No Double Counting / Shared Reactants
-For a determinate explicit pair, at most one net direction can enter normal competition in a timestep. The suppressed opposite channel cannot consume matter, emit a committed progress event, or contribute reaction heat.
+## Conservation
+Pure transfer preserves, within the existing reaction-progression amount tolerance policy:
+- every SpeciesId total amount;
+- every element total;
+- total atom amount;
+- total net-charge amount.
 
-The surviving request then enters the existing equal-rank/shared-pool allocator together with unrelated reactions. Existing candidate-id-first capture prevention and finite shared-reactant scaling are unchanged.
+Reaction and transfer semantics remain separate: reactions may change species identities/amounts under stoichiometric conservation, whereas transfers only relocate already-authoritative species amounts.
 
-## Dynamic Species / Same-Step Semantics
-Dynamic Species Registry authority and transactionality remain unchanged.
+## Connection Contract
+`MatterConnectionState` prepares minimal directed topology:
+- connection id;
+- source compartment;
+- destination compartment;
+- `GAS | LIQUID` kind;
+- enabled flag.
 
-If one pair reactant SpeciesId is absent from the start-of-step snapshot, Phase 3B does not prematurely interpret that future species. Existing resolution then enforces `ZERO_INITIAL_REACTANT`, preserving the no-same-step-cascade rule.
+If a transfer supplies a connection id, it must exist, be enabled, and match source/destination. Connection type does not calculate or imply flow amount.
 
-A generated product committed at timestep N can participate from N+1.
+## Headspace / Atmosphere Preparation
+`VESSEL_HEADSPACE` and `LAB_ATMOSPHERE` are available compartment kinds only.
 
-Generated registry species initially have unknown/OPEN phase. Until phase/equilibrium data are resolved, 02 may return INDETERMINATE; Phase 3B correctly follows its abstention path rather than fabricating direction.
+Phase 4A-1 does not implement automatic gas escape, gas-product routing, pressure, ventilation, diffusion, or headspace equilibrium.
 
-## Thermal
-The arbitration layer does not calculate reaction heat.
+## Thermal Boundary
+Existing Phase 3A aggregate-once reaction thermal coupling is unchanged. Phase 4A-1 calculates no temperature, heat transfer, pressure, or energy transport.
 
-The selected candidate/evaluation identity is preserved so 02 forward/reverse deltaH sign semantics remain intact. Existing aggregate thermal coupling applies known committed heat exactly once per timestep.
+## Files Added / Changed
+- `src/simulation/compartment/types.ts`
+- `src/simulation/compartment/core.ts`
+- `src/simulation/compartment/index.ts`
+- `tests/phase4a1-compartment-foundation.test.ts`
+- `docs/contracts/PHASE4A1_COMPARTMENT_MATTER_TRANSFER.md`
+- `docs/workstream-status/01-simulation-engine.md`
 
-## Event / Provider Contract
-`ReactionProgressEvent` remains backward compatible and may add:
-- `reversiblePairId`;
-- `channelDirection`;
-- `equilibriumDirection`;
-- `equilibriumScientificStatus`;
-- optional `equilibriumDrivingStrength`;
-- optional `lnQOverK`;
-- optional `reactionQuotientQ`;
-- optional `equilibriumConstantK`.
-
-Phase 3B provider projection additionally exposes pair-level recommendation facts including net-fraction/crossing bounds and 02 reason codes.
-
-05 must consume these supplied facts rather than deriving equilibrium direction itself. Existing `speciesRef` remains opaque; player-facing name/formula/graph knowledge still follows 04/05 boundaries.
-
-## Files Changed in 01 Stack
-- `src/simulation/reaction/types.ts` — explicit reversible pair execution metadata.
-- `src/simulation/reaction-progression/types.ts` — extent-control/event metadata contracts.
-- `src/simulation/reaction-progression/resolver.ts` — apply 02 pair controls after numeric kinetics and before normal competition.
-- `src/integration/phase3b-reversible-arbitration.ts` — PR #51 consumer, pair arbitration and Phase 3A network wiring.
-- `src/integration/index.ts` — public Phase 3B integration export.
-- `tests/phase3b-reversible-arbitration.test.ts` — Phase 3B execution matrix.
-- `docs/contracts/PHASE3B_REVERSIBLE_PAIR_ARBITRATION.md` — execution/provider contract.
-- `docs/workstream-status/01-simulation-engine.md` — this status.
+A temporary branch-only validation workflow was used to obtain exact-head evidence and is removed before final PR state.
 
 ## Validation Evidence
-Exact executable/test HEAD: `888eb99b0a2e11988db63866505eabf9f9eb6026`
+Exact executable/test HEAD: `6e7b45f62e0a6822b53a77b179e0445ba1f9b83e`
 
-GitHub Actions run `34683568587`: **SUCCESS**.
+GitHub Actions run `34691782906`: **SUCCESS**.
 
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
-- `npm run lint`: PASS — 0 errors; one inherited `src/ui/provider.tsx` hook-dependency warning only
-- targeted stack: **8 files / 99 tests PASS**
-  - Phase 3B reversible arbitration: 16/16
-  - Phase 3B equilibrium progression: 13/13
-  - Phase 3B equilibrium: 15/15
-  - reaction progression: 10/10
-  - Phase 3A network: 11/11
-  - Phase 3A kinetics/thermal: 10/10
-  - thermal: 13/13
-  - Dynamic Species Registry: 11/11
-- full `npm test`: **22 files / 261 tests PASS**
+- `npm run lint`: PASS — 0 errors; one inherited `src/ui/provider.tsx` hook-dependency warning
+- targeted Phase 4A-1 + Phase 3A/3B/registry/progression/thermal: **7 files / 84 tests PASS**
+- Phase 4A-1 compartment tests: **13/13 PASS**
+- full `npm test`: **23 files / 274 tests PASS**
 - `npm run build`: PASS
 
-The exact validated HEAD printed by the workflow was `888eb99b0a2e11988db63866505eabf9f9eb6026`.
-
-## Test Matrix Result
+## Phase 3A / Phase 3B Regression
 PASS:
-- mostly-reactant forward selection;
-- mostly-product reverse selection;
-- near-equilibrium zero coarse net mutation/no snap;
-- repeated approach with shrinking extent;
-- PR #51 anti-crossing extent enforcement;
-- no persistent ping-pong;
-- candidate/evaluation permutation determinism;
-- determinate forward/reverse no double commit or duplicate heat;
-- shared reactant with unrelated reaction;
-- INDETERMINATE/OPEN exact abstention;
-- OPEN kinetics no fabricated numeric extent;
-- forward exothermic/reverse endothermic heat-sign path;
-- generated species participation on later timestep;
-- same-step generated-species cascade remains prohibited;
-- deterministic replay;
-- dt vs dt/2 finite/non-negative timestep-sensitivity guard.
+- Phase 3A network 11/11;
+- Phase 3B reversible arbitration 16/16;
+- reaction progression 10/10;
+- Phase 3A kinetics/thermal 10/10;
+- thermal 13/13.
+
+No Phase 3A/3B source file was modified by this implementation, so same-step generated-species prohibition and next-step generated-species participation stay on the existing production path.
+
+## Dynamic Species Regression
+PASS:
+- Dynamic Species Registry targeted 11/11;
+- full registry validation remains green in the 274-test full suite;
+- an actual registry-generated SpeciesId is transferred successfully by the new primitive.
 
 ## PASS / FAIL / OPEN
 ### PASS
-- Explicit reversible pair grouping only.
-- Direct use of PR #51 equilibrium/progression authority.
-- No duplicated Q/K/deltaG or damping logic in 01.
-- Determinate single-net-channel arbitration before ordinary competition.
-- PR #51 driving/crossing bounds composed with existing kinetic requests.
-- No numeric extent fabrication from OPEN/qualitative kinetics.
-- Near-equilibrium zero coarse net mutation without state snap.
-- INDETERMINATE scientific abstention.
-- Existing shared-reactant fairness/finite matter/conservation path preserved.
-- No forward/reverse double-consumption or duplicate heat in determinate modes.
-- Same-step generated-product cascade prevention preserved.
-- Dynamic Species Registry atomicity/stable identity path preserved.
-- Deterministic replay/candidate-permutation behavior.
-- Full repository regression/build at exact executable HEAD.
+- reusable compartment state contract;
+- deterministic empty/populated compartment creation;
+- existing-vessel adapter without mass refactor;
+- system-wide species/element/atom/charge aggregation;
+- single and multi-species matter transfer;
+- atomic rejection on invalid/insufficient requests;
+- order-independent competing-request rejection;
+- generated SpeciesId compatibility;
+- explicit topology contract without flow physics;
+- conservation-safe commit;
+- Phase 3A/3B/registry/thermal regressions green;
+- full suite/build green.
 
 ### FAIL
-- None identified in the implemented/validated 01 scope.
+- None identified in Phase 4A-1 scope.
 
 ### OPEN
-- Independent 06 validation is mandatory before integration/merge.
-- PR #51 remains a stacked upstream dependency until its exact contract lands on main.
-- General non-ideal activities, mixture equilibrium and broader phase fidelity remain 02/03 responsibilities.
-- Generated unknown-phase species may remain equilibrium-INDETERMINATE until phase re-resolution supplies adequate evidence.
-- INDETERMINATE permits independently supported Phase 3A channels and therefore carries no pair-level net-equilibrium guarantee.
-- Multi-pair coupled equilibrium, stiff integration, transport limitation, electrochemistry and a general equilibrium solver remain out of scope.
+- independent 06 validation before merge;
+- integration of compartment authority into the production laboratory runtime/provider remains a later coordinated step;
+- 4A-2 transport solver must decide *why/how much* matter moves;
+- headspace partitioning, automatic gas escape, diffusion, pressure-driven flow, valve conductance, pump behavior and filtration remain unimplemented;
+- energy transfer remains 02/future Phase 4A responsibility;
+- 05D owns eventual provider/UI projection.
 
 ## Handoffs
-- 02: PR #51 remains authoritative for equilibrium thermodynamics/progression recommendation and future activity/phase fidelity.
-- 05: consume Phase 3B provider direction/status/diagnostics; do not calculate Q/K/direction or expose opaque internal species identity as player knowledge.
-- 06: independently validate exact 01 Phase 3B HEAD/PR for direction, anti-crossing, no-ping-pong, no-double-counting, candidate permutation, shared reactants, OPEN abstention, generated-species semantics, conservation and thermal consistency.
-- 07: do not integrate this stack until 06 approves it. After PR #51 lands, refresh/retarget the 01 PR onto current main without changing validated semantics.
+- 02/04/4A-2: calculate or decide explicit requested transfer amounts; do not mutate inventory directly.
+- 01: validate and atomically commit those explicit requests through this transfer foundation.
+- 05D: later project compartment facts through provider authority; no React/UI changes are part of this PR.
+- 06: independently validate atomicity, order independence, system conservation, generated-id transfer, and Phase 3A/3B regressions.
+- 07: integrate only after 06 approval.
 
 ## Next
-**06 independent Phase 3B reversible arbitration validation, then 07 integration after PR #51 dependency is integrated.**
+**06 independent Phase 4A-1 validation, then 07 integration review.**
