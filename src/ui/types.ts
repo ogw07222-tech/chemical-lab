@@ -1,6 +1,7 @@
 export type SimulationStatus = 'stopped' | 'paused' | 'running' | 'stable' | 'error';
 export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'multiphase' | 'unknown';
 export type ScientificStatus = 'VERIFIED' | 'APPROXIMATED' | 'EMPIRICAL' | 'GAMEPLAY_SIMPLIFICATION' | 'OPEN';
+export type ReactionPrecision = 'HIGH' | 'APPROXIMATED' | 'OPEN';
 export type SubstanceCategory = 'element' | 'compound';
 
 export interface MoleculeAtomView { id: string; element: string; formalCharge: number; }
@@ -18,7 +19,14 @@ export interface SubstanceSummary {
   graph?: MoleculeGraphViewModel;
 }
 
-export interface VesselContentView { speciesId?: string; displayIdentity: string; amountMol: number; phase: Phase; identityConfirmed: boolean; }
+export interface VesselContentView {
+  speciesId?: string;
+  displayIdentity: string;
+  opaqueLabel?: string;
+  amountMol: number;
+  phase: Phase;
+  identityConfirmed: boolean;
+}
 export interface UnknownObservation { observationId: string; label: string; analysisState: 'unanalysed' | 'pending' | 'confirmed'; }
 export interface EncyclopediaEntry { speciesId: string; firstDiscoveryLabel: string; knownProperties: string[]; phaseInfo?: string; }
 
@@ -34,6 +42,51 @@ export interface PhaseDiagramViewModel {
   triplePoint?: PhasePointView;
   criticalPoint?: PhasePointView;
   currentState?: { temperatureK: number; pressurePa: number; phase: Phase };
+}
+
+export interface ReactionSpeciesProjection {
+  referenceId: string;
+  displayIdentity: string;
+  opaqueLabel?: string;
+  identityConfirmed: boolean;
+  knownSpeciesId?: string;
+  amountMol?: number;
+}
+
+export interface ReactionHeatProjection {
+  precision: ReactionPrecision;
+  status: 'reported' | 'unavailable';
+  deltaJ?: number;
+  label?: string;
+}
+
+export interface ReactionObservableProjection {
+  kind: 'gas-evolution' | 'phase-change' | 'temperature-change' | 'other';
+  precision: ReactionPrecision;
+  label: string;
+}
+
+export interface ReactionProgressEvent {
+  id: string;
+  sequence: number;
+  simulationTimeS: number;
+  kind: 'reaction-progress';
+  stepIndex: number;
+  state: 'detected' | 'progressing' | 'completed' | 'equilibrium' | 'stalled';
+  precision: ReactionPrecision;
+  activityLabel: string;
+  consumed: ReactionSpeciesProjection[];
+  produced: ReactionSpeciesProjection[];
+  reactionHeat?: ReactionHeatProjection;
+  observables?: ReactionObservableProjection[];
+}
+
+export interface ReactionActivityProjection {
+  eventId: string;
+  simulationTimeS: number;
+  state: ReactionProgressEvent['state'];
+  precision: ReactionPrecision;
+  label: string;
 }
 
 export interface LaboratorySnapshot {
@@ -80,12 +133,20 @@ export type LaboratoryCommand =
   | { type: 'AnalyzeUnknown'; observationId: string }
   | { type: 'SetDeveloperMode'; enabled: boolean };
 
-export interface LaboratoryEvent { id: string; simulationTimeS: number; kind: 'command-accepted' | 'command-rejected' | 'observation' | 'discovery'; message: string; }
+export interface LaboratoryEvent {
+  id: string;
+  sequence: number;
+  simulationTimeS: number;
+  kind: 'command-accepted' | 'command-rejected' | 'observation' | 'discovery';
+  message: string;
+}
 
 export interface LaboratoryProviderValue {
   snapshot: LaboratorySnapshot;
   catalog: SubstanceSummary[];
   events: LaboratoryEvent[];
+  reactionActivity?: ReactionActivityProjection;
+  reactionEvents: ReactionProgressEvent[];
   phaseDiagrams: Record<string, PhaseDiagramViewModel | undefined>;
   dispatch(command: LaboratoryCommand): void;
 }
