@@ -1,0 +1,46 @@
+name: 06 Exact 05A Recheck
+on:
+  push:
+    branches:
+      - validation/06-05a-exact-recheck
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Exact source guard
+        run: |
+          git merge-base --is-ancestor cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD
+          git diff --exit-code cb752bc7d91d7d871f965226e51ea94c57a00b85 HEAD -- src tests package.json package-lock.json
+      - name: Scientific boundary audit
+        run: |
+          if grep -RniE 'temperatureK|pressurePa|deltaH|reactionHeat|evaluateReaction|equilibrium|lnQOverK|molecularIdentity|phaseInference|filterResult|gasTransfer' src/ui/workbench; then
+            echo 'Forbidden scientific/runtime identifier found in 05A boundary' >&2
+            exit 1
+          fi
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Targeted 05A
+        run: npm test -- tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/LaboratoryWorkspace.test.tsx
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Responsive browser smoke
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/05a-vite.log 2>&1 &
+          PID=$!
+          trap 'kill $PID || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:4173 >/dev/null && break; sleep 1; done
+          curl --fail --silent http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+      - run: git rev-parse HEAD
