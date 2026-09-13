@@ -20,6 +20,8 @@ export interface SubstanceSummary {
 
 export interface VesselContentView {
   speciesId?: string;
+  /** Player-safe stable key for deterministic visualization. Never a hidden/generated SpeciesId in Normal Mode. */
+  visualizationKey?: string;
   displayIdentity: string;
   opaqueLabel?: string;
   amountMol: number;
