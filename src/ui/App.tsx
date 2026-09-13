@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { MatterParticleCanvas } from './chemistry/matter/MatterParticleCanvas';
 import { useLaboratory } from './provider';
 import { selectCurrentUnknown, selectSpecies, selectVisibleInventory } from './selectors';
 import type { PhaseDiagramViewModel, ReactionProgressView, ReactionSpeciesView, ScientificStatus, SubstanceSummary, VesselContentView } from './types';
@@ -87,7 +88,7 @@ function ReactionActivityStrip() {
 
 function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {
   const lab = useLaboratory(); const unknown = selectCurrentUnknown(lab);
-  const baseLayer = <><div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"/><strong>주 용기</strong>{lab.snapshot.contents.length ? lab.snapshot.contents.map((content,index)=><span key={content.speciesId ?? content.opaqueLabel ?? index}>{contentIdentity(content)} · {content.amountMol.toFixed(3)} mol</span>) : <span>비어 있음</span>}</div><div className="counter-edge"/></>;
+  const baseLayer = <><div className="workspace-vessel" aria-label="주 용기"><div className="vessel-outline"><MatterParticleCanvas vesselId={lab.snapshot.vesselId} contents={lab.snapshot.contents}/></div><strong>주 용기</strong>{lab.snapshot.contents.length === 0 ? <span>비어 있음</span> : <span>대표 입자 시각화 · 정확량은 구성 탭</span>}</div><div className="counter-edge"/></>;
   return <WorkbenchShell title={lab.snapshot.experimentName} status={<>{formatTemperature(lab.snapshot.temperatureK)} · {formatPressure(lab.snapshot.pressurePa)}</>} placementSurface={<WorkbenchPlacementSurface baseLayer={baseLayer}/>}><ReactionActivityStrip/>{unknown && <div className="observation-strip"><span><strong>관찰</strong> {unknown.label}</span><button onClick={() => lab.dispatch({ type: 'AnalyzeUnknown', observationId: unknown.observationId })}>분석</button></div>}<WorkbenchAnalysis selected={selected}/></WorkbenchShell>;
 }
 
