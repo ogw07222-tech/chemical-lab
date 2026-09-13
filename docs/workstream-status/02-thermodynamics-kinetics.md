@@ -6,7 +6,7 @@
 - Last updated: 2026-09-13
 - Starting / latest checked main SHA: `28b85072ada9865d76d3e7874f926490558a198c`
 - Active branch: `feature/phase4a2-gas-transport`
-- Active PR: pending at this status commit
+- Active PR: #67 — `feat(02): add Phase 4A-2 gas transport engine`
 - Exact validated executable/test HEAD: `2eb5f38d5883f7cac5f7676af73d178452344d5e`
 - Validation workflow run: `34746930169` — SUCCESS
 
@@ -96,7 +96,7 @@ If aggregate outgoing demand exceeds source availability, all competing contribu
 
 ## Validation Evidence
 Exact validated executable/test HEAD: `2eb5f38d5883f7cac5f7676af73d178452344d5e`.
-Temporary GitHub Actions workflow run `34746930169`: SUCCESS.
+Temporary GitHub Actions workflow run `34746930169`: SUCCESS. The temporary workflow was removed afterward; executable/test blobs remain the validated versions.
 
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
@@ -167,8 +167,8 @@ The first validation run `34746846149` failed only on five test-fixture/assertio
 - 03: provide authoritative diffusion/conductance reference data with conditions, units, uncertainty/status and provenance where available.
 - 04: provide apparatus topology and enabled/disabled valve/opening state; do not calculate gas physics in gameplay/UI.
 - 05C/05D: consume simulation-provided pressure/composition/net transport facts only. Visualization particles are not physical state.
-- 06A / Phase 4A validation: independently validate exact branch/HEAD, especially competing paths, extreme dt, long-run conservation, open/sealed routing, and order invariance.
-- 07: do not merge before independent validation approval.
+- 06A / Phase 4A validation: independently validate exact PR #67 branch/HEAD, especially competing paths, extreme dt, long-run conservation, open/sealed routing, and order invariance.
+- 07: do not merge PR #67 before independent validation approval.
 
 ## Next
-Open the focused Phase 4A-2 PR, preserve the validated executable/test SHA, remove the temporary validation workflow, and hand the PR to independent validation. No Phase 4A-3 phase-change work should be folded into this PR.
+Hand PR #67 to independent Phase 4A validation. No Phase 4A-3 phase-change work should be folded into this PR.
