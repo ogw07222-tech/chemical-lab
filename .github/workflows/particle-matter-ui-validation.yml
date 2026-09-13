@@ -22,7 +22,18 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
       - name: Typecheck
-        run: npm run typecheck
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          npm run typecheck 2>&1 | tee /tmp/typecheck.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            { echo '### Temporary particle typecheck failure'; echo '```text'; tail -n 160 /tmp/typecheck.log; echo '```'; } > /tmp/comment.md
+            gh pr comment 66 --body-file /tmp/comment.md
+            exit "$status"
+          fi
       - name: Lint
         run: npm run lint
       - name: Targeted particle tests
