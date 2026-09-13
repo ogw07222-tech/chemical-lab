@@ -22,18 +22,26 @@ jobs:
       - name: 06B independent adversarial validation
         run: npx vitest run tests/validation/phase4a2-06b-independent.test.ts
       - name: Phase 4A-2 targeted
+        if: always()
         run: npx vitest run tests/phase4a2-gas-transport.test.ts
       - name: Phase 4A-1 regression
+        if: always()
         run: npx vitest run tests/phase4a1-compartment-foundation.test.ts
       - name: Phase 3A regression
+        if: always()
         run: npx vitest run tests/phase3a-kinetics-thermal.test.ts
       - name: Phase 3B regression
+        if: always()
         run: npx vitest run tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
       - name: Dynamic Species Registry regression
+        if: always()
         run: npx vitest run tests/dynamic-species-registry.test.ts
       - name: Thermal regression
+        if: always()
         run: npx vitest run tests/thermal.test.ts
       - name: Full suite
+        if: always()
         run: npm test
       - name: Build
+        if: always()
         run: npm run build
