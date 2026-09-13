@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const baseURL = process.env.UI_BASE_URL ?? 'http://127.0.0.1:4173';
+const baseURL = globalThis.process?.env?.UI_BASE_URL ?? 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ headless: true });
 function assert(value, message) { if (!value) throw new Error(message); }
 
@@ -18,20 +18,19 @@ try {
 
   const canvas = page.locator('.matter-particle-canvas');
   await canvas.waitFor();
-  const host = page.locator('.matter-particle-host');
   const metrics = await page.evaluate(() => {
-    const canvas = document.querySelector('.matter-particle-canvas');
-    const host = document.querySelector('.matter-particle-host');
-    if (!(canvas instanceof HTMLCanvasElement) || !(host instanceof HTMLElement)) return null;
-    const r = host.getBoundingClientRect();
+    const canvasElement = globalThis.document.querySelector('.matter-particle-canvas');
+    const hostElement = globalThis.document.querySelector('.matter-particle-host');
+    if (!(canvasElement instanceof globalThis.HTMLCanvasElement) || !(hostElement instanceof globalThis.HTMLElement)) return null;
+    const r = hostElement.getBoundingClientRect();
     return {
       cssWidth: r.width,
       cssHeight: r.height,
-      backingWidth: canvas.width,
-      backingHeight: canvas.height,
-      pointerEvents: getComputedStyle(host).pointerEvents,
-      label: canvas.getAttribute('aria-label'),
-      role: canvas.getAttribute('role'),
+      backingWidth: canvasElement.width,
+      backingHeight: canvasElement.height,
+      pointerEvents: globalThis.getComputedStyle(hostElement).pointerEvents,
+      label: canvasElement.getAttribute('aria-label'),
+      role: canvasElement.getAttribute('role'),
     };
   });
   assert(metrics, 'particle canvas metrics unavailable');
@@ -58,12 +57,12 @@ try {
   for (const width of [1536, 1440, 1024, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : width === 1024 ? 768 : 900 });
     await page.waitForTimeout(50);
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const overflow = await page.evaluate(() => globalThis.document.documentElement.scrollWidth - globalThis.innerWidth);
     assert(overflow <= 2, `${width}: horizontal overflow ${overflow}px`);
   }
 
   if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
-  console.log('06C particle browser smoke PASS');
+  globalThis.console.log('06C particle browser smoke PASS');
   await context.close();
 } finally {
   await browser.close();
