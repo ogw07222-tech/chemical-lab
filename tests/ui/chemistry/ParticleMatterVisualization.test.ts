@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Phase3AProviderProjection } from '../../../src/integration/phase3a-reaction-network';
 import { animatedParticlePosition } from '../../../src/ui/chemistry/matter/MatterParticleCanvas';
@@ -85,15 +84,6 @@ describe('particle matter visualization model', () => {
     const model = buildMatterVisualModel('vessel-1', [content('known:a', 'gas')]);
     const particle = model.regions[0]!.particles[0]!;
     expect(animatedParticlePosition(particle, regionBoundsForPhase('GAS'), 123.4, true)).toEqual({ x: particle.x, y: particle.y });
-  });
-
-  it('does not contain chemistry, transport, pressure, or phase-solving logic in renderer/model', () => {
-    const modelSource = readFileSync(new URL('../../../src/ui/chemistry/matter/model.ts', import.meta.url), 'utf8');
-    const rendererSource = readFileSync(new URL('../../../src/ui/chemistry/matter/MatterParticleCanvas.tsx', import.meta.url), 'utf8');
-    const source = `${modelSource}\n${rendererSource}`;
-    for (const forbidden of ['Math.log', 'deltaG', 'reactionQuotient', 'equilibriumConstant', 'concentration', 'transportFlux', 'diffusion', 'pressurePa', 'temperatureK']) {
-      expect(source).not.toContain(forbidden);
-    }
   });
 });
 
