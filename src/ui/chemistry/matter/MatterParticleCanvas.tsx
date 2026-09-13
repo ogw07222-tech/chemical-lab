@@ -9,7 +9,7 @@ export interface MatterParticleCanvasProps {
   ariaLabel?: string;
 }
 
-function animatedPosition(particle: MatterVisualParticle, bounds: MatterVisualRegionBounds, timeS: number, reducedMotion: boolean) {
+export function animatedParticlePosition(particle: MatterVisualParticle, bounds: MatterVisualRegionBounds, timeS: number, reducedMotion: boolean) {
   if (reducedMotion || particle.motionClass === 'STATIC') return { x: particle.x, y: particle.y };
   const amplitude = particle.motionClass === 'HIGH' ? 0.045 : 0.006;
   const dx = Math.sin(timeS * particle.frequency * 2.1 + particle.phaseOffset) * amplitude;
@@ -28,6 +28,7 @@ export function MatterParticleCanvas({ vesselId, contents, ariaLabel = '용기 �
   const model = useMemo(() => buildMatterVisualModel(vesselId, contents), [vesselId, contents]);
 
   useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const sync = () => setReducedMotion(media.matches);
     sync();
@@ -70,7 +71,7 @@ export function MatterParticleCanvas({ vesselId, contents, ariaLabel = '용기 �
       const timeS = timestamp / 1000;
       for (const region of model.regions) {
         for (const particle of region.particles) {
-          const position = animatedPosition(particle, region.bounds, timeS, reducedMotion);
+          const position = animatedParticlePosition(particle, region.bounds, timeS, reducedMotion);
           context.beginPath();
           context.fillStyle = particle.color;
           context.arc(position.x * width, position.y * height, PARTICLE_RADIUS_CSS_PX, 0, Math.PI * 2);
@@ -84,7 +85,6 @@ export function MatterParticleCanvas({ vesselId, contents, ariaLabel = '용기 �
     observer?.observe(host);
     resize();
     draw(0);
-    if (visible && !reducedMotion) frame = requestAnimationFrame(draw);
     return () => {
       observer?.disconnect();
       cancelAnimationFrame(frame);
