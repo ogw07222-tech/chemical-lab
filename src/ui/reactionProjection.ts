@@ -95,10 +95,14 @@ export function projectPhase3AReactionUi(
 ): Phase3AReactionUiProjection {
   const contents = provider.authoritativeVesselComposition.map((entry) => {
     const knowledge = resolveSpecies(entry.speciesRef);
+    const visualizationKey = knowledge.identityConfirmed && knowledge.knownSpeciesId !== undefined
+      ? `known:${knowledge.knownSpeciesId}`
+      : `unknown:${knowledge.unknownRef}`;
     return {
       ...(knowledge.identityConfirmed && knowledge.knownSpeciesId !== undefined
         ? { speciesId: knowledge.knownSpeciesId }
         : {}),
+      visualizationKey,
       displayIdentity: knowledge.identityConfirmed ? knowledge.displayLabel : '',
       ...(knowledge.identityConfirmed ? {} : { opaqueLabel: knowledge.displayLabel }),
       amountMol: entry.amountMol,
