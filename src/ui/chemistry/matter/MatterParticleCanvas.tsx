@@ -91,14 +91,17 @@ export function MatterParticleCanvas({ vesselId, contents, ariaLabel = '용기 �
     };
   }, [model, reducedMotion, visible]);
 
-  const summary = contents.length === 0
-    ? '비어 있음'
-    : contents.map((content) => `${content.identityConfirmed ? content.displayIdentity : content.opaqueLabel ?? 'Unknown substance'} ${content.phase}`).join(', ');
-
   return (
     <div ref={hostRef} className="matter-particle-host">
       <canvas ref={canvasRef} className="matter-particle-canvas" aria-label={ariaLabel} role="img" />
-      <span className="matter-particle-accessible">{summary}. 입자는 실제 분자 수가 아닌 대표 시각화입니다.</span>
+      <span className="matter-particle-accessible">
+        {contents.length === 0 ? '비어 있음' : contents.map((content, index) => (
+          <span key={`${content.visualizationKey ?? content.speciesId ?? content.opaqueLabel ?? 'content'}:${index}`}>
+            {content.identityConfirmed ? content.displayIdentity : content.opaqueLabel ?? 'Unknown substance'} · {content.amountMol.toFixed(3)} mol · {content.phase}
+          </span>
+        ))}
+        <span>입자는 실제 분자 수가 아닌 대표 시각화입니다.</span>
+      </span>
     </div>
   );
 }
