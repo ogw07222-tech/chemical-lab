@@ -21,6 +21,9 @@ jobs:
       - run: npm run lint
       - name: 06B independent adversarial validation
         run: npx vitest run tests/validation/phase4a2-06b-independent.test.ts
+      - name: 06B combined bulk-diffusion large-dt gate
+        if: always()
+        run: npx vitest run tests/validation/phase4a2-06b-combined-large-dt.test.ts
       - name: 06B long-run and scaling validation
         if: always()
         run: npx vitest run tests/validation/phase4a2-06b-longrun-performance.test.ts
