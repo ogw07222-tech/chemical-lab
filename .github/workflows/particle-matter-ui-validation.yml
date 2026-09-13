@@ -22,35 +22,24 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
       - name: Typecheck
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          npm run typecheck 2>&1 | tee /tmp/typecheck.log
-          status=${PIPESTATUS[0]}
-          if [ "$status" -ne 0 ]; then
-            { echo '### Temporary particle typecheck failure'; echo '```text'; tail -n 160 /tmp/typecheck.log; echo '```'; } > /tmp/comment.md
-            gh pr comment 66 --body-file /tmp/comment.md
-            exit "$status"
-          fi
+        run: npm run typecheck
       - name: Lint
         run: npm run lint
       - name: Targeted particle tests
+        run: npm test -- tests/ui/chemistry/ParticleMatterVisualization.test.ts
+      - name: Existing UI regression
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          npm test -- tests/ui/chemistry/ParticleMatterVisualization.test.ts 2>&1 | tee /tmp/particle-tests.log
+          npm test -- tests/ui/LaboratoryWorkspace.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx 2>&1 | tee /tmp/ui-regression.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            { echo '### Temporary particle validation failure'; echo '```text'; tail -n 180 /tmp/particle-tests.log; echo '```'; } > /tmp/comment.md
+            { echo '### Temporary particle UI regression failure'; echo '```text'; tail -n 200 /tmp/ui-regression.log; echo '```'; } > /tmp/comment.md
             gh pr comment 66 --body-file /tmp/comment.md
             exit "$status"
           fi
-      - name: Existing UI regression
-        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx
       - name: Phase 3 regression
         run: npm test -- tests/phase3a-reaction-network.test.ts tests/ui/reactionProjection.test.tsx
       - name: Full suite
