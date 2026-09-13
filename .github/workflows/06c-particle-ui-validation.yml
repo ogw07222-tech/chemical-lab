@@ -1,0 +1,74 @@
+name: 06C Particle UI Independent Validation
+
+on:
+  push:
+    branches:
+      - validation/06c-particle-ui
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Validation branch purity
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=e1b7319bc4d80c47047ab82dd8485a029d34560c
+          bad=$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(tests/validation/06c-particle-ui-validation\.test\.ts|tools/06c-particle-ui-smoke\.mjs|\.github/workflows/06c-particle-ui-validation\.yml)$' || true)
+          if [ -n "$bad" ]; then
+            echo "Unexpected non-validation changes:"
+            echo "$bad"
+            exit 1
+          fi
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Scientific authority static audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'Math\.random|Avogadro|6\.022|Navier|momentum|intermolecular|collision physics' src/ui/chemistry/matter
+          ! grep -RInE 'amountMol[[:space:]]*/|pressurePa[[:space:]]*[=+*/-]|temperatureK[[:space:]]*[=+*/-]' src/ui/chemistry/matter
+      - name: 06C adversarial targeted tests
+        run: npm test -- tests/validation/06c-particle-ui-validation.test.ts tests/ui/chemistry/ParticleMatterVisualization.test.ts
+      - name: UI regression
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx tests/ui/workbench/WorkbenchPlacementSurface.test.tsx tests/ui/reactionProjection.test.tsx
+      - name: Phase 3 regression
+        run: npm test -- tests/phase3a-reaction-network.test.ts
+      - name: Full suite
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser and responsive smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4173 >/dev/null
+          npm run smoke:ui
+          node tools/06c-particle-ui-smoke.mjs
+      - name: Exact tested commit
+        run: git rev-parse HEAD
