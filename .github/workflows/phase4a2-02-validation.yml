@@ -1,0 +1,25 @@
+name: Phase 4A-2 02 validation
+
+on:
+  push:
+    branches:
+      - feature/phase4a2-gas-transport
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Targeted Phase 4A-2 and cross-phase regression
+        run: npx vitest run tests/phase4a2-gas-transport.test.ts tests/phase4a1-compartment-foundation.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts tests/dynamic-species-registry.test.ts tests/thermal.test.ts
+      - run: npm test
+      - run: npm run build
