@@ -56,11 +56,11 @@ jobs:
         run: npm run build
       - name: Chromium
         run: npx playwright install --with-deps chromium
-      - name: Browser and responsive smoke
+      - name: Repository browser smoke
         shell: bash
         run: |
           set -euo pipefail
-          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/chemical-lab-preview.log 2>&1 &
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/repo-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID || true' EXIT
           for i in {1..30}; do
@@ -69,6 +69,18 @@ jobs:
           done
           curl --fail http://127.0.0.1:4173 >/dev/null
           npm run smoke:ui
-          node tools/06c-particle-ui-smoke.mjs
+      - name: 06C particle browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4174 > /tmp/06c-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4174 >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:4174 >/dev/null
+          UI_BASE_URL=http://127.0.0.1:4174 node tools/06c-particle-ui-smoke.mjs
       - name: Exact tested commit
         run: git rev-parse HEAD
