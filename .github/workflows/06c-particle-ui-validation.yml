@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE=e1b7319bc4d80c47047ab82dd8485a029d34560c
-          bad=$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(tests/validation/06c-particle-ui-validation\.test\.ts|tools/06c-particle-ui-smoke\.mjs|\.github/workflows/06c-particle-ui-validation\.yml)$' || true)
+          bad=$(git diff --name-only "$BASE"...HEAD | grep -Ev '^(tests/validation/06c-particle-ui-validation\.test\.ts|tests/validation/06c-particle-browser-fixture\.(html|tsx)|tools/06c-particle-ui-smoke\.mjs|\.github/workflows/06c-particle-ui-validation\.yml)$' || true)
           if [ -n "$bad" ]; then
             echo "Unexpected non-validation changes:"
             echo "$bad"
@@ -73,9 +73,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm run preview -- --host 127.0.0.1 --port 4174 > /tmp/06c-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          trap 'kill $PREVIEW_PID || true' EXIT
+          npm run dev -- --host 127.0.0.1 --port 4174 > /tmp/06c-vite.log 2>&1 &
+          DEV_PID=$!
+          trap 'kill $DEV_PID || true' EXIT
           for i in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4174 >/dev/null; then break; fi
             sleep 1
