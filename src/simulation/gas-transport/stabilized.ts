@@ -1,4 +1,4 @@
-import type { MatterSystemState, MatterTransferRequest } from "../compartment";
+import type { MatterTransferRequest } from "../compartment";
 import type { SpeciesId } from "../molecular";
 import { evaluateGasTransport as evaluateGasTransportRaw, evaluateIdealGasCompartment, IDEAL_GAS_CONSTANT_J_PER_MOL_K } from "./core";
 import type {
