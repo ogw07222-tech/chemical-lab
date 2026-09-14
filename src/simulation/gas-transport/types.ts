@@ -67,7 +67,8 @@ export type GasTransportReasonCode =
   | "ZERO_PRESSURE_GRADIENT"
   | "ZERO_DIFFUSION_GRADIENT"
   | "NO_GAS_SOURCE"
-  | "SOURCE_AVAILABILITY_NORMALIZED";
+  | "SOURCE_AVAILABILITY_NORMALIZED"
+  | "COMBINED_EQUILIBRIUM_NORMALIZED";
 
 export interface GasTransportConnectionDiagnostic {
   connectionId: MatterConnectionId;
@@ -75,7 +76,9 @@ export interface GasTransportConnectionDiagnostic {
   reasonCodes: readonly GasTransportReasonCode[];
   sourcePressurePa?: number;
   destinationPressurePa?: number;
+  /** Pre-normalization closed-form bulk demand for this connection. */
   desiredBulkAmountMol?: number;
+  /** Final normalized bulk allocation consumed by bulkTransfers/transferRequests. */
   boundedBulkAmountMol?: number;
 }
 
@@ -95,6 +98,7 @@ export interface GasTransportEvaluation {
   diffusiveTransfers: readonly MatterTransferRequest[];
   /** Canonical combined requests intended for 01 transferMatterBatch(). */
   transferRequests: readonly MatterTransferRequest[];
+  /** Canonical final contribution allocation after all shared normalization. */
   contributions: readonly GasTransportContribution[];
   diagnostics: readonly GasTransportConnectionDiagnostic[];
 }
