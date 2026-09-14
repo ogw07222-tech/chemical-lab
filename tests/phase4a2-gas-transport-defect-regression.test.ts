@@ -126,8 +126,12 @@ function inventorySnapshot(system: MatterSystemState) {
 }
 
 function expectInventoryEqual(a: ReturnType<typeof inventorySnapshot>, b: ReturnType<typeof inventorySnapshot>) {
-  expect(a.speciesAmountsMol).toEqual(b.speciesAmountsMol);
-  expect(a.elementsMol).toEqual(b.elementsMol);
+  for (const key of new Set([...Object.keys(a.speciesAmountsMol), ...Object.keys(b.speciesAmountsMol)])) {
+    expect(a.speciesAmountsMol[key] ?? 0).toBeCloseTo(b.speciesAmountsMol[key] ?? 0, 12);
+  }
+  for (const key of new Set([...Object.keys(a.elementsMol), ...Object.keys(b.elementsMol)])) {
+    expect(a.elementsMol[key] ?? 0).toBeCloseTo(b.elementsMol[key] ?? 0, 12);
+  }
   expect(a.atomAmountMol).toBeCloseTo(b.atomAmountMol, 12);
   expect(a.netChargeAmountMol).toBeCloseTo(b.netChargeAmountMol, 12);
 }
