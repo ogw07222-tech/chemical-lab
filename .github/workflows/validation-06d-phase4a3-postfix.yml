@@ -22,22 +22,50 @@ jobs:
       - name: Lint
         run: npm run lint
       - name: 06D independent post-fix adversarial
+        id: adversarial
         continue-on-error: true
         run: npx vitest run tests/validation-06d-phase4a3-postfix.test.ts
       - name: Phase 4A-3 targeted + defect regression
+        id: targeted
         continue-on-error: true
         run: npx vitest run tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts
       - name: Thermal + Phase 3A
+        id: thermala
         continue-on-error: true
         run: npx vitest run tests/thermal.test.ts tests/phase3a-kinetics.test.ts
       - name: Phase 3B equilibrium/progression/arbitration
+        id: phase3b
         continue-on-error: true
         run: npx vitest run tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
       - name: Reaction progression + Phase 4A-1 + registry
+        id: rest
         continue-on-error: true
         run: npx vitest run tests/reaction-progression.test.ts tests/phase4a1-compartment-transfer.test.ts tests/dynamic-species-registry.test.ts
       - name: Full suite
+        id: full
         continue-on-error: true
         run: npm test
       - name: Build
+        id: build
+        continue-on-error: true
         run: npm run build
+      - name: Outcome summary
+        if: always()
+        run: |
+          echo "adversarial=${{ steps.adversarial.outcome }}"
+          echo "targeted=${{ steps.targeted.outcome }}"
+          echo "thermal_phase3a=${{ steps.thermala.outcome }}"
+          echo "phase3b=${{ steps.phase3b.outcome }}"
+          echo "reaction_phase4a1_registry=${{ steps.rest.outcome }}"
+          echo "full=${{ steps.full.outcome }}"
+          echo "build=${{ steps.build.outcome }}"
+      - name: Validation gate
+        if: always()
+        run: |
+          test "${{ steps.adversarial.outcome }}" = "success"
+          test "${{ steps.targeted.outcome }}" = "success"
+          test "${{ steps.thermala.outcome }}" = "success"
+          test "${{ steps.phase3b.outcome }}" = "success"
+          test "${{ steps.rest.outcome }}" = "success"
+          test "${{ steps.full.outcome }}" = "success"
+          test "${{ steps.build.outcome }}" = "success"
