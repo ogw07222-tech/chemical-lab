@@ -1,0 +1,20 @@
+name: 06D Phase 4A-3 Passive Large-dt Probe
+
+on:
+  push:
+    branches:
+      - validation/06d-phase4a3-postfix
+  workflow_dispatch:
+
+jobs:
+  passive-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Prior passive huge-dt counterexample
+        run: npx vitest run tests/validation-06d-phase4a3-postfix.test.ts -t "ABSOLUTE: huge-dt multi-contact passive network"
