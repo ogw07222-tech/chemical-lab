@@ -1,206 +1,155 @@
 # 02 — Thermodynamics & Kinetics
 
 - Owner: Thermodynamics Simulation Developer / Chemical Kinetics Systems Developer / Equilibrium Model Architect / Energy Model Architect
-- Current phase: Phase 3B-B — Equilibrium Progression Policy
-- Overall state: PASS — 01 REVERSIBLE-PAIR ARBITRATION UNBLOCKED / 06 independent validation pending
-- Last updated: 2026-09-12
-- Starting / latest checked main SHA: `e49b3f25eeb39d08a6c397c4869beceb6c5c8bbf`
-- Active branch: `feature/phase3b-equilibrium-foundation`
-- Active PR: #51 — `feat(02): add Phase 3B equilibrium thermodynamics foundation`
-- Exact validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`
-- Validation workflow run: `34682342429` — SUCCESS
+- Current phase: Phase 4A-3 — 06D defect fix
+- Overall state: FIX READY FOR 06D REVALIDATION / merge blocked pending independent PASS
+- Last updated: 2026-09-15
+- Latest checked main SHA: `28b85072ada9865d76d3e7874f926490558a198c`
+- Active branch: `feature/phase4a3-thermal-apparatus`
+- Active PR: #68 — `feat(02): add Phase 4A-3 thermal apparatus engine`
+- Pre-fix PR HEAD: `b2b15d1fb05c8f7c0e98be39a78d97e0308cf3bf`
+- Exact post-fix executable/test HEAD: `4251f23daddb287fe5040c2ca29a923ac14b05be`
+- Fix validation workflow run: `34952609240` — SUCCESS
 
-## Objective
-Close the remaining Phase 3B policy gap by converting supported `ln(Q/K)` evidence into a deterministic, bounded, scientifically-labeled net reversible-pair progression recommendation that 01 can consume without inventing damping, anti-overshoot or pair-arbitration rules.
+## Independent validation basis
+06D independently reported `PHASE4A3_VALIDATION_FAIL / MERGE_ALLOWED_NO` against the pre-fix implementation. The reproduction evidence identified three narrow defects:
+- DEF-01: multiple target-bearing actuators independently consumed the same snapshot target headroom;
+- DEF-02: target semantics under concurrent reaction/reservoir sources were insufficiently explicit to callers;
+- DEF-03: duplicate contact/reservoir/actuator IDs were accepted despite audit/replay identity ambiguity.
 
-Canonical contract: `docs/contracts/PHASE3B_EQUILIBRIUM_THERMODYNAMICS.md`.
+No broad Phase 4A-3 redesign was performed.
 
-## Implemented
+Canonical base contract remains `docs/contracts/PHASE4A3_THERMAL_APPARATUS.md`.
+Defect-fix semantics: `docs/contracts/PHASE4A3_06D_DEFECT_FIX.md`.
 
-### Equilibrium foundation retained
-`evaluateReactionEquilibrium()` remains authoritative for:
-- `Q`, `K`, `lnQ`, `lnK`, `ln(Q/K)`;
-- `FORWARD_FAVORED | REVERSE_FAVORED | NEAR_EQUILIBRIUM | OPEN`;
-- ideal-gas / ideal-dilute / explicit pure-phase activity semantics;
-- standard-state/reference-temperature/provenance handling;
-- finite `DeltaG = RT ln(Q/K)` when supported;
-- OPEN propagation when the model/data is insufficient.
+## DEF-01 — multi-actuator setpoint overshoot
+### Root cause
+Each target-bearing actuator evaluated `C * |target - snapshotT|` independently. Those individually capped energies were then summed without a body-level actuator envelope, so N identical actuators could reuse the same headroom N times.
 
-No fallback K or current-composition K inference was added.
+### Fix
+Target-bearing actuators now use deterministic two-stage evaluation:
+1. each actuator remains capped by its own snapshot target headroom;
+2. target-bearing contributions are grouped by `(bodyId, mode)` and proportionally normalized if their aggregate request exceeds the directional snapshot envelope.
 
-### Authoritative progression recommendation
-Added `EquilibriumProgressionRecommendation` with:
-- `mode: FORWARD | REVERSE | NEAR_EQUILIBRIUM | INDETERMINATE`;
-- `drivingStrength` in `[0,1]`;
-- `maxNetProgressFraction` in `[0,1]`;
-- `preventEquilibriumCrossing`;
-- optional `maxExtentTowardEquilibriumMol`;
-- scientific status + reason codes.
+For HEATER groups the aggregate directional envelope ends at the highest participating target; for COOLER groups it ends at the lowest participating target. Because each actuator is individually capped first, mixed-target actuators retain their own constraints before a common scale is applied. No sequential first-actuator-wins behavior is used.
 
-This recommendation does not contain or synthesize a reaction rate.
+Target-less actuators remain ordinary explicit external sources/sinks and are not silently assigned a setpoint.
 
-### Continuous thermodynamic driving modulation
-For authoritative `x = ln(Q/K)` and existing `epsilon_eq`:
+### Verified regressions
+- 2 identical heaters at 300 K targeting 400 K: final 400 K, not 500 K;
+- 3 and 5 identical heaters: no count-scaled overshoot;
+- two identical coolers: no target undershoot;
+- mixed 350 K / 400 K heater targets: deterministic proportional reconciliation;
+- actuator input permutation: identical result.
 
-`d = max(0, |x| - epsilon_eq)`
+## DEF-02 — actuator target semantics
+Authoritative contract:
 
-`drivingStrength = 1 - exp(-d)`
+`targetTemperatureK` bounds the actuator system's own control contribution. It is **not** a hard clamp on final body temperature.
 
-implemented as `-expm1(-d)`.
+Therefore:
+- reaction heat is never clipped to satisfy an apparatus target;
+- a hotter reservoir/contact may drive final temperature above a heater target;
+- an endothermic reaction or independent colder sink may drive final temperature below a control target;
+- the setpoint remains a control request, not a natural-law temperature boundary.
 
-Properties:
-- zero throughout the near-equilibrium engineering band;
-- continuous at the band edge;
-- monotonic outside the band;
-- symmetric forward/reverse magnitude;
-- bounded and deterministic;
-- stable for tiny/huge finite driving coordinates.
+For target-bearing actuators, informational diagnostics expose:
+- `actuatorRequestedEnergyJ`;
+- `actuatorAppliedEnergyJ`;
+- `targetLimited`;
+- `finalTemperatureMayCrossTargetDueToOtherSources=true`.
 
-Scientific status is `APPROXIMATED`: this is a coarse thermodynamic driving-force modulation, not a fundamental kinetic law.
+Regression cases cover heater + exothermic reaction, cooler + endothermic reaction, and heater + hotter reservoir while confirming the actuator's own energy remains capped.
 
-### Kinetic composition contract
-01 conceptually applies:
+## DEF-03 — duplicate IDs / atomicity
+The evaluator now rejects duplicate IDs before transfer evaluation for each type-scoped namespace:
+- body IDs;
+- contact IDs;
+- reservoir IDs;
+- actuator IDs;
+- reaction-source IDs.
 
-`kineticRequestedExtent * drivingStrength`
+Duplicates throw deterministically. No entry is silently deduplicated. Physically parallel contacts/actuators require distinct stable IDs. Because these checks run before evaluation, duplicate-input failures cannot yield partial body updates.
 
-then preserves 01 authority for:
-- stoichiometric availability;
-- shared-reactant allocation;
-- max fractional consumption safety cap;
-- conservation and species-state mutation.
+Existing atomic OPEN behavior for a later invalid temperature update remains unchanged (`bodyUpdates: []`).
 
-If Phase 3A kinetic evidence is `OPEN` or qualitative-only, Phase 3B-B does not fabricate a numeric rate/extent.
+## Unchanged physics
+The narrow fix does not change:
+- mixture Cp evaluation;
+- passive finite contact closed-form relaxation;
+- reservoir closed-form relaxation;
+- reaction enthalpy/extent authority;
+- positive-Kelvin guard;
+- Phase 4A-1 matter semantics;
+- phase-transition boundary;
+- gas transport;
+- UI implementation.
 
-### Near-equilibrium policy
-For `|ln(Q/K)| <= epsilon_eq`:
-- mode = `NEAR_EQUILIBRIUM`;
-- `drivingStrength = 0`;
-- `maxNetProgressFraction = 0`;
-- coarse net pair progression recommendation = zero;
-- no composition snap;
-- no forward/reverse flip-flop.
+## Energy accounting
+The existing invariant remains:
 
-This does not claim microscopic forward/reverse rates are zero.
+`DeltaE_body = Q_internal + Q_reservoir + Q_heater - Q_cooler + Q_reaction`
 
-### OPEN / indeterminate policy
-When equilibrium evidence is unsupported:
-- mode = `INDETERMINATE`;
-- status = `OPEN`;
-- equilibrium arbitration contributes no suppression, boost or direction bias;
-- no anti-crossing bound is claimed.
+and over modeled finite bodies:
 
-Existing independently-supported Phase 3A kinetics may continue under existing rules; 01 must not infer equilibrium behavior.
+`Sum(DeltaE_finite) = externalEnergyJ + reactionEnergyJ`.
 
-### Deterministic anti-overshoot
-Added an 02-owned bounded bisection policy.
+Internal finite-body transfers remain equal-and-opposite. Actuator normalization scales explicit external contribution before accounting; it does not erase already-applied energy or reaction heat.
 
-01 supplies only:
-- `maxFeasibleExtentMol` in the favored direction;
-- a pure read-only `projectComposition(netForwardExtentMol)` callback using 01-owned stoichiometric/state semantics.
-
-02 solves for the sign crossing:
-
-`ln(Q(xi_eq)/K) = 0`
-
-within the 01-supplied feasible interval.
-
-Default engineering solver settings:
-- maximum 48 bisection iterations;
-- `1e-12 mol` extent tolerance;
-- configurable;
-- no vessel mutation;
-- no global equilibrium solve;
-- no frame-by-frame solver;
-- returned bound never exceeds the supplied feasible extent.
-
-The root search uses the actual sign of finite `ln(Q/K)`, not entry into the wider near-equilibrium tolerance band. Zero-activity endpoints may bracket the root using thermodynamic direction when finite `ln(Q/K)` is intentionally absent.
-
-If equilibrium lies beyond the feasible interval, the safe thermodynamic cap is simply the full supplied feasible extent. If projection/equilibrium evaluation becomes OPEN, no bound is fabricated.
-
-### Pair arbitration order for 01
-Phase 3B-B defines pair-level arbitration **before** ordinary shared-reactant competition:
-- `FORWARD`: only the forward net channel survives pair arbitration;
-- `REVERSE`: symmetric reverse rule;
-- `NEAR_EQUILIBRIUM`: zero coarse net pair request;
-- `INDETERMINATE`: equilibrium arbitration abstains.
-
-The surviving/modulated request then enters normal 01 competition with unrelated reactions.
-
-This prevents ordering-induced ping-pong without claiming detailed balance.
-
-### Thermal consistency
-No second heat path was introduced.
-- Phase 3A aggregate-once reaction heat remains authoritative.
-- Progression recommendation contains no `heatJ` or `deltaH` mutation semantics.
-- exact reverse `DeltaH` sign derivation remains provenance-gated under the existing Phase 3B contract.
-
-## Validation Evidence
-Exact validated executable/test HEAD: `5fcc62a05189ad7759596892ae30ab2a5b829998`.
-Temporary validation workflow run `34682342429`: SUCCESS.
+## Validation evidence
+Exact executable/test HEAD: `4251f23daddb287fe5040c2ca29a923ac14b05be`.
+Temporary workflow run `34952609240`: SUCCESS.
 
 - `npm ci --no-audit --no-fund`: PASS
 - `npm run typecheck`: PASS
-- `npm run lint`: PASS with 0 errors; one pre-existing UI hooks warning
-- targeted Phase 3B-B / equilibrium / Phase 3A / evaluation / thermal: **5 files / 60 tests PASS**
-  - Phase 3B-B progression policy: 13/13
-  - Phase 3B equilibrium: 15/15
-  - Phase 3A kinetics/thermal: 10/10
-  - reaction evaluation: 9/9
-  - thermal: 13/13
-- full `npm test`: **21 files / 245 tests PASS**
+- `npm run lint`: PASS with 0 errors; one pre-existing `src/ui/provider.tsx` hooks warning
+- defect + existing Phase 4A-3 targeted: **2 files / 50 tests PASS**
+  - 06D defect regressions: 16/16
+  - existing Phase 4A-3: 34/34
+- thermal / chemistry regression group: **8 files / 105 tests PASS**
+  - thermal: 13
+  - Phase 3A kinetics/thermal: 10
+  - Phase 3B equilibrium: 15
+  - Phase 3B progression: 13
+  - Phase 3B reversible arbitration: 16
+  - reaction progression: 10
+  - Phase 4A-1: 17
+  - Dynamic Species Registry: 11
+- full `npm test`: **29 files / 351 tests PASS**
 - `npm run build`: PASS
 
-An earlier run `34682295232` exposed a real policy bug: bisection initially treated entry into the near-equilibrium band as the root. The implementation was corrected so anti-overshoot solves the actual `ln(Q/K)` sign crossing. Final run `34682342429` passed.
-
-## Tested Phase 3B-B Cases
-- driving strength exactly zero at/inside equilibrium tolerance;
-- monotonic increase with `|lnQOverK|`;
-- forward/reverse symmetry;
-- `[0,1]` boundedness;
-- continuity at the epsilon boundary;
-- deterministic repeated recommendation;
-- near-equilibrium zero net recommendation;
-- missing K -> equilibrium arbitration abstains;
-- supported forward `xi_eq` bound;
-- supported reverse symmetric bound;
-- anti-crossing bound never exceeds 01 feasible extent;
-- one-step overshoot cap reaches the actual equilibrium sign crossing;
-- tiny/huge driving coordinates remain finite;
-- Phase 3A kinetics remains independently authoritative;
-- OPEN kinetics does not become a fabricated rate;
-- reverse thermochemical/heat semantics remain untouched.
+The temporary defect-fix workflow was removed after preserving successful run `34952609240`; executable/test blobs at the exact validated HEAD remain unchanged.
 
 ## PASS / FAIL / OPEN
-### PASS
-- Q/K/DeltaG foundation remains executable and regression-safe.
-- Thermodynamic progression mapping is deterministic, continuous, bounded and symmetric.
-- Mapping is explicitly `APPROXIMATED`, not presented as kinetic law.
-- Near-equilibrium coarse net progression is exactly zero without equilibrium snap.
-- OPEN equilibrium evidence produces no thermodynamic bias.
-- 01 no longer needs to invent damping/hysteresis/anti-overshoot policy.
-- Deterministic fixed-budget bisection provides a safe equilibrium crossing cap when projection support exists.
-- Pair-level forward/reverse arbitration order is explicit.
-- Phase 3A kinetic and thermal ownership remains intact.
-- Full repository regression/build pass on the validated HEAD.
+### PASS — implementation fix scope
+- same-target multi-heater and multi-cooler envelope;
+- 3/5-actuator count scaling regression;
+- mixed-target deterministic reconciliation;
+- actuator order invariance;
+- explicit own-contribution target semantics;
+- diagnostic visibility for requested/applied target-bearing actuator energy;
+- duplicate contact/reservoir/actuator/reaction-source rejection;
+- closed-system/external/reaction energy accounting regressions;
+- existing passive large-dt and multi-contact behavior regression;
+- full main-baseline suite/build.
 
 ### FAIL
-- None identified in final implemented scope.
+- No implementation failure remains in the narrow defect-fix regression set.
 
 ### OPEN
-- 06 independent validation of anti-ping-pong behavior and timestep sensitivity after 01 consumes the recommendation.
-- 01 production wiring of pair arbitration + modulation + anti-crossing cap.
-- K(T) interpolation/extrapolation.
-- nonideal activities / ionic strength / fugacity.
-- gas-solution coupled equilibria / precipitation-dissolution phase appearance.
-- full equilibrium composition solver.
-- detailed-balance enforcement / stiff reversible-network integration.
+- independent 06D revalidation of the new exact HEAD;
+- PR #68 merge permission remains NO until 06D changes verdict;
+- Phase 4A-2 cross-PR compatibility unless/until #67 is integrated and rechecked;
+- production cross-module reaction/apparatus orchestration wiring;
+- authoritative apparatus conductance/thermal-mass calibration;
+- phase-transition/latent-heat authority.
 
 ## Handoffs
-- 01: consume `EquilibriumProgressionRecommendation` before normal shared-reactant competition. Apply independently-supported kinetic request × `drivingStrength`, then cap by `maxExtentTowardEquilibriumMol` when `preventEquilibriumCrossing=true`, followed by normal 01 stoichiometric/network bounds.
-- 03: continue supplying K/lnK, reference T, standard-state and standard reaction thermo/provenance. Missing data remains OPEN.
-- 05: do not infer rates/equilibrium progression. Display simulation-provided direction/status only.
-- 06: validate permutation stability, anti-ping-pong, timestep sensitivity and crossing-cap behavior once 01 wires the policy.
-- 07: integrate only after 06 approval; PR #51 remains unmerged.
+- 06D: revalidate PR #68 at the updated exact source, concentrating on DEF-01/02/03 plus retained conservation/stability/determinism gates.
+- 01: reaction heat remains upstream authoritative; do not add setpoint clipping to reaction energy.
+- 04: setpoints are control requests, not final-body hard clamps.
+- 05B/05C/05D: use authoritative backend diagnostics/facts; no frontend thermal integration.
+- 07: do not merge before independent 06D PASS and required cross-PR integration checks.
 
 ## Next
-01 can now implement reversible-pair arbitration without inventing thermodynamic policy. The next gate is 01 wiring + 06 independent validation, not a full equilibrium solver or electrochemistry.
+06D Phase 4A-3 Thermal Validation recheck. No Phase 4B or unrelated thermal feature expansion belongs in this fix.

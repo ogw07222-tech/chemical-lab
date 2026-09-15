@@ -109,6 +109,9 @@ export function validateLedger(ledger: ThermalEnergyLedger): void {
   assertFinite(ledger.environmentHeat_J, "environmentHeat_J");
   assertFinite(ledger.phaseChangeLatentHeat_J, "phaseChangeLatentHeat_J");
   assertFinite(ledger.otherExternalEnergy_J, "otherExternalEnergy_J");
+  if (ledger.internalTransferHeat_J !== undefined) {
+    assertFinite(ledger.internalTransferHeat_J, "internalTransferHeat_J");
+  }
 }
 
 export function integrateHeaterEnergy(
@@ -251,6 +254,9 @@ export function stepThermalState(
     phaseChangeLatentHeat_J: state.cumulativeEnergy.phaseChangeLatentHeat_J,
     otherExternalEnergy_J:
       state.cumulativeEnergy.otherExternalEnergy_J + otherExternalEnergy_J,
+    ...(state.cumulativeEnergy.internalTransferHeat_J !== undefined
+      ? { internalTransferHeat_J: state.cumulativeEnergy.internalTransferHeat_J }
+      : {}),
   };
 
   validateLedger(cumulativeEnergy);
