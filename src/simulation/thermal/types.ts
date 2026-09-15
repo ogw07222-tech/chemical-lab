@@ -73,10 +73,7 @@ export interface ThermalStepInput {
   thermostat?: ThermostatInput;
   /** Single reaction convenience input. Mutually exclusive with reactionHeat_J. */
   reactionHeat?: ReactionHeatInput;
-  /**
-   * Signed aggregate reaction heat already computed from actual applied extents.
-   * Positive values add thermal energy. Mutually exclusive with reactionHeat.
-   */
+  /** Signed aggregate reaction heat already computed from actual applied extents. */
   reactionHeat_J?: EnergyJ;
   environmentHeat_J?: EnergyJ;
   otherExternalEnergy_J?: EnergyJ;
@@ -84,9 +81,7 @@ export interface ThermalStepInput {
 
 export interface ThermalStepResult {
   state: ThermalState;
-  /** Signed net energy delivered to sensible thermal energy this step. */
   stepEnergyDelta_J: EnergyJ;
-  /** Alias retained to make the future latent-heat split explicit. */
   sensibleEnergyDelta_J: EnergyJ;
 }
 
@@ -115,7 +110,6 @@ export interface ThermalContact {
   bodyAId: ThermalBodyId;
   bodyBId: ThermalBodyId;
   enabled: boolean;
-  /** Effective conductance G_th in W/K. No default physical value is implied. */
   conductanceWPerK: number;
   mechanism: ThermalContactMechanism;
   scientificStatus: ScientificStatus;
@@ -124,10 +118,6 @@ export interface ThermalContact {
 
 export type ThermalReservoirMechanism = "AMBIENT" | "CONTROLLED_CHAMBER";
 
-/**
- * Explicit infinite/external reservoir approximation. Energy exchanged here is
- * external to the finite modeled-body energy sum and is separately accounted.
- */
 export interface ThermalReservoirBoundary {
   id: string;
   bodyId: ThermalBodyId;
@@ -147,10 +137,6 @@ export type ThermalApparatusKind =
   | "HOT_AIR_CHAMBER"
   | "OTHER";
 
-/**
- * Explicit external source/sink. powerW is a non-negative magnitude. Optional
- * targetTemperatureK is a controller request and never an instantaneous state assignment.
- */
 export interface ThermalPowerActuator {
   id: string;
   bodyId: ThermalBodyId;
@@ -163,7 +149,6 @@ export interface ThermalPowerActuator {
   source?: string;
 }
 
-/** Existing reaction progression supplies this already-computed signed heat. */
 export interface ThermalReactionSource {
   id: string;
   bodyId: ThermalBodyId;
@@ -182,7 +167,6 @@ export interface ThermalTransfer {
   id: string;
   sourceId: string;
   destinationId: string;
-  /** Positive magnitude transferred from sourceId to destinationId. */
   energyJ: EnergyJ;
   mechanism: ThermalTransferMechanism;
   scientificStatus: ScientificStatus;
@@ -206,14 +190,14 @@ export interface ThermalDiagnostic {
   id: string;
   scientificStatus: ScientificStatus;
   reasonCodes: readonly string[];
+  /** Optional structured control/audit details; values are observational, not extra physics. */
+  details?: Readonly<Record<string, string | number | boolean>>;
 }
 
 export interface ThermalApparatusEvaluation {
   scientificStatus: ScientificStatus;
   transfers: readonly ThermalTransfer[];
-  /** Signed net external reservoir/heater/cooler energy into finite modeled bodies. */
   externalEnergyJ: EnergyJ;
-  /** Signed reaction heat already supplied by reaction progression. */
   reactionEnergyJ: EnergyJ;
   bodyUpdates: readonly ThermalBodyUpdate[];
   diagnostics: readonly ThermalDiagnostic[];
