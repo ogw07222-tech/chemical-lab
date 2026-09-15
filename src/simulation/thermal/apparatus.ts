@@ -28,9 +28,10 @@ const STATUS_ORDER: Record<ScientificStatus, number> = {
 };
 
 function worstStatus(...statuses: ScientificStatus[]): ScientificStatus {
-  return statuses.reduce((worst, current) =>
-    STATUS_ORDER[current] > STATUS_ORDER[worst] ? current : worst,
-  "VERIFIED");
+  return statuses.reduce(
+    (worst, current) => STATUS_ORDER[current] > STATUS_ORDER[worst] ? current : worst,
+    "VERIFIED",
+  );
 }
 
 function finiteNonNegative(value: number): boolean {
@@ -53,6 +54,15 @@ function add(map: Map<string, number>, key: string, value: number): void {
   map.set(key, (map.get(key) ?? 0) + value);
 }
 
+function assertUniqueIds<T extends { id: string }>(kind: string, entries: readonly T[]): void {
+  const ids = [...entries].map((entry) => entry.id).sort((a, b) => a.localeCompare(b));
+  for (let index = 1; index < ids.length; index += 1) {
+    if (ids[index] === ids[index - 1]) {
+      throw new Error(`Duplicate thermal ${kind} id: ${ids[index]}`);
+    }
+  }
+}
+
 function bodyMapOrThrow(bodies: readonly ThermalBody[]): Map<ThermalBodyId, ThermalBody> {
   const map = new Map<ThermalBodyId, ThermalBody>();
   for (const body of [...bodies].sort((a, b) => a.id.localeCompare(b.id))) {
@@ -68,9 +78,9 @@ export function evaluateMixtureHeatCapacity(
   data: readonly SpeciesMolarHeatCapacityInput[],
 ): MixtureHeatCapacityEvaluation {
   const records = [...data].sort((a, b) =>
-    a.speciesId.localeCompare(b.speciesId) ||
-    a.phase.localeCompare(b.phase) ||
-    a.source.localeCompare(b.source),
+    a.speciesId.localeCompare(b.speciesId)
+    || a.phase.localeCompare(b.phase)
+    || a.source.localeCompare(b.source),
   );
   const included: string[] = [];
   const missing: string[] = [];
@@ -147,7 +157,6 @@ function evaluateFiniteContacts(
   diagnostics: ThermalDiagnostic[],
 ): RawInternalTransfer[] {
   const raw: RawInternalTransfer[] = [];
-
   for (const contact of [...contacts].sort((a, b) => a.id.localeCompare(b.id))) {
     if (!contact.enabled) continue;
     if (!finiteNonNegative(contact.conductanceWPerK)) {
@@ -162,10 +171,10 @@ function evaluateFiniteContacts(
       diagnostics.push({ id: contact.id, scientificStatus: "OPEN", reasonCodes: ["INVALID_THERMAL_CONTACT"] });
       continue;
     }
-
     const ta = a.state.temperatureK;
     const tb = b.state.temperatureK;
     if (ta === tb) continue;
+
     const ca = totalSensibleHeatCapacity_JPerK(a.state);
     const cb = totalSensibleHeatCapacity_JPerK(b.state);
     const inverseCapacitySum = 1 / ca + 1 / cb;
@@ -190,7 +199,6 @@ function evaluateFiniteContacts(
       destinationTemperatureK: cold.state.temperatureK,
     });
   }
-
   return raw;
 }
 
@@ -267,7 +275,9 @@ function evaluateReservoirs(
 
     const capacity = totalSensibleHeatCapacity_JPerK(body.state);
     const ratePerS = boundary.conductanceWPerK / capacity;
-    const energyMagnitudeJ = capacity * Math.abs(boundary.reservoirTemperatureK - body.state.temperatureK) * relaxationFraction(ratePerS, dtS);
+    const energyMagnitudeJ = capacity
+      * Math.abs(boundary.reservoirTemperatureK - body.state.temperatureK)
+      * relaxationFraction(ratePerS, dtS);
     if (!(energyMagnitudeJ > 0) || !Number.isFinite(energyMagnitudeJ)) {
       diagnostics.push({ id: boundary.id, scientificStatus: "OPEN", reasonCodes: ["NONFINITE_RESERVOIR_ENERGY"] });
       return [];
@@ -286,9 +296,7 @@ function evaluateReservoirs(
   const grouped = new Map<string, ThermalTransfer[]>();
   for (const transfer of raw) {
     const bodyId = transfer.sourceId.startsWith("RESERVOIR:") ? transfer.destinationId : transfer.sourceId;
-    const list = grouped.get(bodyId) ?? [];
-    list.push(transfer);
-    grouped.set(bodyId, list);
+    grouped.set(bodyId, [...(grouped.get(bodyId) ?? []), transfer]);
   }
 
   const result: ThermalTransfer[] = [];
@@ -314,16 +322,26 @@ function evaluateReservoirs(
   return result.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+type RawActuatorTransfer = ThermalTransfer & {
+  bodyId: ThermalBodyId;
+  mode: "HEATER" | "COOLER";
+  requestedEnergyJ: number;
+  targetTemperatureK?: number;
+  individuallyTargetLimited: boolean;
+};
+
 function evaluateActuators(
   bodyMap: Map<ThermalBodyId, ThermalBody>,
   actuators: readonly ThermalPowerActuator[],
   dtS: number,
   diagnostics: ThermalDiagnostic[],
 ): ThermalTransfer[] {
-  const result: ThermalTransfer[] = [];
+  const raw: RawActuatorTransfer[] = [];
+
   for (const actuator of [...actuators].sort((a, b) => a.id.localeCompare(b.id))) {
     if (!actuator.enabled) continue;
-    if (!finiteNonNegative(actuator.powerW) || (actuator.targetTemperatureK !== undefined && !finitePositive(actuator.targetTemperatureK))) {
+    if (!finiteNonNegative(actuator.powerW)
+      || (actuator.targetTemperatureK !== undefined && !finitePositive(actuator.targetTemperatureK))) {
       diagnostics.push({ id: actuator.id, scientificStatus: "OPEN", reasonCodes: ["INVALID_POWER_ACTUATOR"] });
       continue;
     }
@@ -333,31 +351,119 @@ function evaluateActuators(
       continue;
     }
     if (actuator.powerW === 0 || dtS === 0) continue;
-    let energyJ = actuator.powerW * dtS;
-    if (!Number.isFinite(energyJ)) {
+
+    const requestedEnergyJ = actuator.powerW * dtS;
+    if (!Number.isFinite(requestedEnergyJ)) {
       diagnostics.push({ id: actuator.id, scientificStatus: "OPEN", reasonCodes: ["NONFINITE_EXTERNAL_ENERGY"] });
       continue;
     }
 
+    let energyJ = requestedEnergyJ;
+    let individuallyTargetLimited = false;
     if (actuator.targetTemperatureK !== undefined) {
       const capacity = totalSensibleHeatCapacity_JPerK(body.state);
       const deltaToTargetK = actuator.targetTemperatureK - body.state.temperatureK;
-      if ((actuator.mode === "HEATER" && deltaToTargetK <= 0) || (actuator.mode === "COOLER" && deltaToTargetK >= 0)) continue;
-      energyJ = Math.min(energyJ, capacity * Math.abs(deltaToTargetK));
+      const activeTowardTarget = actuator.mode === "HEATER" ? deltaToTargetK > 0 : deltaToTargetK < 0;
+      if (!activeTowardTarget) {
+        diagnostics.push({
+          id: actuator.id,
+          scientificStatus: actuator.scientificStatus,
+          reasonCodes: ["ACTUATOR_TARGET_CONTRIBUTION_BOUND", "ACTUATOR_TARGET_ALREADY_REACHED"],
+          details: {
+            actuatorRequestedEnergyJ: requestedEnergyJ,
+            actuatorAppliedEnergyJ: 0,
+            targetLimited: true,
+            finalTemperatureMayCrossTargetDueToOtherSources: true,
+          },
+        });
+        continue;
+      }
+      const ownTargetCapJ = capacity * Math.abs(deltaToTargetK);
+      if (energyJ > ownTargetCapJ) {
+        energyJ = ownTargetCapJ;
+        individuallyTargetLimited = true;
+      }
     }
     if (!(energyJ > 0)) continue;
 
     const externalId = `EXTERNAL:${actuator.id}`;
-    result.push({
+    raw.push({
       id: actuator.id,
       sourceId: actuator.mode === "HEATER" ? externalId : body.id,
       destinationId: actuator.mode === "HEATER" ? body.id : externalId,
       energyJ,
       mechanism: actuator.mode === "HEATER" ? "EXTERNAL_HEATER" : "EXTERNAL_COOLER",
       scientificStatus: actuator.scientificStatus,
+      bodyId: actuator.bodyId,
+      mode: actuator.mode,
+      requestedEnergyJ,
+      targetTemperatureK: actuator.targetTemperatureK,
+      individuallyTargetLimited,
     });
   }
-  return result;
+
+  const scaleById = new Map<string, number>();
+  const targetGroups = new Map<string, RawActuatorTransfer[]>();
+  for (const transfer of raw) {
+    scaleById.set(transfer.id, 1);
+    if (transfer.targetTemperatureK === undefined) continue;
+    const key = `${transfer.bodyId}\u0000${transfer.mode}`;
+    targetGroups.set(key, [...(targetGroups.get(key) ?? []), transfer]);
+  }
+
+  for (const transfers of targetGroups.values()) {
+    const body = bodyMap.get(transfers[0]!.bodyId)!;
+    const capacity = totalSensibleHeatCapacity_JPerK(body.state);
+    const targets = transfers.map((transfer) => transfer.targetTemperatureK!);
+    const aggregateTargetK = transfers[0]!.mode === "HEATER"
+      ? Math.max(...targets)
+      : Math.min(...targets);
+    const aggregateEnvelopeJ = capacity * Math.abs(aggregateTargetK - body.state.temperatureK);
+    const requestedAppliedJ = transfers.reduce((sum, transfer) => sum + transfer.energyJ, 0);
+    const scale = requestedAppliedJ > aggregateEnvelopeJ && requestedAppliedJ > 0
+      ? aggregateEnvelopeJ / requestedAppliedJ
+      : 1;
+    for (const transfer of transfers) scaleById.set(transfer.id, scale);
+  }
+
+  const result: ThermalTransfer[] = [];
+  for (const transfer of raw) {
+    const scale = scaleById.get(transfer.id) ?? 1;
+    const appliedEnergyJ = transfer.energyJ * scale;
+    if (transfer.targetTemperatureK !== undefined) {
+      const targetLimited = transfer.individuallyTargetLimited || scale < 1 || appliedEnergyJ < transfer.requestedEnergyJ;
+      diagnostics.push({
+        id: transfer.id,
+        scientificStatus: transfer.scientificStatus,
+        reasonCodes: [
+          "ACTUATOR_TARGET_CONTRIBUTION_BOUND",
+          ...(targetLimited ? ["ACTUATOR_TARGET_LIMITED"] : []),
+        ],
+        details: {
+          actuatorRequestedEnergyJ: transfer.requestedEnergyJ,
+          actuatorAppliedEnergyJ: appliedEnergyJ,
+          targetLimited,
+          finalTemperatureMayCrossTargetDueToOtherSources: true,
+        },
+      });
+    }
+    if (appliedEnergyJ > 0) {
+      result.push({
+        id: transfer.id,
+        sourceId: transfer.sourceId,
+        destinationId: transfer.destinationId,
+        energyJ: appliedEnergyJ,
+        mechanism: transfer.mechanism,
+        scientificStatus: transfer.scientificStatus,
+      });
+    }
+  }
+
+  return result.sort((a, b) =>
+    a.id.localeCompare(b.id)
+    || a.sourceId.localeCompare(b.sourceId)
+    || a.destinationId.localeCompare(b.destinationId),
+  );
 }
 
 export function evaluateThermalApparatusStep(input: {
@@ -369,15 +475,29 @@ export function evaluateThermalApparatusStep(input: {
   dtS: number;
 }): ThermalApparatusEvaluation {
   if (!finiteNonNegative(input.dtS)) throw new RangeError("dtS must be finite and >= 0");
+
+  const contacts = input.contacts ?? [];
+  const reservoirs = input.reservoirs ?? [];
+  const actuators = input.actuators ?? [];
+  const reactionSources = input.reactionSources ?? [];
+  assertUniqueIds("contact", contacts);
+  assertUniqueIds("reservoir", reservoirs);
+  assertUniqueIds("actuator", actuators);
+  assertUniqueIds("reaction source", reactionSources);
+
   const bodyMap = bodyMapOrThrow(input.bodies);
   const diagnostics: ThermalDiagnostic[] = [];
   const internalTransfers = normalizeFiniteContactNetwork(
     bodyMap,
-    evaluateFiniteContacts(bodyMap, input.contacts ?? [], input.dtS, diagnostics),
+    evaluateFiniteContacts(bodyMap, contacts, input.dtS, diagnostics),
   );
-  const reservoirTransfers = evaluateReservoirs(bodyMap, input.reservoirs ?? [], input.dtS, diagnostics);
-  const actuatorTransfers = evaluateActuators(bodyMap, input.actuators ?? [], input.dtS, diagnostics);
-  const transfers = [...internalTransfers, ...reservoirTransfers, ...actuatorTransfers].sort((a, b) => a.id.localeCompare(b.id) || a.sourceId.localeCompare(b.sourceId) || a.destinationId.localeCompare(b.destinationId));
+  const reservoirTransfers = evaluateReservoirs(bodyMap, reservoirs, input.dtS, diagnostics);
+  const actuatorTransfers = evaluateActuators(bodyMap, actuators, input.dtS, diagnostics);
+  const transfers = [...internalTransfers, ...reservoirTransfers, ...actuatorTransfers].sort((a, b) =>
+    a.id.localeCompare(b.id)
+    || a.sourceId.localeCompare(b.sourceId)
+    || a.destinationId.localeCompare(b.destinationId),
+  );
 
   const internal = new Map<string, number>();
   const reservoir = new Map<string, number>();
@@ -387,8 +507,12 @@ export function evaluateThermalApparatusStep(input: {
 
   for (const body of bodyMap.values()) bodyStatus.set(body.id, body.scientificStatus);
   for (const transfer of transfers) {
-    if (bodyMap.has(transfer.sourceId)) bodyStatus.set(transfer.sourceId, worstStatus(bodyStatus.get(transfer.sourceId) ?? "VERIFIED", transfer.scientificStatus));
-    if (bodyMap.has(transfer.destinationId)) bodyStatus.set(transfer.destinationId, worstStatus(bodyStatus.get(transfer.destinationId) ?? "VERIFIED", transfer.scientificStatus));
+    if (bodyMap.has(transfer.sourceId)) {
+      bodyStatus.set(transfer.sourceId, worstStatus(bodyStatus.get(transfer.sourceId) ?? "VERIFIED", transfer.scientificStatus));
+    }
+    if (bodyMap.has(transfer.destinationId)) {
+      bodyStatus.set(transfer.destinationId, worstStatus(bodyStatus.get(transfer.destinationId) ?? "VERIFIED", transfer.scientificStatus));
+    }
     if (transfer.mechanism === "CONTACT" || transfer.mechanism === "BATH" || transfer.mechanism === "CONVECTION") {
       add(internal, transfer.sourceId, -transfer.energyJ);
       add(internal, transfer.destinationId, transfer.energyJ);
@@ -404,7 +528,7 @@ export function evaluateThermalApparatusStep(input: {
 
   const reaction = new Map<string, number>();
   let reactionEnergyJ = 0;
-  for (const source of [...(input.reactionSources ?? [])].sort((a, b) => a.id.localeCompare(b.id))) {
+  for (const source of [...reactionSources].sort((a, b) => a.id.localeCompare(b.id))) {
     if (!Number.isFinite(source.energyJ) || !bodyMap.has(source.bodyId)) {
       diagnostics.push({ id: source.id, scientificStatus: "OPEN", reasonCodes: ["INVALID_REACTION_HEAT_SOURCE"] });
       continue;
@@ -414,14 +538,28 @@ export function evaluateThermalApparatusStep(input: {
     bodyStatus.set(source.bodyId, worstStatus(bodyStatus.get(source.bodyId) ?? "VERIFIED", source.scientificStatus));
   }
   if (!Number.isFinite(reactionEnergyJ)) {
-    return { scientificStatus: "OPEN", transfers: [], externalEnergyJ: 0, reactionEnergyJ: 0, bodyUpdates: [], diagnostics: [...diagnostics, { id: "reaction-total", scientificStatus: "OPEN", reasonCodes: ["NONFINITE_REACTION_ENERGY"] }] };
+    return {
+      scientificStatus: "OPEN",
+      transfers: [],
+      externalEnergyJ: 0,
+      reactionEnergyJ: 0,
+      bodyUpdates: [],
+      diagnostics: [...diagnostics, { id: "reaction-total", scientificStatus: "OPEN", reasonCodes: ["NONFINITE_REACTION_ENERGY"] }],
+    };
   }
 
   const externalEnergyJ = [...reservoir.values()].reduce((sum, value) => sum + value, 0)
     + [...heater.values()].reduce((sum, value) => sum + value, 0)
     - [...cooler.values()].reduce((sum, value) => sum + value, 0);
   if (!Number.isFinite(externalEnergyJ)) {
-    return { scientificStatus: "OPEN", transfers: [], externalEnergyJ: 0, reactionEnergyJ, bodyUpdates: [], diagnostics: [...diagnostics, { id: "external-total", scientificStatus: "OPEN", reasonCodes: ["NONFINITE_EXTERNAL_ENERGY"] }] };
+    return {
+      scientificStatus: "OPEN",
+      transfers: [],
+      externalEnergyJ: 0,
+      reactionEnergyJ,
+      bodyUpdates: [],
+      diagnostics: [...diagnostics, { id: "external-total", scientificStatus: "OPEN", reasonCodes: ["NONFINITE_EXTERNAL_ENERGY"] }],
+    };
   }
 
   const updates: ThermalBodyUpdate[] = [];
@@ -474,9 +612,8 @@ export function evaluateThermalApparatusStep(input: {
     ...updates.map((update) => update.scientificStatus),
     ...diagnostics.map((diagnostic) => diagnostic.scientificStatus),
   ];
-  const scientificStatus = statuses.length > 0 ? worstStatus(...statuses) : "VERIFIED";
   return {
-    scientificStatus,
+    scientificStatus: statuses.length > 0 ? worstStatus(...statuses) : "VERIFIED",
     transfers,
     externalEnergyJ,
     reactionEnergyJ,
