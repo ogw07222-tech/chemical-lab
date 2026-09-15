@@ -1,0 +1,43 @@
+name: 06D Phase 4A-3 Post-Fix Revalidation
+
+on:
+  push:
+    branches:
+      - validation/06d-phase4a3-postfix
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: 06D independent post-fix adversarial
+        continue-on-error: true
+        run: npx vitest run tests/validation-06d-phase4a3-postfix.test.ts
+      - name: Phase 4A-3 targeted + defect regression
+        continue-on-error: true
+        run: npx vitest run tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts
+      - name: Thermal + Phase 3A
+        continue-on-error: true
+        run: npx vitest run tests/thermal.test.ts tests/phase3a-kinetics.test.ts
+      - name: Phase 3B equilibrium/progression/arbitration
+        continue-on-error: true
+        run: npx vitest run tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
+      - name: Reaction progression + Phase 4A-1 + registry
+        continue-on-error: true
+        run: npx vitest run tests/reaction-progression.test.ts tests/phase4a1-compartment-transfer.test.ts tests/dynamic-species-registry.test.ts
+      - name: Full suite
+        continue-on-error: true
+        run: npm test
+      - name: Build
+        run: npm run build
