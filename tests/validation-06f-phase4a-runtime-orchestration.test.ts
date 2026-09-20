@@ -280,4 +280,30 @@ describe("06F Phase 4A runtime independent validation", () => {
     expect("provider" in r).toBe(false);
   });
 
+  it("ABSOLUTE regression: orchestrator must not commit inherited huge-dt passive contact reversal", () => {
+    const s = baseState();
+    const hot = tBody("vessel", 400, 100);
+    const warm = tBody("warm", 390, 100);
+    const cold = tBody("cold", 200, 100);
+    const state: Phase4ARuntimeState = {
+      ...s,
+      thermalBodies: [hot, warm, cold],
+      reactionNetwork: { ...s.reactionNetwork, thermalState: hot.state },
+    };
+    const c = cfg(noReaction);
+    c.dtS = 1e200;
+    c.gas.thermalBodyByCompartmentId = { head: "vessel" };
+    c.gas.primaryPressureCompartmentId = "head";
+    c.thermal = { contacts: [
+      { id: "hot-warm", bodyAId: "vessel", bodyBId: "warm", enabled: true, conductanceWPerK: 1e200, mechanism: "CONTACT", scientificStatus: "APPROXIMATED" },
+      { id: "hot-cold", bodyAId: "vessel", bodyBId: "cold", enabled: true, conductanceWPerK: 1e200, mechanism: "CONTACT", scientificStatus: "APPROXIMATED" },
+    ] };
+    const r = runPhase4AAuthoritativeTimestep(state, c);
+    expect(r.status).toBe("COMMITTED");
+    if (r.status !== "COMMITTED") return;
+    const temps = new Map(r.state.thermalBodies.map(b => [b.id, b.state.temperatureK] as const));
+    expect(temps.get("vessel")!).toBeGreaterThanOrEqual(temps.get("warm")!);
+    expect(temps.get("warm")!).toBeGreaterThanOrEqual(temps.get("cold")!);
+  });
+
 });
