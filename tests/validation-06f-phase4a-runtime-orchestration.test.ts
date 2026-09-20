@@ -238,4 +238,47 @@ describe("06F Phase 4A runtime independent validation", () => {
     expect(r.state).toBe(routed);
     if (r.status === "OPEN") expect(r.reasonCode).toBe("REACTION_GAS_SOURCE_ROUTING_OPEN");
   });
+  it("multiple reaction heat facts aggregate once through the single thermal reaction source", () => {
+    const multi: Phase4AReactionStageExecutor = ({ state, dtS, timestepId }) => ({
+      speciesAfter: state.species,
+      speciesRegistry: state.speciesRegistry,
+      progressEvents: [10, 20, 30].map((heatJ, i) => ({
+        id: timestepId + ":m" + i, timestepId, candidateId: "m" + i, sequence: i,
+        startTimeS: state.simTimeS, endTimeS: state.simTimeS + dtS, dtS, extentMol: 0,
+        reactantDeltasMol: {}, productDeltasMol: {}, speciesAmountDeltaMol: {},
+        deltaH_JPerMolExtent: 0, heatJ, scientificStatus: "APPROXIMATED" as const,
+        reasonCodes: ["SELECTED", "REACTION_HEAT_APPLIED"] as const,
+      })),
+      netSpeciesAmountDeltaMol: {},
+      knownReactionHeat_J: 60,
+      thermalCoverage: "COMPLETE",
+      thermalScientificStatus: "APPROXIMATED",
+      missingHeatCandidateIds: [],
+      reversiblePairs: [],
+    });
+    const r = runPhase4AAuthoritativeTimestep(baseState(), cfg(multi));
+    expect(r.status).toBe("COMMITTED");
+    if (r.status !== "COMMITTED") return;
+    expect(r.audit.reactionEnergyJ).toBe(60);
+    expect(vesselT(r.state)).toBeCloseTo(300.6, 12);
+    expect(r.state.reactionNetwork.thermalState.cumulativeEnergy.reactionHeat_J).toBeCloseTo(60, 12);
+    expect(r.provider.reaction.activeReactionEvents).toHaveLength(3);
+  });
+
+  it("final pressure OPEN rolls the whole timestep back and publishes no provider", () => {
+    const s = baseState();
+    const hugeSpecies = species("H2", 1e308);
+    const head = { ...s.matterSystem.compartments[0]!, species: [hugeSpecies] };
+    const huge: Phase4ARuntimeState = {
+      ...s,
+      matterSystem: { ...s.matterSystem, compartments: [head, s.matterSystem.compartments[1]!] },
+      reactionNetwork: { ...s.reactionNetwork, species: [hugeSpecies] },
+    };
+    const r = runPhase4AAuthoritativeTimestep(huge, cfg(noReaction));
+    expect(r.status).toBe("OPEN");
+    expect(r.state).toBe(huge);
+    if (r.status === "OPEN") expect(r.reasonCode).toBe("FINAL_PRESSURE_OPEN");
+    expect("provider" in r).toBe(false);
+  });
+
 });
