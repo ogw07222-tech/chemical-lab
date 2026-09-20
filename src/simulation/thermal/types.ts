@@ -1,3 +1,5 @@
+import type { PhaseKind, ScientificStatus, SpeciesId } from "../molecular";
+
 export type TemperatureK = number;
 export type EnergyJ = number;
 export type PowerW = number;
@@ -21,6 +23,8 @@ export interface ThermalEnergyLedger {
   phaseChangeLatentHeat_J: EnergyJ;
   /** Signed explicitly modeled miscellaneous external exchange. */
   otherExternalEnergy_J: EnergyJ;
+  /** Signed energy moved between explicitly modeled finite thermal bodies. */
+  internalTransferHeat_J?: EnergyJ;
 }
 
 export interface ThermalState {
@@ -69,10 +73,7 @@ export interface ThermalStepInput {
   thermostat?: ThermostatInput;
   /** Single reaction convenience input. Mutually exclusive with reactionHeat_J. */
   reactionHeat?: ReactionHeatInput;
-  /**
-   * Signed aggregate reaction heat already computed from actual applied extents.
-   * Positive values add thermal energy. Mutually exclusive with reactionHeat.
-   */
+  /** Signed aggregate reaction heat already computed from actual applied extents. */
   reactionHeat_J?: EnergyJ;
   environmentHeat_J?: EnergyJ;
   otherExternalEnergy_J?: EnergyJ;
@@ -80,8 +81,139 @@ export interface ThermalStepInput {
 
 export interface ThermalStepResult {
   state: ThermalState;
-  /** Signed net energy delivered to sensible thermal energy this step. */
   stepEnergyDelta_J: EnergyJ;
-  /** Alias retained to make the future latent-heat split explicit. */
   sensibleEnergyDelta_J: EnergyJ;
+}
+
+export type ThermalBodyId = string;
+
+export type ThermalBodyKind =
+  | "VESSEL"
+  | "HOT_PLATE"
+  | "BATH_MEDIUM"
+  | "CHAMBER_GAS"
+  | "LAB_ENVIRONMENT"
+  | "OTHER";
+
+export interface ThermalBody {
+  id: ThermalBodyId;
+  kind: ThermalBodyKind;
+  state: ThermalState;
+  scientificStatus: ScientificStatus;
+  source?: string;
+}
+
+export type ThermalContactMechanism = "CONTACT" | "BATH" | "CONVECTION";
+
+export interface ThermalContact {
+  id: string;
+  bodyAId: ThermalBodyId;
+  bodyBId: ThermalBodyId;
+  enabled: boolean;
+  conductanceWPerK: number;
+  mechanism: ThermalContactMechanism;
+  scientificStatus: ScientificStatus;
+  source?: string;
+}
+
+export type ThermalReservoirMechanism = "AMBIENT" | "CONTROLLED_CHAMBER";
+
+export interface ThermalReservoirBoundary {
+  id: string;
+  bodyId: ThermalBodyId;
+  enabled: boolean;
+  reservoirTemperatureK: TemperatureK;
+  conductanceWPerK: number;
+  mechanism: ThermalReservoirMechanism;
+  scientificStatus: ScientificStatus;
+  source?: string;
+}
+
+export type ThermalPowerMode = "HEATER" | "COOLER";
+export type ThermalApparatusKind =
+  | "HOT_PLATE"
+  | "HEATING_BATH"
+  | "COOLING_BATH"
+  | "HOT_AIR_CHAMBER"
+  | "OTHER";
+
+export interface ThermalPowerActuator {
+  id: string;
+  bodyId: ThermalBodyId;
+  enabled: boolean;
+  mode: ThermalPowerMode;
+  powerW: PowerW;
+  targetTemperatureK?: TemperatureK;
+  apparatusKind: ThermalApparatusKind;
+  scientificStatus: ScientificStatus;
+  source?: string;
+}
+
+export interface ThermalReactionSource {
+  id: string;
+  bodyId: ThermalBodyId;
+  energyJ: EnergyJ;
+  scientificStatus: ScientificStatus;
+  source?: string;
+}
+
+export type ThermalTransferMechanism =
+  | ThermalContactMechanism
+  | ThermalReservoirMechanism
+  | "EXTERNAL_HEATER"
+  | "EXTERNAL_COOLER";
+
+export interface ThermalTransfer {
+  id: string;
+  sourceId: string;
+  destinationId: string;
+  energyJ: EnergyJ;
+  mechanism: ThermalTransferMechanism;
+  scientificStatus: ScientificStatus;
+}
+
+export interface ThermalBodyUpdate {
+  bodyId: ThermalBodyId;
+  previousTemperatureK: TemperatureK;
+  temperatureK: TemperatureK;
+  netEnergy_J: EnergyJ;
+  internalTransferEnergy_J: EnergyJ;
+  reservoirEnergy_J: EnergyJ;
+  heaterEnergy_J: EnergyJ;
+  coolerEnergyRemoved_J: EnergyJ;
+  reactionEnergy_J: EnergyJ;
+  scientificStatus: ScientificStatus;
+  state: ThermalState;
+}
+
+export interface ThermalDiagnostic {
+  id: string;
+  scientificStatus: ScientificStatus;
+  reasonCodes: readonly string[];
+  /** Optional structured control/audit details; values are observational, not extra physics. */
+  details?: Readonly<Record<string, string | number | boolean>>;
+}
+
+export interface ThermalApparatusEvaluation {
+  scientificStatus: ScientificStatus;
+  transfers: readonly ThermalTransfer[];
+  externalEnergyJ: EnergyJ;
+  reactionEnergyJ: EnergyJ;
+  bodyUpdates: readonly ThermalBodyUpdate[];
+  diagnostics: readonly ThermalDiagnostic[];
+}
+
+export interface SpeciesMolarHeatCapacityInput {
+  speciesId: SpeciesId;
+  phase: PhaseKind;
+  molarHeatCapacity_JPerMolK: number;
+  scientificStatus: ScientificStatus;
+  source: string;
+}
+
+export interface MixtureHeatCapacityEvaluation {
+  heatCapacity_JPerK?: HeatCapacityJPerK;
+  scientificStatus: ScientificStatus;
+  includedSpeciesIds: readonly SpeciesId[];
+  missingSpeciesIds: readonly SpeciesId[];
 }

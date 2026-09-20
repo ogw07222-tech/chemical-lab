@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo, useReducer } from 'react';
-import type { Phase3AProviderProjection } from '../integration/phase3a-reaction-network';
-import { projectPhase3AReactionUi, type PlayerSpeciesKnowledgeResolver } from './reactionProjection';
+import type { Phase3BProviderProjection } from '../integration/phase3b-reversible-arbitration';
+import { projectPhase3BReactionUi, type PlayerSpeciesKnowledgeResolver } from './reactionProjection';
 import type { LaboratoryCommand, LaboratoryEvent, LaboratoryProviderValue, LaboratorySnapshot, PhaseDiagramViewModel, SubstanceSummary } from './types';
 
 const CATALOG: SubstanceSummary[] = [
@@ -27,10 +27,11 @@ const PHASE_FIXTURE: PhaseDiagramViewModel = {
 
 const UNKNOWN_SPECIES_BY_OBSERVATION: Readonly<Record<string, string>> = { 'fixture-unknown-1': 'h2o' };
 const GENERATED_FIXTURE_REF = 'generated:fixture-water';
+const REVERSIBLE_FIXTURE_PAIR_ID = 'internal:fixture-reversible-pair';
 
-// This fixture uses the exact PR #46 provider-facing contract. It is a rendering fixture only,
-// not a chemically validated reaction path.
-const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3AProviderProjection = {
+// Rendering fixture using the current production Phase 3B provider-facing projection.
+// Values are supplied as provider facts; UI code must not reconstruct or infer them.
+const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3BProviderProjection = {
   authoritativeVesselComposition: [
     { speciesRef: 'h2', amountMol: 0.35, phase: 'gas', phaseStateId: 'fixture-h2-gas' },
     { speciesRef: GENERATED_FIXTURE_REF, amountMol: 0.1, phase: 'unknown', phaseStateId: 'fixture-unknown-phase' },
@@ -44,6 +45,14 @@ const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3AProviderProjection = {
       reactionHeat_J: 42,
       scientificStatus: 'APPROXIMATED',
       reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+      reversiblePairId: REVERSIBLE_FIXTURE_PAIR_ID,
+      channelDirection: 'FORWARD',
+      equilibriumDirection: 'FORWARD',
+      equilibriumScientificStatus: 'APPROXIMATED',
+      equilibriumDrivingStrength: 0.625,
+      lnQOverK: -0.981,
+      reactionQuotientQ: 0.25,
+      equilibriumConstantK: 0.667,
     },
   ],
   timelineEvents: [
@@ -64,6 +73,14 @@ const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3AProviderProjection = {
       reactionHeat_J: 42,
       scientificStatus: 'APPROXIMATED',
       reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+      reversiblePairId: REVERSIBLE_FIXTURE_PAIR_ID,
+      channelDirection: 'FORWARD',
+      equilibriumDirection: 'FORWARD',
+      equilibriumScientificStatus: 'APPROXIMATED',
+      equilibriumDrivingStrength: 0.625,
+      lnQOverK: -0.981,
+      reactionQuotientQ: 0.25,
+      equilibriumConstantK: 0.667,
     },
     // Duplicate provider delivery is intentional: UI projection must de-duplicate by eventId.
     {
@@ -74,6 +91,30 @@ const REACTION_NETWORK_PROVIDER_FIXTURE: Phase3AProviderProjection = {
       reactionHeat_J: 42,
       scientificStatus: 'APPROXIMATED',
       reasonCodes: ['SELECTED', 'COARSE_RELATIVE_RATE_EXTENT', 'REACTION_HEAT_APPLIED'],
+      reversiblePairId: REVERSIBLE_FIXTURE_PAIR_ID,
+      channelDirection: 'FORWARD',
+      equilibriumDirection: 'FORWARD',
+      equilibriumScientificStatus: 'APPROXIMATED',
+      equilibriumDrivingStrength: 0.625,
+      lnQOverK: -0.981,
+      reactionQuotientQ: 0.25,
+      equilibriumConstantK: 0.667,
+    },
+  ],
+  reversiblePairs: [
+    {
+      reversiblePairId: REVERSIBLE_FIXTURE_PAIR_ID,
+      equilibriumDirection: 'FORWARD',
+      equilibriumScientificStatus: 'APPROXIMATED',
+      selectedChannelDirection: 'FORWARD',
+      drivingStrength: 0.625,
+      maxNetProgressFraction: 0.625,
+      preventEquilibriumCrossing: true,
+      maxExtentTowardEquilibriumMol: 0.08,
+      lnQOverK: -0.981,
+      reactionQuotientQ: 0.25,
+      equilibriumConstantK: 0.667,
+      reasonCodes: ['THERMODYNAMIC_DRIVE_SUPPORTED', 'APPROXIMATED_DRIVING_MODULATION', 'EQUILIBRIUM_CROSSING_BOUND_SUPPORTED'],
     },
   ],
 };
@@ -162,7 +203,7 @@ const LaboratoryContext = createContext<LaboratoryProviderValue | null>(null);
 export function MockLaboratoryProvider({ children, scenario = 'default' }: { children: ReactNode; scenario?: MockLaboratoryScenario }) {
   const [state, dispatch] = useReducer(reducer, scenario, createInitialState);
   const reactionUi = useMemo(() => state.scenario === 'reaction-network'
-    ? projectPhase3AReactionUi(REACTION_NETWORK_PROVIDER_FIXTURE, mockSpeciesResolver(state.generatedIdentityConfirmed), state.snapshot.developerMode)
+    ? projectPhase3BReactionUi(REACTION_NETWORK_PROVIDER_FIXTURE, mockSpeciesResolver(state.generatedIdentityConfirmed), state.snapshot.developerMode)
     : undefined, [state.scenario, state.generatedIdentityConfirmed, state.snapshot.developerMode]);
   const projectedSnapshot = reactionUi ? { ...state.snapshot, contents: reactionUi.contents } : state.snapshot;
   const phaseDiagrams = useMemo<Record<string, PhaseDiagramViewModel | undefined>>(() => ({ h2: { ...PHASE_FIXTURE, currentState: { temperatureK: projectedSnapshot.temperatureK, pressurePa: projectedSnapshot.pressurePa, phase: 'unknown' } } }), [projectedSnapshot.temperatureK, projectedSnapshot.pressurePa]);
@@ -172,6 +213,7 @@ export function MockLaboratoryProvider({ children, scenario = 'default' }: { chi
     events: state.events,
     reactionActivity: reactionUi?.reactionActivity,
     reactionEvents: reactionUi?.reactionEvents ?? [],
+    reversiblePairs: reactionUi?.reversiblePairs ?? [],
     reactionDeveloperDiagnostics: reactionUi?.developerDiagnostics,
     phaseDiagrams,
     dispatch,
