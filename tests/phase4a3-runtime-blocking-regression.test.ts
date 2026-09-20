@@ -61,4 +61,41 @@ describe("Phase 4A-3 runtime-blocking passive-contact regression", () => {
       result.bodyUpdates.reduce((sum, update) => sum + update.internalTransferEnergy_J, 0),
     ).toBeCloseTo(0, 10);
   });
+  it("is order-invariant for the same passive contact network", () => {
+    const bodies = [
+      body("vessel", 400),
+      body("warm", 390),
+      body("cold", 200),
+    ];
+    const contacts = [
+      {
+        id: "hot-warm",
+        bodyAId: "vessel",
+        bodyBId: "warm",
+        enabled: true,
+        conductanceWPerK: 1e200,
+        mechanism: "CONTACT" as const,
+        scientificStatus: "APPROXIMATED" as const,
+      },
+      {
+        id: "hot-cold",
+        bodyAId: "vessel",
+        bodyBId: "cold",
+        enabled: true,
+        conductanceWPerK: 1e200,
+        mechanism: "CONTACT" as const,
+        scientificStatus: "APPROXIMATED" as const,
+      },
+    ];
+
+    const first = evaluateThermalApparatusStep({ bodies, contacts, dtS: 1e200 });
+    const second = evaluateThermalApparatusStep({
+      bodies: [...bodies].reverse(),
+      contacts: [...contacts].reverse(),
+      dtS: 1e200,
+    });
+
+    expect(second).toEqual(first);
+  });
+
 });
