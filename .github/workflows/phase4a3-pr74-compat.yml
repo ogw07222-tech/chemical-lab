@@ -1,0 +1,34 @@
+name: Phase 4A-3 Fix PR74 Compatibility
+
+on:
+  push:
+    branches:
+      - validation/02-phase4a3-pr74-compat
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Thermal-only blocking regression
+        run: npx vitest run tests/phase4a3-runtime-blocking-regression.test.ts
+      - name: 06F independent runtime validation
+        run: npx vitest run tests/validation-06f-phase4a-runtime-orchestration.test.ts
+      - name: PR74 orchestration production regressions
+        run: npx vitest run tests/phase4a-runtime-orchestration.test.ts
+      - name: Phase 4A-3 regressions
+        run: npx vitest run tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts tests/thermal.test.ts
+      - run: npm run build
+      - run: git rev-parse HEAD
