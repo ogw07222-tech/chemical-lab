@@ -177,3 +177,82 @@ Integration PR #73 was merged to main with exact-head protection at `b6c41af3134
 Production merge SHA: `45b78c6c30bde4c3f457b2920015ad989c3d24ad`.
 
 Compare from the final integration HEAD to the production merge commit shows zero file delta; the merge commit tree is therefore identical to the validated integration branch tree. Source PRs #64/#66/#67/#68 were then closed as merged-equivalent/superseded with the production merge reference.
+
+
+## Phase 4A Thermal + Runtime Closeout — 2026-09-20
+
+### PR #75
+- exact independently validated production source: `52aa2df3141edbccdf5373b648892f4f946cf5eb`
+- executable/test implementation HEAD: `e2a5916184f88a7cb8b35e1b63820a1348b65ccf`
+- independent validation branch: `validation/06-phase4a3-runtime-blocking-fix`
+- independent validation HEAD: `5cf52dd85a52fe89368dda918c458462874ea591`
+- independent run: `35506221792` — SUCCESS
+- verdict: `PHASE4A3_DEFECT_FIX_INDEPENDENT_VALIDATION_PASS`
+- production merge: `c8fe4b86032a487e5a21246f47b25d5e2142465b`
+
+The final PR #75 HEAD after validation changed only by temporary workflow cleanup and docs/status updates; production/test semantics were unchanged.
+
+### PR #74 refresh
+- original orchestration HEAD: `a9280dff191e970fe61a404d83fd11ba2ac1a85f`
+- thermal-fixed main used for refresh: `c8fe4b86032a487e5a21246f47b25d5e2142465b`
+- refresh PR: #76
+- refreshed exact production HEAD: `f03bf2ff704d3b68df5cb9c40ddb737a226ada44`
+
+Compare from the original orchestration HEAD to the refreshed HEAD shows only the PR #75 thermal fix, its regression test, and related thermal docs/status. No orchestration source/test file changed.
+
+### Validation
+Native refreshed PR #74 verification:
+- run `35506603516` — SUCCESS
+- typecheck/lint: PASS
+- orchestration targeted: PASS
+- reaction progression: PASS
+- Phase 3A / Phase 3B: PASS
+- Phase 4A-1 / 4A-2 / 4A-3: PASS
+- Dynamic Species Registry: PASS
+- provider/UI targeted: PASS
+- full suite: PASS
+- build: PASS
+
+07 closeout compatibility gate:
+- validation branch: `validation/07-phase4a-runtime-closeout`
+- runner-only workflow commit: `2cbd884c586d163b6f7e9ce6519c17c807312b2e`
+- run: `35506705258` — SUCCESS
+
+This gate separately passed:
+- PR #75 runtime-blocking thermal regression;
+- previous 06D + Phase 4A-3 thermal regressions;
+- runtime orchestration critical tests;
+- Phase 4A-1 and Phase 4A-2;
+- reaction + Phase 3;
+- imported independent PR #75 thermal validator;
+- full suite;
+- production build.
+
+### Preserved runtime contracts
+PASS:
+- reaction heat applied exactly once: Q + apparatus, never 2Q + apparatus;
+- reaction extent/matter commit occurs before gas transport;
+- gas transport reads one immutable post-reaction snapshot;
+- Phase 4A-2 remains evaluator-only;
+- Phase 4A-1 remains authoritative matter-transfer commit boundary;
+- Phase 4A-3 remains thermal authority;
+- blocking OPEN/invalid thermal stage rolls back the staged timestep atomically;
+- final pressure uses post-transport gas inventory, final thermal temperature, and authoritative volume;
+- provider publication occurs only after complete timestep commit.
+
+No orchestration-side thermal workaround, duplicate clamp, duplicate thermal invariant, or fake OPEN conversion was added.
+
+### PR #74 production merge
+- exact merged HEAD: `f03bf2ff704d3b68df5cb9c40ddb737a226ada44`
+- production merge SHA: `13960705df99a1a2b4fe7091f6de10180fd75491`
+
+Compare from the exact refreshed HEAD to the merge commit has zero file delta.
+
+### Deployment
+No Vercel production deployment was performed by 07.
+Root `vercel.json` remains `git.deploymentEnabled = false`.
+
+### Final Gate
+**PASS — PHASE4A_RUNTIME_CLOSEOUT_PASS**
+
+Next HQ phase: Phase 4A-4 Liquid Properties & Volume Foundation.
