@@ -216,11 +216,17 @@ function normalizeFiniteContactNetwork(
     add(incoming, transfer.destinationId, transfer.energyJ);
     minimumSinkTemperature.set(
       transfer.sourceId,
-      Math.min(minimumSinkTemperature.get(transfer.sourceId) ?? Number.POSITIVE_INFINITY, transfer.destinationTemperatureK),
+      Math.min(
+        minimumSinkTemperature.get(transfer.sourceId) ?? Number.POSITIVE_INFINITY,
+        transfer.destinationTemperatureK,
+      ),
     );
     maximumSourceTemperature.set(
       transfer.destinationId,
-      Math.max(maximumSourceTemperature.get(transfer.destinationId) ?? Number.NEGATIVE_INFINITY, transfer.sourceTemperatureK),
+      Math.max(
+        maximumSourceTemperature.get(transfer.destinationId) ?? Number.NEGATIVE_INFINITY,
+        transfer.sourceTemperatureK,
+      ),
     );
   }
 
@@ -241,14 +247,66 @@ function normalizeFiniteContactNetwork(
     incomingScale.set(bodyId, requested > capJ && requested > 0 ? capJ / requested : 1);
   }
 
-  return raw.map((transfer) => ({
-    id: transfer.id,
-    sourceId: transfer.sourceId,
-    destinationId: transfer.destinationId,
+  const envelopeLimited = raw.map((transfer) => ({
+    ...transfer,
     energyJ: transfer.energyJ * Math.min(
       outgoingScale.get(transfer.sourceId) ?? 1,
       incomingScale.get(transfer.destinationId) ?? 1,
     ),
+  })).filter((transfer) => transfer.energyJ > 0);
+
+  if (envelopeLimited.length === 0) return [];
+
+  /*
+   * Pairwise closed-form relaxation is individually non-crossing, but multiple
+   * simultaneous contacts can still reverse an originally hot->cold edge when
+   * their energy requests are aggregated from one immutable snapshot.
+   *
+   * Apply one deterministic common network scale after the existing per-body
+   * envelope caps. For every snapshot hot->cold edge:
+   *
+   *   gap_final = gap_initial
+   *             + scale * (deltaT_source - deltaT_destination) >= 0
+   *
+   * Scaling every internal transfer by the same factor preserves exact
+   * equal-and-opposite internal energy accounting and avoids order-dependent
+   * sequential contact application.
+   */
+  const netInternalEnergy = new Map<string, number>();
+  for (const transfer of envelopeLimited) {
+    add(netInternalEnergy, transfer.sourceId, -transfer.energyJ);
+    add(netInternalEnergy, transfer.destinationId, transfer.energyJ);
+  }
+
+  let networkScale = 1;
+  for (const transfer of envelopeLimited) {
+    const source = bodyMap.get(transfer.sourceId)!;
+    const destination = bodyMap.get(transfer.destinationId)!;
+    const sourceCapacity = totalSensibleHeatCapacity_JPerK(source.state);
+    const destinationCapacity = totalSensibleHeatCapacity_JPerK(destination.state);
+    const initialGapK = transfer.sourceTemperatureK - transfer.destinationTemperatureK;
+
+    const sourceDeltaKAtFullScale =
+      (netInternalEnergy.get(transfer.sourceId) ?? 0) / sourceCapacity;
+    const destinationDeltaKAtFullScale =
+      (netInternalEnergy.get(transfer.destinationId) ?? 0) / destinationCapacity;
+    const gapClosingKAtFullScale =
+      destinationDeltaKAtFullScale - sourceDeltaKAtFullScale;
+
+    if (gapClosingKAtFullScale > 0 && gapClosingKAtFullScale > initialGapK) {
+      networkScale = Math.min(networkScale, initialGapK / gapClosingKAtFullScale);
+    }
+  }
+
+  if (!Number.isFinite(networkScale) || networkScale < 0) {
+    throw new Error("Invalid finite-contact network scale");
+  }
+
+  return envelopeLimited.map((transfer) => ({
+    id: transfer.id,
+    sourceId: transfer.sourceId,
+    destinationId: transfer.destinationId,
+    energyJ: transfer.energyJ * networkScale,
     mechanism: transfer.mechanism,
     scientificStatus: transfer.scientificStatus,
   })).filter((transfer) => transfer.energyJ > 0);
