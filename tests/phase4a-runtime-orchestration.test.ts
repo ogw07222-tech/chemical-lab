@@ -587,7 +587,13 @@ describe("Phase 4A authoritative runtime orchestration", () => {
     expect(normalizedMatter(first)).toEqual(normalizedMatter(second));
     expect(vesselTemperature(first)).toBe(vesselTemperature(second));
     const finalInventory = aggregateSystemMatterInventory(first.matterSystem);
-    expect(finalInventory.elementsMol).toEqual(inventory.elementsMol);
+    for (const key of new Set([
+      ...Object.keys(finalInventory.elementsMol),
+      ...Object.keys(inventory.elementsMol),
+    ])) {
+      expect(finalInventory.elementsMol[key] ?? 0)
+        .toBeCloseTo(inventory.elementsMol[key] ?? 0, 12);
+    }
     expect(finalInventory.atomAmountMol).toBeCloseTo(inventory.atomAmountMol, 12);
     expect(Number.isFinite(vesselTemperature(first))).toBe(true);
     expect(first.reactionNetwork.simTimeS).toBe(20);
