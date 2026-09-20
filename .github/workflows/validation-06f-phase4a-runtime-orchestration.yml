@@ -1,0 +1,43 @@
+name: 06F Phase 4A Runtime Orchestration Validation
+
+on:
+  push:
+    branches:
+      - validation/06f-phase4a-runtime-orchestration
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: 06F independent adversarial
+        run: npx vitest run tests/validation-06f-phase4a-runtime-orchestration.test.ts
+      - name: Phase 4A runtime targeted
+        run: npx vitest run tests/phase4a-runtime-orchestration.test.ts
+      - name: Reaction Phase2 Phase3
+        run: npx vitest run tests/reaction-progression.test.ts tests/phase2-reaction-integration.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3a-reaction-network.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
+      - name: Phase 4A-1
+        run: npx vitest run tests/phase4a1-compartment-foundation.test.ts
+      - name: Phase 4A-2
+        run: npx vitest run tests/phase4a2-gas-transport.test.ts tests/phase4a2-gas-transport-defect-regression.test.ts
+      - name: Phase 4A-3
+        run: npx vitest run tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts
+      - name: Registry
+        run: npx vitest run tests/dynamic-species-registry.test.ts tests/dynamic-species-registry.validation.test.ts tests/generated-species-reference-enrichment.test.ts
+      - name: Provider UI
+        run: npx vitest run tests/ui/apparatus-provider.test.tsx tests/ui/LaboratoryWorkspace.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx
+      - name: Full suite
+        run: npm test
+      - name: Build
+        run: npm run build
