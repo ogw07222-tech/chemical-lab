@@ -267,16 +267,15 @@ describe("06F Phase 4A runtime independent validation", () => {
 
   it("final pressure OPEN rolls the whole timestep back and publishes no provider", () => {
     const s = baseState();
-    const hugeSpecies = species("H2", 1e308);
-    const head = { ...s.matterSystem.compartments[0]!, species: [hugeSpecies] };
-    const huge: Phase4ARuntimeState = {
+    const extremeState = { ...s.thermalBodies[0]!.state, temperatureK: 1e308 };
+    const extreme: Phase4ARuntimeState = {
       ...s,
-      matterSystem: { ...s.matterSystem, compartments: [head, s.matterSystem.compartments[1]!] },
-      reactionNetwork: { ...s.reactionNetwork, species: [hugeSpecies] },
+      thermalBodies: s.thermalBodies.map(b => b.id === "vessel" ? { ...b, state: extremeState } : b),
+      reactionNetwork: { ...s.reactionNetwork, thermalState: extremeState },
     };
-    const r = runPhase4AAuthoritativeTimestep(huge, cfg(noReaction));
+    const r = runPhase4AAuthoritativeTimestep(extreme, cfg(noReaction));
     expect(r.status).toBe("OPEN");
-    expect(r.state).toBe(huge);
+    expect(r.state).toBe(extreme);
     if (r.status === "OPEN") expect(r.reasonCode).toBe("FINAL_PRESSURE_OPEN");
     expect("provider" in r).toBe(false);
   });
