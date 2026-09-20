@@ -88,6 +88,16 @@ All contacts are evaluated from the same immutable snapshot, canonically ordered
 
 For contact-only exchange, a body is not allowed to move outside the temperature envelope of the finite bodies exchanging energy with it during the snapshot. Energy scaling is applied to the transfer itself, preserving equal-and-opposite finite-body energy accounting.
 
+In addition, simultaneous passive contacts must preserve the snapshot hot-to-cold ordering on every active contact edge. Pairwise no-crossing is insufficient when one body participates in multiple contacts: individually valid pairwise energy requests can aggregate into a result where a snapshot-hot body becomes colder than a directly connected snapshot-cold body.
+
+After the per-body envelope caps, Phase 4A-3 therefore computes the aggregate internal-energy delta of the entire finite-contact network and applies one deterministic common scale in [0, 1] when needed so that, for every snapshot hot-to-cold edge:
+
+`T_source,next >= T_destination,next`.
+
+The scale is derived analytically from the initial temperature gap, each body's heat capacity, and the aggregate network energy delta. It is not a fitted tolerance or timestep micro-substep. Applying one common scale to all internal transfers preserves equal-and-opposite internal energy accounting and avoids order-dependent first-contact-wins behavior.
+
+This is a coarse lumped-network stability bound, not a claim to solve the exact coupled heat-equation dynamics within one timestep. Repeated timesteps continue the deterministic relaxation.
+
 ## External reservoir boundaries
 `ThermalReservoirBoundary` explicitly models an external/infinite reservoir approximation such as lab ambient or a controlled chamber boundary.
 
