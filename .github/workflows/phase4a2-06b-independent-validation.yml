@@ -27,6 +27,9 @@ jobs:
       - name: 06B long-run and scaling validation
         if: always()
         run: npx vitest run tests/validation/phase4a2-06b-longrun-performance.test.ts
+      - name: 06B post-fix randomized invariants
+        if: always()
+        run: npx vitest run tests/validation/phase4a2-06b-postfix-randomized.test.ts
       - name: Phase 4A-2 targeted
         if: always()
         run: npx vitest run tests/phase4a2-gas-transport.test.ts
