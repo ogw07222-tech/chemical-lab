@@ -125,7 +125,7 @@ describe("06F Phase 4A runtime independent validation", () => {
     const r = runPhase4AAuthoritativeTimestep(s, cfg(reaction(0, "OPEN")));
     expect(r.status).toBe("OPEN");
     expect(r.state).toBe(s);
-    expect((r as any).provider).toBeUndefined();
+    expect("provider" in r).toBe(false);
   });
 
   it("gas OPEN rolls back reaction progress and publishes no half-step", () => {
@@ -136,7 +136,7 @@ describe("06F Phase 4A runtime independent validation", () => {
     expect(r.status).toBe("OPEN");
     expect(r.state).toBe(s);
     expect(amount(s, "head", "H2")).toBe(1);
-    expect((r as any).provider).toBeUndefined();
+    expect("provider" in r).toBe(false);
   });
 
   it("thermal OPEN rolls back already-evaluated reaction/gas stages", () => {
@@ -149,7 +149,7 @@ describe("06F Phase 4A runtime independent validation", () => {
     const r = runPhase4AAuthoritativeTimestep(s, c);
     expect(r.status).toBe("OPEN");
     expect(r.state).toBe(s);
-    expect((r as any).provider).toBeUndefined();
+    expect("provider" in r).toBe(false);
   });
 
   it("final pressure uses final post-heating temperature rather than stale T", () => {
