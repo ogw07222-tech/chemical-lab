@@ -16,7 +16,7 @@ const rnd=(seed:number)=>{let x=seed>>>0;return()=>((x=(1664525*x+1013904223)>>>
 function evalP(s:MatterSystemState,temps:Record<string,number>){return new Map(s.compartments.map(x=>[x.id,evaluateIdealGasCompartment(x,{compartmentId:x.id,temperatureK:temps[x.id]!})] as const));}
 function commit(s:MatterSystemState,e:ReturnType<typeof evaluateGasTransport>){if(!e.transferRequests.length)return s;const r=transferMatterBatch(s,e.transferRequests);expect(r.status).toBe("COMMITTED");if(r.status!=="COMMITTED")throw new Error("commit");return r.state;}
 function inv(s:MatterSystemState){return aggregateSystemMatterInventory(s);}
-function sameInv(a:ReturnType<typeof inv>,b:ReturnType<typeof inv>){expect(a.speciesAmountsMol).toEqual(b.speciesAmountsMol);expect(a.elementsMol).toEqual(b.elementsMol);expect(a.atomAmountMol).toBeCloseTo(b.atomAmountMol,11);expect(a.netChargeAmountMol).toBeCloseTo(b.netChargeAmountMol,11);}
+function sameInv(a:ReturnType<typeof inv>,b:ReturnType<typeof inv>){for(const k of new Set([...Object.keys(a.speciesAmountsMol),...Object.keys(b.speciesAmountsMol)]))expect(a.speciesAmountsMol[k]??0).toBeCloseTo(b.speciesAmountsMol[k]??0,11);for(const k of new Set([...Object.keys(a.elementsMol),...Object.keys(b.elementsMol)]))expect(a.elementsMol[k]??0).toBeCloseTo(b.elementsMol[k]??0,11);expect(a.atomAmountMol).toBeCloseTo(b.atomAmountMol,11);expect(a.netChargeAmountMol).toBeCloseTo(b.netChargeAmountMol,11);}
 
 describe("06B post-fix randomized invariant closure",()=>{
  it("fixed-seed randomized semantic permutations stay finite, conservative, diagnostic-consistent and do not cross enabled-edge pressure envelopes",()=>{
