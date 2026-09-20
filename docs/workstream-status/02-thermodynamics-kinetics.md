@@ -1,5 +1,32 @@
 # 02 — Thermodynamics & Kinetics
 
+## Phase 4A-3 Runtime-Blocking Thermal Defect Fix — 2026-09-20
+
+- Source main: `9b20efc90dae89ae6334e84cffb846d7386959d4`.
+- Related runtime PR #74 HEAD: `a9280dff191e970fe61a404d83fd11ba2ac1a85f`.
+- Independent 06F evidence: validation run `35505453765` failed only the inherited huge-dt passive-contact reversal gate while the other 13 runtime adversarial checks passed.
+- Thermal-only pre-fix reproduction: workflow `35505727018` failed on the reduced Phase 4A-3 fixture without PR #74 orchestration.
+- Root cause: pairwise closed-form contact requests were individually non-crossing, but the existing multi-contact envelope did not prevent aggregate simultaneous transfers from reversing a snapshot hot-to-cold edge.
+- Fix branch: `fix/phase4a3-runtime-blocking-thermal`.
+- Exact implementation/test HEAD: `e2a5916184f88a7cb8b35e1b63820a1348b65ccf`.
+- Implementation validation run `35505805791`: SUCCESS.
+  - exact thermal regression 2/2 PASS;
+  - Phase 4A-3 + 06D + thermal 63/63 PASS;
+  - Phase 3/reaction 77/77 PASS;
+  - Phase 4A-1/4A-2 51/51 PASS;
+  - registry 38/38 PASS;
+  - full suite 34 files / 411 tests PASS;
+  - typecheck/lint/build PASS (one pre-existing UI hook warning, zero lint errors).
+- PR #74 compatibility validation branch `validation/02-phase4a3-pr74-compat` overlaid only the thermal fix onto exact PR #74 HEAD.
+- Compatibility run `35505869648`: SUCCESS.
+  - thermal-only regression 2/2 PASS;
+  - copied 06F independent runtime validation 14/14 PASS;
+  - PR #74 production orchestration regressions 17/17 PASS;
+  - Phase 4A-3 regression stack 63/63 PASS;
+  - build PASS.
+- No PR #74 production change is required by this defect.
+- Independent 06 revalidation of the actual fix PR remains required before merge.
+
 - Owner: Thermodynamics Simulation Developer / Chemical Kinetics Systems Developer / Equilibrium Model Architect / Energy Model Architect
 - Current integration scope: Phase 4A-2 Gas Transport + Phase 4A-3 Thermal Apparatus
 - Overall state: independently validated feature contracts coexisting on unified integration branch
