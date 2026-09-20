@@ -1,0 +1,66 @@
+name: 06 Phase 4A-3 PR74 Compatibility Independent Validation
+
+on:
+  push:
+    branches:
+      - validation/06-phase4a3-pr74-compat-independent
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Overlay exact PR75 thermal implementation in working tree only
+        run: |
+          git fetch origin 52aa2df3141edbccdf5373b648892f4f946cf5eb b58b9e9105967ad3c445c33f2f85a578e91db281
+          git show 52aa2df3141edbccdf5373b648892f4f946cf5eb:src/simulation/thermal/apparatus.ts > src/simulation/thermal/apparatus.ts
+          git show b58b9e9105967ad3c445c33f2f85a578e91db281:tests/validation-06f-phase4a-runtime-orchestration.test.ts > tests/validation-06f-phase4a-runtime-orchestration.test.ts
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint
+      - name: PR74 production orchestration
+        id: runtime
+        continue-on-error: true
+        run: npm test -- tests/phase4a-runtime-orchestration.test.ts
+      - name: Independent 06F runtime validation with PR75 thermal fix
+        id: independent
+        continue-on-error: true
+        run: npm test -- tests/validation-06f-phase4a-runtime-orchestration.test.ts
+      - name: Thermal blocking regression
+        id: thermal
+        continue-on-error: true
+        run: npm test -- tests/phase4a3-runtime-blocking-regression.test.ts tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Record exact validation sources
+        run: |
+          echo "validation-branch-head=$(git rev-parse HEAD)"
+          echo "pr74-source=a9280dff191e970fe61a404d83fd11ba2ac1a85f"
+          echo "pr75-thermal-source=52aa2df3141edbccdf5373b648892f4f946cf5eb"
+          git diff -- src/simulation/thermal/apparatus.ts
+      - name: Enforce compatibility gate
+        if: always()
+        run: |
+          test "${{ steps.typecheck.outcome }}" = "success"
+          test "${{ steps.lint.outcome }}" = "success"
+          test "${{ steps.runtime.outcome }}" = "success"
+          test "${{ steps.independent.outcome }}" = "success"
+          test "${{ steps.thermal.outcome }}" = "success"
+          test "${{ steps.build.outcome }}" = "success"
