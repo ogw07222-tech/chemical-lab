@@ -1,0 +1,59 @@
+name: 07 Phase 4A Runtime Closeout Validation
+
+on:
+  push:
+    branches:
+      - validation/07-phase4a-runtime-closeout
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+
+      - name: PR75 exact thermal blocking regression
+        run: npm test -- tests/phase4a3-runtime-blocking-regression.test.ts
+
+      - name: Previous 06D and Phase 4A-3 regressions
+        run: npm test -- tests/phase4a3-06d-defect-regression.test.ts tests/phase4a3-thermal-apparatus.test.ts tests/thermal.test.ts
+
+      - name: Runtime orchestration criticals
+        run: npm test -- tests/phase4a-runtime-orchestration.test.ts
+
+      - name: Phase 4A-1 and 4A-2
+        run: npm test -- tests/phase4a1-compartment-foundation.test.ts tests/phase4a2-gas-transport.test.ts tests/phase4a2-gas-transport-defect-regression.test.ts
+
+      - name: Reaction and Phase 3
+        run: npm test -- tests/reaction-progression.test.ts tests/phase3a-dimensioned-resolver.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3a-reaction-network.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
+
+      - name: Import independent PR75 validator
+        shell: bash
+        run: |
+          mkdir -p tests/validation
+          git show 5cf52dd85a52fe89368dda918c458462874ea591:tests/validation/phase4a3-runtime-blocking-independent.test.ts > tests/validation/phase4a3-runtime-blocking-independent.test.ts
+
+      - name: Independent thermal fix regression
+        run: npm test -- tests/validation/phase4a3-runtime-blocking-independent.test.ts
+
+      - name: Full suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Exact tested commit
+        run: git rev-parse HEAD
