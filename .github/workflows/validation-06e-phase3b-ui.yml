@@ -1,0 +1,37 @@
+name: 06E Phase 3B UI Independent Validation
+
+on:
+  push:
+    branches:
+      - validation/06e-phase3b-ui
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Phase 3B equilibrium UI targeted
+        run: npx vitest run tests/ui/chemistry/Phase3BEquilibriumVisualization.test.tsx
+      - name: UI workspace regressions
+        if: always()
+        run: npx vitest run tests/ui/LaboratoryWorkspace.test.tsx tests/ui/WorkbenchPlacementSurface.test.tsx
+      - name: Phase 3B simulation regressions
+        if: always()
+        run: npx vitest run tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts tests/phase3b-reversible-arbitration.test.ts
+      - name: Full suite
+        if: always()
+        run: npm test
+      - name: Build
+        if: always()
+        run: npm run build
