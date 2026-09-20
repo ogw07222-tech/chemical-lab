@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { DeveloperEquilibriumDiagnostics, EquilibriumDetails, EquilibriumInlineStatus } from './chemistry/equilibrium/EquilibriumPresentation';
 import { useLaboratory } from './provider';
 import { selectCurrentUnknown, selectSpecies, selectVisibleInventory } from './selectors';
 import type { PhaseDiagramViewModel, ReactionProgressView, ReactionSpeciesView, ScientificStatus, SubstanceSummary, VesselContentView } from './types';
@@ -6,7 +7,7 @@ import { celsiusToKelvin, cubicMetersToLiters, formatPressure, formatTemperature
 import { WorkbenchPlacementSurface, WorkbenchShell } from './workbench';
 import './styles.css';
 
-const ANALYSIS_TABS = ['구성', '생성물', '그래프', '상', '타임라인', '실험 기록'] as const;
+const ANALYSIS_TABS = ['구성', '생성물', '그래프', '상', '평형', '타임라인', '실험 기록'] as const;
 type AnalysisTab = typeof ANALYSIS_TABS[number];
 type CatalogFilter = 'all' | 'element' | 'compound' | 'favorite';
 type InspectorTab = 'info' | 'notes';
@@ -65,7 +66,7 @@ function PhaseDiagram({ data }: { data?: PhaseDiagramViewModel }) {
 function ReactionTimelineEvent({ event }: { event: ReactionProgressView }) {
   const consumed = event.consumed.length ? event.consumed.map((item) => reactionParticipantText(item, event.scientificStatus)).join(' + ') : '—';
   const produced = event.produced.length ? event.produced.map((item) => reactionParticipantText(item, event.scientificStatus)).join(' + ') : '—';
-  return <div aria-label={`반응 단계 ${event.timelineOrder + 1}`}><time>{event.endTimeS.toFixed(1)}s</time><span><strong>Step {event.timelineOrder + 1}</strong> · {consumed} → {produced} · {statusLabel(event.scientificStatus)} · {event.reactionHeat.label}<small> · {event.timestepId} / seq {event.sourceSequence}</small></span></div>;
+  return <div aria-label={`반응 단계 ${event.timelineOrder + 1}`}><time>{event.endTimeS.toFixed(1)}s</time><span><strong>Step {event.timelineOrder + 1}</strong> · {consumed} → {produced} · {statusLabel(event.scientificStatus)} · {event.reactionHeat.label}{event.equilibrium && <> · <EquilibriumInlineStatus value={event.equilibrium}/></>}<small> · {event.timestepId} / seq {event.sourceSequence}</small></span></div>;
 }
 
 function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
@@ -75,6 +76,7 @@ function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
     {tab==='생성물' && <p>권위 있는 관찰/분석 결과가 확인된 물질만 여기에 표시됩니다.</p>}
     {tab==='그래프' && <p>시계열 데이터 어댑터 대기 중: species / T / P / concentration / activity.</p>}
     {tab==='상' && <PhaseDiagram data={diagram}/>} 
+    {tab==='평형' && <><EquilibriumDetails pairs={lab.reversiblePairs}/>{lab.snapshot.developerMode && <DeveloperEquilibriumDiagnostics diagnostics={lab.reactionDeveloperDiagnostics}/>}</>}
     {tab==='타임라인' && <div className="timeline"><section aria-label="반응 타임라인">{lab.reactionEvents.length ? lab.reactionEvents.map((event)=><ReactionTimelineEvent key={event.id} event={event}/>) : <p>기록된 반응 이벤트가 없습니다.</p>}</section><section aria-label="실험 이벤트">{lab.events.length ? lab.events.map((event)=><div key={event.id}><time>{event.simulationTimeS.toFixed(1)}s</time><span>{event.message}</span></div>) : <p>기록된 실험 이벤트가 없습니다.</p>}</section>{lab.snapshot.developerMode && lab.reactionDeveloperDiagnostics && <details aria-label="Developer reaction diagnostics"><summary>DEV reaction diagnostics</summary>{lab.reactionDeveloperDiagnostics.events.map((event)=><div key={event.eventId}><code>{event.candidateId}</code><small> consumed: {event.consumedSpeciesRefs.join(', ') || '—'} · produced: {event.producedSpeciesRefs.join(', ') || '—'}</small></div>)}</details>}</div>}
     {tab==='실험 기록' && <p>{lab.reactionEvents.length + lab.events.length}개의 provider 이벤트가 표시됩니다. 저장/재생 어댑터는 추후 연결됩니다.</p>}
   </div></section>;
@@ -82,7 +84,7 @@ function WorkbenchAnalysis({ selected }: { selected?: SubstanceSummary }) {
 
 function ReactionActivityStrip() {
   const { reactionActivity } = useLaboratory();
-  return <section className="observation-strip reaction-activity-strip" aria-label="반응 활동"><span><strong>반응 활동</strong> {reactionActivity?.label ?? '감지된 반응 없음'}</span><span>{reactionActivity ? `${reactionActivity.simulationTimeS.toFixed(1)}s · ${statusLabel(reactionActivity.scientificStatus)}` : 'provider event 없음'}</span></section>;
+  return <section className="observation-strip reaction-activity-strip" aria-label="반응 활동"><span><strong>반응 활동</strong> {reactionActivity?.label ?? '감지된 반응 없음'}{reactionActivity?.equilibrium && <> · <EquilibriumInlineStatus value={reactionActivity.equilibrium}/></>}</span><span>{reactionActivity ? `${reactionActivity.simulationTimeS.toFixed(1)}s · ${statusLabel(reactionActivity.scientificStatus)}` : 'provider event 없음'}</span></section>;
 }
 
 function LabWorkspace({ selected }: { selected?: SubstanceSummary }) {

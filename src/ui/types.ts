@@ -2,6 +2,7 @@ export type SimulationStatus = 'stopped' | 'paused' | 'running' | 'stable' | 'er
 export type Phase = 'gas' | 'liquid' | 'solid' | 'aqueous' | 'supercritical' | 'plasma' | 'multiphase' | 'unknown';
 export type ScientificStatus = 'VERIFIED' | 'APPROXIMATED' | 'EMPIRICAL' | 'GAMEPLAY_SIMPLIFICATION' | 'OPEN';
 export type SubstanceCategory = 'element' | 'compound';
+export type EquilibriumDisplayDirection = 'FORWARD' | 'REVERSE' | 'NEAR_EQUILIBRIUM' | 'INDETERMINATE';
 
 export interface MoleculeAtomView { id: string; element: string; formalCharge: number; }
 export interface MoleculeBondView { id: string; from: string; to: string; order: 1 | 2 | 3; }
@@ -57,6 +58,22 @@ export interface ReactionHeatView {
   label: string;
 }
 
+/** Player-facing Phase 3B facts. Raw pair/candidate/species identifiers are intentionally absent. */
+export interface EquilibriumPresentationView {
+  direction: EquilibriumDisplayDirection;
+  directionLabel: string;
+  scientificStatus: ScientificStatus;
+  reversible: true;
+  drivingStrength?: number;
+  lnQOverK?: number;
+  reactionQuotientQ?: number;
+  equilibriumConstantK?: number;
+}
+
+export interface ReversiblePairPresentationView extends EquilibriumPresentationView {
+  label: string;
+}
+
 export interface ReactionProgressView {
   id: string;
   timestepId: string;
@@ -69,6 +86,7 @@ export interface ReactionProgressView {
   consumed: ReactionSpeciesView[];
   produced: ReactionSpeciesView[];
   reactionHeat: ReactionHeatView;
+  equilibrium?: EquilibriumPresentationView;
 }
 
 export interface ReactionActivityView {
@@ -77,6 +95,7 @@ export interface ReactionActivityView {
   simulationTimeS: number;
   scientificStatus: ScientificStatus;
   label: string;
+  equilibrium?: EquilibriumPresentationView;
 }
 
 export interface ReactionDeveloperEventDiagnostic {
@@ -84,10 +103,34 @@ export interface ReactionDeveloperEventDiagnostic {
   candidateId: string;
   consumedSpeciesRefs: string[];
   producedSpeciesRefs: string[];
+  reversiblePairId?: string;
+  channelDirection?: 'FORWARD' | 'REVERSE';
+  equilibriumDirection?: EquilibriumDisplayDirection;
+  equilibriumScientificStatus?: ScientificStatus;
+  equilibriumDrivingStrength?: number;
+  lnQOverK?: number;
+  reactionQuotientQ?: number;
+  equilibriumConstantK?: number;
+}
+
+export interface ReactionDeveloperPairDiagnostic {
+  reversiblePairId: string;
+  equilibriumDirection: EquilibriumDisplayDirection;
+  equilibriumScientificStatus: ScientificStatus;
+  selectedChannelDirection?: 'FORWARD' | 'REVERSE';
+  drivingStrength: number;
+  maxNetProgressFraction: number;
+  preventEquilibriumCrossing: boolean;
+  maxExtentTowardEquilibriumMol?: number;
+  lnQOverK?: number;
+  reactionQuotientQ?: number;
+  equilibriumConstantK?: number;
+  reasonCodes: readonly string[];
 }
 
 export interface ReactionDeveloperDiagnostics {
   events: ReactionDeveloperEventDiagnostic[];
+  reversiblePairs?: ReactionDeveloperPairDiagnostic[];
 }
 
 export interface LaboratorySnapshot {
@@ -142,6 +185,7 @@ export interface LaboratoryProviderValue {
   events: LaboratoryEvent[];
   reactionActivity?: ReactionActivityView;
   reactionEvents: ReactionProgressView[];
+  reversiblePairs: ReversiblePairPresentationView[];
   reactionDeveloperDiagnostics?: ReactionDeveloperDiagnostics;
   phaseDiagrams: Record<string, PhaseDiagramViewModel | undefined>;
   dispatch(command: LaboratoryCommand): void;

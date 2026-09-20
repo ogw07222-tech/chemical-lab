@@ -4,11 +4,22 @@ import type {
   ReactionFactSpeciesAmount,
 } from '../integration/phase3a-reaction-network';
 import type {
+  Phase3BProviderProjection,
+  Phase3BReactionFactProjection,
+} from '../integration/phase3b-reversible-arbitration';
+import {
+  projectEventDeveloperDiagnostic,
+  projectEventEquilibrium,
+  projectPairDeveloperDiagnostic,
+  projectPairEquilibrium,
+} from './chemistry/equilibrium/presentation';
+import type {
   ReactionActivityView,
   ReactionDeveloperDiagnostics,
   ReactionHeatView,
   ReactionProgressView,
   ReactionSpeciesView,
+  ReversiblePairPresentationView,
   ScientificStatus,
   VesselContentView,
 } from './types';
@@ -27,6 +38,10 @@ export interface Phase3AReactionUiProjection {
   reactionEvents: ReactionProgressView[];
   reactionActivity?: ReactionActivityView;
   developerDiagnostics?: ReactionDeveloperDiagnostics;
+}
+
+export interface Phase3BReactionUiProjection extends Phase3AReactionUiProjection {
+  reversiblePairs: ReversiblePairPresentationView[];
 }
 
 function heatView(event: ReactionFactProjection): ReactionHeatView {
@@ -77,9 +92,9 @@ function eventView(
   };
 }
 
-function dedupeTimeline(events: readonly ReactionFactProjection[]): ReactionFactProjection[] {
+function dedupeTimeline<T extends ReactionFactProjection>(events: readonly T[]): T[] {
   const seen = new Set<string>();
-  const unique: ReactionFactProjection[] = [];
+  const unique: T[] = [];
   for (const event of events) {
     if (seen.has(event.eventId)) continue;
     seen.add(event.eventId);
@@ -136,6 +151,47 @@ export function projectPhase3AReactionUi(
   return {
     contents,
     reactionEvents,
+    ...(reactionActivity === undefined ? {} : { reactionActivity }),
+    ...(developerDiagnostics === undefined ? {} : { developerDiagnostics }),
+  };
+}
+
+export function projectPhase3BReactionUi(
+  provider: Phase3BProviderProjection,
+  resolveSpecies: PlayerSpeciesKnowledgeResolver,
+  developerMode = false,
+): Phase3BReactionUiProjection {
+  const base = projectPhase3AReactionUi(provider, resolveSpecies, false);
+  const uniqueTimeline = dedupeTimeline(provider.timelineEvents);
+  const sourceByEventId = new Map<string, Phase3BReactionFactProjection>(
+    uniqueTimeline.map((event) => [event.eventId, event] as const),
+  );
+  const reactionEvents = base.reactionEvents.map((event) => {
+    const source = sourceByEventId.get(event.id);
+    const equilibrium = source === undefined ? undefined : projectEventEquilibrium(source);
+    return equilibrium === undefined ? event : { ...event, equilibrium };
+  });
+
+  const latestActive = dedupeTimeline(provider.activeReactionEvents).at(-1);
+  const reactionActivity = base.reactionActivity === undefined || latestActive === undefined
+    ? base.reactionActivity
+    : (() => {
+      const equilibrium = projectEventEquilibrium(latestActive);
+      return equilibrium === undefined ? base.reactionActivity : { ...base.reactionActivity, equilibrium };
+    })();
+
+  const reversiblePairs = provider.reversiblePairs.map((pair, index) => projectPairEquilibrium(pair, index));
+  const developerDiagnostics = developerMode
+    ? {
+      events: uniqueTimeline.map(projectEventDeveloperDiagnostic),
+      reversiblePairs: provider.reversiblePairs.map(projectPairDeveloperDiagnostic),
+    } satisfies ReactionDeveloperDiagnostics
+    : undefined;
+
+  return {
+    contents: base.contents,
+    reactionEvents,
+    reversiblePairs,
     ...(reactionActivity === undefined ? {} : { reactionActivity }),
     ...(developerDiagnostics === undefined ? {} : { developerDiagnostics }),
   };
