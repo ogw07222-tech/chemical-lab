@@ -1,0 +1,77 @@
+name: 06 Phase 4A-3 Runtime-Blocking Fix Independent Validation
+
+on:
+  push:
+    branches:
+      - validation/06-phase4a3-runtime-blocking-fix
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        id: typecheck
+        continue-on-error: true
+        run: npm run typecheck
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint
+      - name: Exact defect regression
+        id: exact
+        continue-on-error: true
+        run: npm test -- tests/phase4a3-runtime-blocking-regression.test.ts
+      - name: Independent adversarial validation
+        id: independent
+        continue-on-error: true
+        run: npm test -- tests/validation/phase4a3-runtime-blocking-independent.test.ts
+      - name: Phase 4A-3 and previous 06D regressions
+        id: thermal
+        continue-on-error: true
+        run: npm test -- tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts tests/thermal.test.ts
+      - name: Phase 3 reaction regressions
+        id: phase3
+        continue-on-error: true
+        run: npm test -- tests/phase3a-reaction-network.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-reversible-arbitration.test.ts tests/reaction-progression.test.ts
+      - name: Phase 4A-1 and 4A-2 regressions
+        id: mattergas
+        continue-on-error: true
+        run: npm test -- tests/phase4a1-compartment-foundation.test.ts tests/phase4a2-gas-transport.test.ts tests/phase4a2-gas-transport-defect-regression.test.ts
+      - name: Dynamic Species Registry regressions
+        id: registry
+        continue-on-error: true
+        run: npm test -- tests/dynamic-species-registry.test.ts tests/dynamic-species-registry.validation.test.ts
+      - name: Full suite
+        id: full
+        continue-on-error: true
+        run: npm test
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: npm run build
+      - name: Exact HEAD
+        run: git rev-parse HEAD
+      - name: Enforce gate
+        if: always()
+        run: |
+          test "${{ steps.typecheck.outcome }}" = "success"
+          test "${{ steps.lint.outcome }}" = "success"
+          test "${{ steps.exact.outcome }}" = "success"
+          test "${{ steps.independent.outcome }}" = "success"
+          test "${{ steps.thermal.outcome }}" = "success"
+          test "${{ steps.phase3.outcome }}" = "success"
+          test "${{ steps.mattergas.outcome }}" = "success"
+          test "${{ steps.registry.outcome }}" = "success"
+          test "${{ steps.full.outcome }}" = "success"
+          test "${{ steps.build.outcome }}" = "success"
