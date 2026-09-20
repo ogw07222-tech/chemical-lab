@@ -1,0 +1,34 @@
+name: 06D Phase 4A-3 Thermal Validation
+
+on:
+  push:
+    branches:
+      - validation/06d-phase4a3-thermal
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: 06D adversarial + Phase 4A-3 targeted
+        run: npx vitest run tests/validation-06d-phase4a3.test.ts tests/phase4a3-thermal-apparatus.test.ts
+      - name: Thermal and cross-phase regression
+        if: always()
+        run: npx vitest run tests/thermal.test.ts tests/phase3a-kinetics.test.ts tests/phase3b-equilibrium.test.ts tests/phase3b-reversible-arbitration.test.ts tests/reaction-progression.test.ts tests/phase4a1-compartment-transfer.test.ts tests/dynamic-species-registry.test.ts
+      - name: Full suite
+        if: always()
+        run: npm test
+      - name: Build
+        if: always()
+        run: npm run build
