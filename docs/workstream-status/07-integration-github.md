@@ -2,7 +2,7 @@
 
 - Owner: Lead Integration Developer / Repository Maintainer / GitHub Integration Engineer / CI / Deployment Coordinator
 - Current phase: Unified Phase 4A + UI production integration
-- Overall state: PASS — unified integration branch validated, pending final integration PR merge
+- Overall state: PASS — UNIFIED_INTEGRATION_PASS
 - Last updated: 2026-09-20
 
 ## Source of Truth
@@ -172,4 +172,8 @@ Root `vercel.json` must remain:
 ## Final Integration Gate
 **PASS — unified Phase 4A transport, thermal, equilibrium UI, and particle UI stack validated on the integration branch.**
 
-Next step: create one integration PR from `integration/phase4a-ui-stack` to `main`, recheck main/HEAD, merge with exact-head protection, then mark #64/#66/#67/#68 superseded by the resulting integration merge.
+Integration PR #73 was merged to main with exact-head protection at `b6c41af3134dd60b6705d339ad1fd28c1547b32f`.
+
+Production merge SHA: `45b78c6c30bde4c3f457b2920015ad989c3d24ad`.
+
+Compare from the final integration HEAD to the production merge commit shows zero file delta; the merge commit tree is therefore identical to the validated integration branch tree. Source PRs #64/#66/#67/#68 were then closed as merged-equivalent/superseded with the production merge reference.
