@@ -39,10 +39,6 @@ function update(result: ThermalApparatusEvaluation, id: string) {
   return value;
 }
 
-function temperatureMap(result: ThermalApparatusEvaluation) {
-  return Object.fromEntries(result.bodyUpdates.map((entry) => [entry.bodyId, entry.temperatureK]));
-}
-
 function sensibleEnergy(bodies: readonly ThermalBody[]): number {
   return bodies.reduce(
     (sum, entry) =>
@@ -89,7 +85,16 @@ function assertSnapshotEdgesDoNotCross(
     if (a0 === b0) continue;
     const hotId = a0 > b0 ? edge.bodyAId : edge.bodyBId;
     const coldId = a0 > b0 ? edge.bodyBId : edge.bodyAId;
-    expect(final.get(hotId)!).toBeGreaterThanOrEqual(final.get(coldId)!);
+    const hotFinal = final.get(hotId)!;
+    const coldFinal = final.get(coldId)!;
+    // Existing project numerical philosophy uses 1e-12 engineering tolerances.
+    // Add an IEEE-754 scale term so equality at the analytic boundary is not
+    // misclassified solely by a few ulps of final division/addition rounding.
+    const roundingToleranceK = Math.max(
+      1e-12,
+      16 * Number.EPSILON * Math.max(1, Math.abs(hotFinal), Math.abs(coldFinal)),
+    );
+    expect(hotFinal + roundingToleranceK).toBeGreaterThanOrEqual(coldFinal);
   }
 }
 
