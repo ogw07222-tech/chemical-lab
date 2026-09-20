@@ -1,0 +1,71 @@
+name: Phase 4A Runtime Orchestration Verification
+
+on:
+  push:
+    branches:
+      - feature/phase4a-runtime-orchestration
+
+permissions:
+  contents: read
+
+jobs:
+  verify-runtime-orchestration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Reproducible install
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Phase 4A orchestration targeted
+        run: npm test -- tests/phase4a-runtime-orchestration.test.ts
+
+      - name: Reaction progression
+        run: npm test -- tests/reaction-progression.test.ts tests/phase2-reaction-integration.test.ts
+
+      - name: Phase 3A
+        run: npm test -- tests/phase3a-dimensioned-resolver.test.ts tests/phase3a-kinetics-thermal.test.ts tests/phase3a-reaction-network.test.ts
+
+      - name: Phase 3B equilibrium
+        run: npm test -- tests/phase3b-equilibrium.test.ts tests/phase3b-equilibrium-progression.test.ts
+
+      - name: Phase 3B reversible arbitration
+        run: npm test -- tests/phase3b-reversible-arbitration.test.ts
+
+      - name: Phase 4A-1
+        run: npm test -- tests/phase4a1-compartment-foundation.test.ts
+
+      - name: Phase 4A-2
+        run: npm test -- tests/phase4a2-gas-transport.test.ts tests/phase4a2-gas-transport-defect-regression.test.ts
+
+      - name: Phase 4A-3
+        run: npm test -- tests/phase4a3-thermal-apparatus.test.ts tests/phase4a3-06d-defect-regression.test.ts
+
+      - name: Dynamic Species Registry
+        run: npm test -- tests/dynamic-species-registry.test.ts tests/dynamic-species-registry.validation.test.ts tests/generated-species-reference-enrichment.test.ts
+
+      - name: Provider and UI targeted
+        run: npm test -- tests/ui/chemistry/Phase3BEquilibriumVisualization.test.tsx tests/ui/chemistry/ParticleMatterVisualization.test.ts tests/ui/apparatus-provider.test.tsx tests/ui/apparatus/ApparatusUi.test.tsx
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Tested commit
+        run: git rev-parse HEAD
