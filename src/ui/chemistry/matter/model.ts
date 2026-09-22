@@ -35,7 +35,9 @@ export interface MatterVisualModel {
   totalParticles: number;
 }
 
-export const MAX_PARTICLES_PER_VESSEL = 900;
+export const MOLES_PER_VISUAL_PARTICLE = 0.01;
+export const MAX_VISUALIZED_AMOUNT_MOL = 20;
+export const MAX_PARTICLES_PER_VESSEL = MAX_VISUALIZED_AMOUNT_MOL / MOLES_PER_VISUAL_PARTICLE;
 export const PARTICLE_RADIUS_CSS_PX = 0.85;
 
 const VISUALIZATION_PALETTE = [
@@ -87,13 +89,12 @@ export function regionBoundsForPhase(phase: MatterVisualPhase): MatterVisualRegi
   return { x0: 0.1, y0: 0.18, x1: 0.9, y1: 0.9 };
 }
 
-export function visualParticleCount(relativePresence: number, phase: MatterVisualPhase): number {
-  if (!Number.isFinite(relativePresence) || relativePresence <= 0) return 0;
-  const root = Math.sqrt(relativePresence);
-  if (phase === 'GAS') return Math.min(120, Math.max(10, Math.round(26 + root * 28)));
-  if (phase === 'LIQUID') return Math.min(360, Math.max(80, Math.round(120 + root * 115)));
-  if (phase === 'SOLID') return Math.min(460, Math.max(140, Math.round(220 + root * 135)));
-  return Math.min(100, Math.max(12, Math.round(32 + root * 24)));
+export function visualParticleCount(amountMol: number): number {
+  if (!Number.isFinite(amountMol) || amountMol <= 0) return 0;
+  return Math.min(
+    MAX_PARTICLES_PER_VESSEL,
+    Math.floor((amountMol + Number.EPSILON) / MOLES_PER_VISUAL_PARTICLE),
+  );
 }
 
 function fallbackVisualKey(content: VesselContentView, index: number): string {
@@ -156,7 +157,7 @@ export function buildMatterVisualModel(
     if (remaining <= 0) return;
     const phase = visualPhaseForProviderPhase(content.phase);
     const visualKey = fallbackVisualKey(content, contentIndex);
-    const requested = visualParticleCount(content.amountMol, phase);
+    const requested = visualParticleCount(content.amountMol);
     const count = Math.min(requested, remaining);
     const bounds = regionBoundsForPhase(phase);
     const bucket = buckets.get(phase) ?? [];
