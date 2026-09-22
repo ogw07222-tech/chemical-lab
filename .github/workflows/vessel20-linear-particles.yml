@@ -1,0 +1,33 @@
+name: Vessel 20 mol + Linear Particle Verification
+
+on:
+  push:
+    branches:
+      - feature/vessel-20mol-linear-particles
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - name: Gameplay amount-cap tests
+        run: npm test -- tests/game/progression.test.ts tests/game/generatedSpeciesKnowledge.test.ts
+      - name: Particle visualization tests
+        run: npm test -- tests/ui/chemistry/ParticleMatterVisualization.test.ts
+      - name: UI regression
+        run: npm test -- tests/ui/LaboratoryWorkspace.test.tsx tests/ui/WorkbenchPlacementSurface.test.tsx
+      - name: Full test suite
+        run: npm test
+      - name: Production build
+        run: npm run build
