@@ -139,7 +139,7 @@ describe("generated species player knowledge boundary", () => {
         vesselId: "vessel-1",
         speciesKey: generated.speciesId,
         amountMol: 0.01,
-      }).ok,
+      }, { currentVesselTotalAmountMol: 0 }).ok,
     ).toBe(true);
     expect(
       validateAddUnlockedMaterial(confirmed.progression.state, {
