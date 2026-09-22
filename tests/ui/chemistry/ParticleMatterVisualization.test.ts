@@ -4,6 +4,8 @@ import { animatedParticlePosition } from '../../../src/ui/chemistry/matter/Matte
 import {
   buildMatterVisualModel,
   MAX_PARTICLES_PER_VESSEL,
+  MAX_VISUALIZED_AMOUNT_MOL,
+  MOLES_PER_VISUAL_PARTICLE,
   regionBoundsForPhase,
   visualParticleCount,
   visualizationColorForKey,
@@ -42,9 +44,19 @@ describe('particle matter visualization model', () => {
     expect(colors.size).toBe(1);
   });
 
-  it('encodes phase primarily through density policy: gas < liquid < solid', () => {
-    expect(visualParticleCount(1, 'GAS')).toBeLessThan(visualParticleCount(1, 'LIQUID'));
-    expect(visualParticleCount(1, 'LIQUID')).toBeLessThan(visualParticleCount(1, 'SOLID'));
+  it('maps amount linearly at one dot per 0.01 mol independent of phase', () => {
+    expect(visualParticleCount(0.009)).toBe(0);
+    expect(visualParticleCount(0.01)).toBe(1);
+    expect(visualParticleCount(0.25)).toBe(25);
+    expect(visualParticleCount(1)).toBe(100);
+    expect(MOLES_PER_VISUAL_PARTICLE).toBe(0.01);
+  });
+
+  it('maps the 20 mol visualization ceiling to exactly 2000 dots', () => {
+    expect(MAX_VISUALIZED_AMOUNT_MOL).toBe(20);
+    expect(MAX_PARTICLES_PER_VESSEL).toBe(2000);
+    expect(visualParticleCount(20)).toBe(2000);
+    expect(visualParticleCount(100)).toBe(2000);
   });
 
   it('initializes the same snapshot deterministically without rerender flicker', () => {
