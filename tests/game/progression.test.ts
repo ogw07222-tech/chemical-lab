@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_VESSEL_TOTAL_AMOUNT_MOL,
   PROGRESSION_SCHEMA_VERSION,
   UnsupportedProgressionSaveVersionError,
   createInitialProgressionState,
@@ -116,7 +117,7 @@ describe("progression runtime", () => {
         vesselId: "vessel-1",
         speciesKey: "H2O",
         amountMol: 0.01,
-      });
+      }, { currentVesselTotalAmountMol: 0 });
       expect(result.ok).toBe(true);
     }
 
@@ -146,7 +147,7 @@ describe("progression runtime", () => {
       vesselId: "vessel-1",
       speciesKey: "H2",
       amountMol: 0.25,
-    });
+    }, { currentVesselTotalAmountMol: 0 });
     expect(result).toEqual({
       ok: true,
       request: {
@@ -158,6 +159,39 @@ describe("progression runtime", () => {
         source: "starter",
       },
     });
+  });
+
+  it("allows additions up to exactly 20 mol total and rejects overflow", () => {
+    const state = createInitialProgressionState(starterSet);
+    const exact = validateAddUnlockedMaterial(state, {
+      kind: "AddUnlockedMaterial",
+      commandId: "fill-to-limit",
+      vesselId: "vessel-1",
+      speciesKey: "H2",
+      amountMol: 0.01,
+    }, { currentVesselTotalAmountMol: 19.99 });
+    expect(exact.ok).toBe(true);
+
+    const overflow = validateAddUnlockedMaterial(state, {
+      kind: "AddUnlockedMaterial",
+      commandId: "overflow",
+      vesselId: "vessel-1",
+      speciesKey: "H2",
+      amountMol: 0.02,
+    }, { currentVesselTotalAmountMol: 19.99 });
+    expect(overflow).toEqual({ ok: false, error: "VESSEL_AMOUNT_LIMIT_EXCEEDED" });
+    expect(MAX_VESSEL_TOTAL_AMOUNT_MOL).toBe(20);
+  });
+
+  it("requires authoritative current vessel amount context for finite additions", () => {
+    const state = createInitialProgressionState(starterSet);
+    expect(validateAddUnlockedMaterial(state, {
+      kind: "AddUnlockedMaterial",
+      commandId: "missing-vessel-context",
+      vesselId: "vessel-1",
+      speciesKey: "H2",
+      amountMol: 1,
+    })).toEqual({ ok: false, error: "VESSEL_AMOUNT_CONTEXT_REQUIRED" });
   });
 
   it("developer mode bypasses access but does not mutate progression state", () => {
@@ -172,7 +206,7 @@ describe("progression runtime", () => {
         speciesKey: "LOCKED_TEST_SPECIES",
         amountMol: 1,
       },
-      { developerModeEnabled: true },
+      { developerModeEnabled: true, currentVesselTotalAmountMol: 0 },
     );
 
     expect(result.ok).toBe(true);
@@ -194,7 +228,7 @@ describe("progression runtime", () => {
           speciesKey: "CO2",
           amountMol: 1,
         },
-        { premium: true },
+        { premium: true, currentVesselTotalAmountMol: 0 },
       ),
     ).toEqual({ ok: false, error: "LOCKED_SPECIES" });
   });
