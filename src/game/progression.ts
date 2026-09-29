@@ -1,5 +1,7 @@
 export const PROGRESSION_SCHEMA_VERSION = 1 as const;
 export const UNLIMITED_UNLOCKED = "UNLIMITED_UNLOCKED" as const;
+export const MAX_VESSEL_TOTAL_AMOUNT_MOL = 20 as const;
+const VESSEL_AMOUNT_TOLERANCE_MOL = 1e-12;
 
 export type SpeciesKey = string;
 export type ExperimentId = string;
@@ -81,6 +83,8 @@ export interface ProgressionTransitionResult {
 export interface MaterialAccessContext {
   developerModeEnabled?: boolean;
   premium?: boolean;
+  /** Authoritative current total amount already present in the target vessel. */
+  currentVesselTotalAmountMol?: number;
 }
 
 export interface AddUnlockedMaterialCommand {
@@ -102,7 +106,9 @@ export interface SimulationMaterialAdditionRequest {
 
 export type MaterialCommandValidationError =
   | "LOCKED_SPECIES"
-  | "INVALID_AMOUNT";
+  | "INVALID_AMOUNT"
+  | "VESSEL_AMOUNT_CONTEXT_REQUIRED"
+  | "VESSEL_AMOUNT_LIMIT_EXCEEDED";
 
 export type MaterialCommandValidationResult =
   | { ok: true; request: SimulationMaterialAdditionRequest }
@@ -262,6 +268,14 @@ export function validateAddUnlockedMaterial(
 ): MaterialCommandValidationResult {
   if (!Number.isFinite(command.amountMol) || command.amountMol <= 0) {
     return { ok: false, error: "INVALID_AMOUNT" };
+  }
+
+  const currentVesselTotalAmountMol = context.currentVesselTotalAmountMol;
+  if (!Number.isFinite(currentVesselTotalAmountMol) || (currentVesselTotalAmountMol ?? -1) < 0) {
+    return { ok: false, error: "VESSEL_AMOUNT_CONTEXT_REQUIRED" };
+  }
+  if (currentVesselTotalAmountMol! + command.amountMol > MAX_VESSEL_TOTAL_AMOUNT_MOL + VESSEL_AMOUNT_TOLERANCE_MOL) {
+    return { ok: false, error: "VESSEL_AMOUNT_LIMIT_EXCEEDED" };
   }
 
   if (!isSpeciesAccessible(state, command.speciesKey, context)) {
