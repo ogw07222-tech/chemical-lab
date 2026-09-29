@@ -1,0 +1,42 @@
+name: 06 Vessel 20 mol Linear Particle Validation
+
+on:
+  push:
+    branches:
+      - validation/06-vessel20-linear-particles
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Independent vessel/dot adversarial validation
+        run: npx vitest run tests/validation/vessel20-linear-particles-independent.test.ts
+      - name: Gameplay regression
+        if: always()
+        run: npx vitest run tests/game/progression.test.ts tests/game/generatedSpeciesKnowledge.test.ts
+      - name: Particle regression
+        if: always()
+        run: npx vitest run tests/ui/chemistry/ParticleMatterVisualization.test.ts
+      - name: UI regression
+        if: always()
+        run: npx vitest run tests/ui/LaboratoryWorkspace.test.tsx tests/ui/WorkbenchPlacementSurface.test.tsx
+      - name: Full suite
+        if: always()
+        run: npm test
+      - name: Build
+        if: always()
+        run: npm run build
