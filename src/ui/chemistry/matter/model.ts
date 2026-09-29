@@ -91,9 +91,11 @@ export function regionBoundsForPhase(phase: MatterVisualPhase): MatterVisualRegi
 
 export function visualParticleCount(amountMol: number): number {
   if (!Number.isFinite(amountMol) || amountMol <= 0) return 0;
+  const exactCount = amountMol / MOLES_PER_VISUAL_PARTICLE;
+  const boundaryTolerance = Number.EPSILON * Math.max(1, Math.abs(exactCount)) * 8;
   return Math.min(
     MAX_PARTICLES_PER_VESSEL,
-    Math.floor((amountMol + Number.EPSILON) / MOLES_PER_VISUAL_PARTICLE),
+    Math.floor(exactCount + boundaryTolerance),
   );
 }
 
