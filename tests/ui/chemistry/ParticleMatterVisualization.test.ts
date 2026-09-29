@@ -49,6 +49,7 @@ describe('particle matter visualization model', () => {
     expect(visualParticleCount(0.01)).toBe(1);
     expect(visualParticleCount(0.25)).toBe(25);
     expect(visualParticleCount(1)).toBe(100);
+    expect(visualParticleCount(19.99)).toBe(1999);
     expect(MOLES_PER_VISUAL_PARTICLE).toBe(0.01);
   });
 
